@@ -186,6 +186,11 @@ const valid: [string, (value: unknown) => unknown, unknown][] = [
   ["custom agent usage", decodeCustomAgentUsage, [{ id: "devin", text: "Plan: Pro\n42% left" }]],
   ["a model list", decodeDiscoverModelsResult, { models: [{ id: "qwen3" }] }],
   [
+    "a model list with its context window",
+    decodeDiscoverModelsResult,
+    { models: [{ id: "large", contextWindow: 1_048_576 }] },
+  ],
+  [
     "detection settings",
     decodeProviderDetectionSettings,
     { enabled: true, addresses: ["http://192.168.1.20:11434/v1"], folders: ["~/bin"], hiddenIds: [] },
@@ -259,6 +264,21 @@ const malformed: [string, (value: unknown) => unknown, unknown][] = [
   ["custom agent usage of an invalid id", decodeCustomAgentUsage, [{ id: "Not An Id", text: "42%" }]],
   ["custom agent usage with no text", decodeCustomAgentUsage, [{ id: "devin", text: null }]],
   ["a model list with an empty id", decodeDiscoverModelsResult, { models: [{ id: "" }] }],
+  [
+    "a model list with a string context window",
+    decodeDiscoverModelsResult,
+    { models: [{ id: "large", contextWindow: "1048576" }] },
+  ],
+  [
+    "a model list with a context window below the minimum",
+    decodeDiscoverModelsResult,
+    { models: [{ id: "large", contextWindow: 0 }] },
+  ],
+  [
+    "a model list with a context window above the maximum",
+    decodeDiscoverModelsResult,
+    { models: [{ id: "large", contextWindow: 100_000_001 }] },
+  ],
   [
     "detection settings without a switch",
     decodeProviderDetectionSettings,
