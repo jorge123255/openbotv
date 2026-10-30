@@ -51,6 +51,7 @@ export function usePlanLimitRows() {
       text,
     );
     const extra = grokRow();
-    return extra ? [...rows, extra] : rows;
+    // The grok-bot agent provider also reports the same quota as a provider row; keep only the richer account row.
+    return extra ? [...rows.filter((row) => row.provider !== "grok-bot"), extra] : rows;
   });
 }
