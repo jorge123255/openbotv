@@ -2288,11 +2288,11 @@ async function runFocusScenario(browser: BrowserHost, origin: string): Promise<v
  * A page that redirects while it loads made `loadURL` reject inside Electron's `did-start-navigation`
  * event, and the tab then called `webContents.stop()` before that event returned. Chromium stops the
  * process when a navigation is cancelled while it starts. The process must survive and end on the
- * redirected page.
+ * redirected page, and each navigation must succeed.
  */
 async function runRedirectNavigationScenario(browser: BrowserHost, origin: string): Promise<void> {
   const tab = await runCauseEffect(browser.open(origin, "smoke-thread", "smoke-bot"));
-  const outcomes: { via: string; url: string; success: boolean; error?: string }[] = [];
+  const outcomes: { via: string; url: string; success: boolean; finalUrl?: string; error?: string }[] = [];
   try {
     for (let attempt = 0; attempt < 10; attempt += 1) {
       for (const url of [`${origin}/redirect-start`, `${origin}/redirect-start?slow`]) {
@@ -2310,6 +2310,14 @@ async function runRedirectNavigationScenario(browser: BrowserHost, origin: strin
           success: exit._tag === "Success",
           ...(exit._tag === "Success" ? {} : { error: String(exit.cause) }),
         });
+        const opened = await Effect.runPromiseExit(browser.open(url, "smoke-thread", "smoke-bot"));
+        outcomes.push({
+          via: "open",
+          url,
+          success: opened._tag === "Success" && opened.value.url.includes("/redirect-end"),
+          ...(opened._tag === "Success" ? { finalUrl: opened.value.url } : { error: String(opened.cause) }),
+        });
+        if (opened._tag === "Success") await runCauseEffect(browser.close(opened.value.id));
       }
     }
     await waitFor(
@@ -2328,6 +2336,8 @@ async function runRedirectNavigationScenario(browser: BrowserHost, origin: strin
     ".openbot-build/browser-redirect-navigation-report.json",
     JSON.stringify({ processAlive: true, attempts: outcomes.length, outcomes }, null, 2),
   );
+  const failed = outcomes.filter((outcome) => !outcome.success);
+  if (failed.length > 0) throw new Error(`${failed.length} redirecting navigations failed: ${failed[0]?.error}`);
   process.stdout.write(`BrowserHost: ${outcomes.length} redirecting navigations kept the process alive.\n`);
 }
 
@@ -2438,6 +2448,45 @@ async function runWaitDeadlines(browser: BrowserHost, tabId: string, v2Contents:
     "clearInterval(globalThis.__openbotNoise); delete globalThis.__openbotNoise; true",
     true,
   );
+  // A click that reached the page and then stopped its renderer. The timeout must say the input
+  // arrived, so the agent checks the page instead of repeating the click. A separate site keeps the
+  // stopped renderer away from the `/v2` tab.
+  const address = server.address();
+  if (!address || isString(address)) throw new Error("Local server address was not available.");
+  const frozenClickOrigin = `http://frozen-click.localhost:${address.port}`;
+  const frozenClickTab = await runCauseEffect(
+    browser.open(`${frozenClickOrigin}/spinning-frame`, "smoke-thread", "smoke-bot"),
+  );
+  const frozenClickContents = webContents
+    .getAllWebContents()
+    .find((contents) => !contents.isDestroyed() && contents.getURL().startsWith(frozenClickOrigin));
+  if (!frozenClickContents) throw new Error("Frozen click fixture web contents were not available.");
+  let frozenClicks = 0;
+  frozenClickContents.on("console-message", (details: ElectronEvent<WebContentsConsoleMessageEventParams>) => {
+    if (details.message === "frozen click ran") frozenClicks += 1;
+  });
+  await frozenClickContents.executeJavaScript(
+    "document.querySelector('button').onclick = () => { console.info('frozen click ran'); while (true) {} }; true",
+    true,
+  );
+  const frozenClick = await callBrowserTool(browser, "click", {
+    tabId: frozenClickTab.id,
+    target: { kind: "role", role: "button", name: "Blocked frame button", exact: true },
+    timeoutMs: 1_000,
+  });
+  await waitFor(async () => frozenClicks > 0, "the frozen click to reach the page");
+  if (
+    frozenClick.success ||
+    !toolError(frozenClick).includes("timed out after its input reached the page") ||
+    frozenClicks !== 1
+  ) {
+    throw new Error(`V2 click timeout did not report input that reached the page: ${JSON.stringify(frozenClick)}`);
+  }
+  const frozenClickClosed = await Promise.race([
+    runCauseEffect(browser.close(frozenClickTab.id)).then(() => true),
+    new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 5_000)),
+  ]);
+  if (!frozenClickClosed) throw new Error("V2 frozen click timeout left the tab queue blocked.");
 }
 
 /**
