@@ -204,19 +204,10 @@
   white-space: nowrap;
 }
 
-.roster-status-full {
-  display: none;
-  white-space: normal;
-}
-
-.roster-row:hover .roster-status-short,
-.roster-row:focus-visible .roster-status-short {
-  display: none;
-}
-
-.roster-row:hover .roster-status-full,
-.roster-row:focus-visible .roster-status-full {
-  display: block;
+.roster-tooltip {
+  max-width: min(36ch, calc(100vw - var(--openbot-space-4)));
+  overflow-wrap: anywhere;
+  font-weight: var(--openbot-weight-regular);
 }
 
 .roster-time {

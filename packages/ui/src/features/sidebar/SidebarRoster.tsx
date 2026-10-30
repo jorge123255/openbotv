@@ -3,8 +3,8 @@
  * A press wakes a quiet agent and opens its chat.
  */
 
-import type { AppTextKey, AppTranslate } from "@openbot/i18n";
-import { AudioLines, Button } from "@openbot/ui";
+import type { AppFormat, AppTextKey, AppTranslate } from "@openbot/i18n";
+import { AudioLines, Button, LabelTooltip, LabelTooltipTrigger } from "@openbot/ui";
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import type { AvatarMood } from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
@@ -23,6 +23,7 @@ import {
 } from "./roster-model";
 import { playRosterSound, type RosterCue } from "./roster-sound";
 import { SidebarEmptyState } from "./SidebarEmptyState";
+import { sidebarAgentStateLabel } from "./sidebar-filtering";
 import { useSidebarScope } from "./sidebar-scope";
 import type { SidebarAgentState } from "./sidebar-types";
 
@@ -47,16 +48,13 @@ function rosterCopy(
   agent: AgentProfile,
   state: SidebarAgentState | undefined,
   t: AppTranslate,
-): {
-  short: string;
-  full: string;
-} {
-  const waiting = state?.kind === "waiting" ? state.detail?.trim() : undefined;
+  format: AppFormat,
+): string {
   const preview = agent.preview.trim();
-  const description = agent.description.trim();
-  const short = waiting || preview || t("sidebar.roster.status.empty");
-  const full = description && description !== short ? description : short;
-  return { short, full };
+  if (!state) return preview || t("sidebar.roster.status.empty");
+  const status = sidebarAgentStateLabel(state, t, format);
+  if ((state.kind === "unread" || state.kind === "responded") && preview) return `${status} · ${preview}`;
+  return status;
 }
 
 function rosterTimeLabel(time: RosterTime, t: AppTranslate): string {
@@ -69,68 +67,70 @@ function rosterTimeLabel(time: RosterTime, t: AppTranslate): string {
 
 function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number }) {
   const { props, touchRosterAgent } = useSidebarScope();
-  const { t } = useText();
+  const { t, format } = useText();
   const agent = () => props.agents.find((item) => item.id === rowProps.entry.id);
   const state = () => props.agentStates[rowProps.entry.id];
   const needsYou = () => state()?.kind === "waiting";
   const mood = (): AvatarMood => (rowProps.entry.asleep ? "asleep" : (props.agentMoods[rowProps.entry.id] ?? "idle"));
   const copy = () => {
     const current = agent();
-    return current ? rosterCopy(current, state(), t) : { short: "", full: "" };
+    return current ? rosterCopy(current, state(), t, format) : "";
   };
   const time = () => rosterTimeLabel(rosterRelativeTime(rowProps.entry.activityAt, rowProps.now), t);
   const label = () => {
     const current = agent();
     if (!current) return "";
-    const status = needsYou() ? `${copy().full}. ${t("sidebar.roster.needsYou")}` : copy().full;
+    const status = needsYou() ? `${copy()}. ${t("sidebar.roster.needsYou")}` : copy();
     return t("sidebar.roster.row", { name: current.name, status, time: time() });
   };
   return (
     <Show when={agent()}>
       {(current) => (
-        <Button
-          variant="ghost"
-          type="button"
-          class={[
-            "roster-row",
-            {
-              "roster-row-asleep": rowProps.entry.asleep,
-              "roster-row-rising": rowProps.rising,
-              "roster-row-active": props.activeAgentId === current().id,
-            },
-          ]}
-          data-category={rowProps.entry.category}
-          aria-pressed={props.activeAgentId === current().id ? "true" : "false"}
-          aria-label={label()}
-          data-cuelume-navigate=""
-          onClick={() => touchRosterAgent(current().id)}
-        >
-          <span class="roster-bar" aria-hidden="true" />
-          <span class="roster-avatar">
-            <span class="roster-ring roster-ring-outer" aria-hidden="true" />
-            <span class="roster-ring" aria-hidden="true" />
-            <AgentAvatar
-              agent={current()}
-              hue={ROSTER_CATEGORY_HUE[rowProps.entry.category]}
-              mood={mood()}
-              motion="idle"
-            />
-            <Show when={needsYou()}>
-              <span class="roster-ask" aria-hidden="true">
-                ?
-              </span>
-            </Show>
-          </span>
-          <span class="roster-copy" aria-hidden="true">
-            <span class="roster-name">
-              <span class="roster-dot" />
-              <strong>{current().name}</strong>
+        <LabelTooltip content={label()} placement="right" class="roster-tooltip">
+          <LabelTooltipTrigger
+            as={Button}
+            variant="ghost"
+            type="button"
+            class={[
+              "roster-row",
+              {
+                "roster-row-asleep": rowProps.entry.asleep,
+                "roster-row-rising": rowProps.rising,
+                "roster-row-active": props.activeAgentId === current().id,
+              },
+            ]}
+            data-category={rowProps.entry.category}
+            aria-pressed={props.activeAgentId === current().id ? "true" : "false"}
+            aria-label={label()}
+            data-cuelume-navigate=""
+            onClick={() => touchRosterAgent(current().id)}
+          >
+            <span class="roster-bar" aria-hidden="true" />
+            <span class="roster-avatar">
+              <span class="roster-ring roster-ring-outer" aria-hidden="true" />
+              <span class="roster-ring" aria-hidden="true" />
+              <AgentAvatar
+                agent={current()}
+                hue={ROSTER_CATEGORY_HUE[rowProps.entry.category]}
+                mood={mood()}
+                motion="idle"
+              />
+              <Show when={needsYou()}>
+                <span class="roster-ask" aria-hidden="true">
+                  ?
+                </span>
+              </Show>
             </span>
-            <span class="roster-status roster-status-short">{copy().short}</span>
-            <span class="roster-status roster-status-full">{copy().full}</span>
-          </span>
-          <span class="roster-time">{time()}</span>
-        </Button>
+            <span class="roster-copy" aria-hidden="true">
+              <span class="roster-name">
+                <span class="roster-dot" />
+                <strong>{current().name}</strong>
+              </span>
+              <span class="roster-status roster-status-short">{copy()}</span>
+            </span>
+            <span class="roster-time">{time()}</span>
+          </LabelTooltipTrigger>
+        </LabelTooltip>
       )}
     </Show>
   );
