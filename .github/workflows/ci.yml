@@ -642,6 +642,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:stream-stall-retry
 
+      - name: Run the provider detection E2E test
+        if: ${{ !cancelled() }}
+        run: bun run test:provider-detection
+
       - name: Run the ACP instructions once E2E test
         if: ${{ !cancelled() }}
         run: bun run test:acp-instructions-once
@@ -714,6 +718,7 @@ jobs:
             .openbot-build/acp-mcp-server-names-e2e/
             .openbot-build/acp-turn-stall-e2e/
             .openbot-build/stream-stall-retry-e2e/
+            .openbot-build/provider-detection-e2e/
             .openbot-build/acp-instructions-once-e2e/
             .openbot-build/grok-steer-e2e/
             .openbot-build/pi-steer-e2e/
