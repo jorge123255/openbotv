@@ -45,6 +45,7 @@ import {
   isAgentAccess,
   isAgentAdditionalFolders,
   isAgentBackupModels,
+  isAgentMcpServerIds,
   isAgentModel,
   isAgentPendingRuntime,
   isAgentSessionSettingOverrides,
@@ -419,6 +420,7 @@ export class AgentStore {
             : folder,
         );
       record.computerUse = source.computerUse;
+      if (source.mcpServerIds) record.mcpServerIds = [...source.mcpServerIds];
       if (source.busyMessageMode) record.busyMessageMode = source.busyMessageMode;
       if (source.taskLimit !== undefined) record.taskLimit = source.taskLimit;
       if (source.backupModels) record.backupModels = structuredClone(source.backupModels);
@@ -742,6 +744,11 @@ export class AgentStore {
         if (!isBoolean(input.computerUse)) throw new Error("Invalid Computer Use value.");
         next.computerUse = input.computerUse;
       }
+      if (input.mcpServerIds === null) delete next.mcpServerIds;
+      else if (input.mcpServerIds !== undefined) {
+        if (!isAgentMcpServerIds(input.mcpServerIds)) throw new Error("Invalid agent MCP server selection.");
+        next.mcpServerIds = [...new Set(input.mcpServerIds)].sort();
+      }
       if (input.allowAutomation === null) delete next.allowAutomation;
       else if (input.allowAutomation !== undefined) {
         if (!isBoolean(input.allowAutomation)) throw new Error("Invalid automation value.");
@@ -846,6 +853,7 @@ export class AgentStore {
       Object.assign(agent, next);
       // A copy cannot remove a field, and `null` above returned the agent to the app default or to
       // the provider's own sign-in, and an agent flag to the account default.
+      if (next.mcpServerIds === undefined) delete agent.mcpServerIds;
       if (next.busyMessageMode === undefined) delete agent.busyMessageMode;
       if (next.taskLimit === undefined) delete agent.taskLimit;
       if (next.providerAccountId === undefined) delete agent.providerAccountId;
@@ -1878,6 +1886,7 @@ function isStoredAgent(value: unknown): value is PersistedStoredAgent {
     (record.additionalFolders === undefined || isAgentAdditionalFolders(record.additionalFolders)) &&
     (record.excludedFolders === undefined || isAgentAdditionalFolders(record.excludedFolders)) &&
     (record.computerUse === undefined || isBoolean(record.computerUse)) &&
+    (record.mcpServerIds === undefined || isAgentMcpServerIds(record.mcpServerIds)) &&
     (record.allowAutomation === undefined || isBoolean(record.allowAutomation)) &&
     (record.allowNewChat === undefined || isBoolean(record.allowNewChat)) &&
     (record.quickAcknowledgement === undefined || isBoolean(record.quickAcknowledgement)) &&
@@ -1953,6 +1962,11 @@ function readStoredAgent(value: unknown): ReadStoredAgent | UnreadableStoredAgen
     value.excludedFolders === undefined || isAgentAdditionalFolders(value.excludedFolders)
       ? value.excludedFolders
       : readableFolders(value.excludedFolders, () => repaired.push("excludedFolders"));
+  // A damaged selection must never restore all servers.
+  const mcpServerIds =
+    value.mcpServerIds === undefined || isAgentMcpServerIds(value.mcpServerIds)
+      ? value.mcpServerIds
+      : reset("mcpServerIds", []);
   const computerUse =
     value.computerUse === undefined || isBoolean(value.computerUse) ? value.computerUse : reset("computerUse", true);
   const allowAutomation =
@@ -2050,6 +2064,7 @@ function readStoredAgent(value: unknown): ReadStoredAgent | UnreadableStoredAgen
     ...(additionalFolders === undefined || additionalFolders.length === 0 ? {} : { additionalFolders }),
     ...(excludedFolders === undefined || excludedFolders.length === 0 ? {} : { excludedFolders }),
     ...(computerUse === undefined ? {} : { computerUse }),
+    ...(mcpServerIds === undefined ? {} : { mcpServerIds }),
     ...(allowAutomation === undefined ? {} : { allowAutomation }),
     ...(allowNewChat === undefined ? {} : { allowNewChat }),
     ...(quickAcknowledgement === undefined ? {} : { quickAcknowledgement }),

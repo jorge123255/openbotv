@@ -457,6 +457,9 @@ export function agentIpcHandlers({
         local: (input) => runCauseEffect(service.updateAgent(input)),
         remote: async (input, serverId) => {
           // The Team API does not carry access, and a team member must not be able to widen it.
+          if (input.mcpServerIds !== undefined) {
+            throw new Error(sourceText("error.agent.settingsLocalOnly"));
+          }
           if (input.access !== undefined) {
             throw new Error(sourceText("error.agent.accessLocalOnly"));
           }

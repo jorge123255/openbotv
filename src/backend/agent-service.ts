@@ -839,7 +839,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         // Every MCP set that leaves for a provider is remembered, so its secrets stay redactable
         // after the user edits them. This is the second of the two ways one leaves; the other is
         // `enabledMcpServers`, which the Codex thread configuration reads.
-        mcpServers: () => this.#mcp.record(credentials.mcpServers()),
+        mcpServers: (agentId) => this.#mcp.record(this.#mcp.forAgent(credentials.mcpServers(agentId), agentId)),
         reportMcpDrops: (provider, drops) => this.#mcp.reportDrops(provider, drops),
         mcpEndpoint: (config, agentId) => this.#mcp.endpoint(config, agentId).pipe(toMcpOperationError),
       },
@@ -996,7 +996,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       conversation: this.#conversation,
       memories: this.#memories,
       compaction: this.#compaction,
-      mcpServers: () => this.#mcp.enabled(),
+      mcpServers: (agentId) => this.#mcp.forAgent(this.#mcp.enabled(), agentId),
       mcpToolRuntimes: () => this.#mcp.toolRuntimes(),
       mcpEndpoint: (config, agentId) => this.#mcp.endpoint(config, agentId).pipe(toMcpOperationError),
       mcpProxyFingerprint: (configs) => this.#mcp.proxyFingerprint(configs).pipe(toMcpOperationError),
@@ -1491,7 +1491,7 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         updateAgent: (input, initiatingAgentId) =>
           this.updateAgent(input, initiatingAgentId).pipe(toToolOperationFailed),
         setAvatar: (agentId, image) => this.setAvatar(agentId, image).pipe(toToolOperationFailed),
-        enabledMcpServers: () => this.enabledMcpServers(),
+        enabledMcpServers: (agentId) => this.#mcp.forAgent(this.enabledMcpServers(), agentId),
         emitError: (code, error, agentId) => this.#emitError(code, error, agentId),
         redactMcp: (text) => this.#mcp.redact(text),
         runsTurn: (agentId) => this.#runsTurn(agentId),
@@ -2651,6 +2651,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     move: ModelMove | null = null,
     queueWhileBusy = false,
   ) {
+    if (initiatingAgentId !== undefined && input.mcpServerIds !== undefined)
+      throw new AgentSettingsRefused(sourceText("error.agent.mcpScopeUserOnly"));
     const returning = move === "return";
     const failingOver = move === "provider-error";
     const handedOverThreads = (previous: AgentSummary) => [
@@ -2907,6 +2909,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     // agent chat is not the only session that holds them: a channel turn runs on a session of its
     // own, and it is written from the same profile.
     if (profileChanged) this.#conversation.unloadAgentThreads(agent.id);
+    if (previous && JSON.stringify(previous.mcpServerIds) !== JSON.stringify(agent.mcpServerIds))
+      yield* this.#threads.refreshAgentRuntime(agent.id);
     // A Workspace only agent moved to Full access gets no grant event, and its cards wait for that grant.
     if (previous && workspaceAccessEnforced(previous) && !workspaceAccessEnforced(agent))
       this.#attention.answerGrantedRequests();

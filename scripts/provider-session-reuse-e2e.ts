@@ -5,6 +5,8 @@
 //   the next turn resumes the same session, with no history handoff. Before, it started a new session.
 // - codex-approval-grant-keeps-session: a tool approval granted in `~/.codex/config.toml` keeps the
 //   Codex session. A revoked approval still replaces it. Before, a grant also replaced it.
+// - codex-mcp-scope-refresh: scope changes wait for an active turn, replace the next session,
+//   preserve messages and approvals, and leave another agent unchanged. Scoped management is refused.
 // - antigravity-channel-delta: a channel member on Antigravity gets only the unread channel messages
 //   in its next turn on the same session. Before, each turn got the complete channel packet.
 // `bun scripts/provider-session-reuse-e2e.ts`. Writes .openbot-build/provider-session-reuse-e2e/report.json.
@@ -40,6 +42,7 @@ const claudeMessages = join(root, "claude-messages.jsonl");
 const fakeCodex = join(root, "codex");
 const codexLog = join(root, "codex.jsonl");
 const codexConfig = join(root, "codex-mcp-servers.json");
+const codexRelease = join(root, "release-codex-turn");
 const mcpScript = join(root, "echo-mcp.js");
 const agyInstall = join(root, "antigravity");
 const fakeAgy = join(agyInstall, "bin", "agy_acp_server");
@@ -130,6 +133,7 @@ const log = (entry) => fs.appendFileSync(${JSON.stringify(codexLog)}, JSON.strin
 let buffer = "";
 let threads = 0;
 let turns = 0;
+const pendingTools = new Map();
 process.stdout.on("error", (error) => {
   if (error.code === "EPIPE") process.exit(0);
   throw error;
@@ -137,7 +141,7 @@ process.stdout.on("error", (error) => {
 const write = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
 const answer = (message) => {
   const params = message.params || {};
-  log({ method: message.method, threadId: params.threadId ?? null });
+  log({ method: message.method, threadId: params.threadId ?? null, cwd: params.cwd, config: params.config });
   switch (message.method) {
     case "initialize": return write({ id: message.id, result: {} });
     case "account/read": return write({ id: message.id, result: { account: { type: "chatgpt", email: "codex@example.com" } } });
@@ -160,9 +164,31 @@ const answer = (message) => {
       const turnId = "turn-" + (++turns);
       write({ id: message.id, result: { turn: { id: turnId, status: "inProgress", items: [] } } });
       write({ method: "turn/started", params: { threadId: params.threadId, turn: { id: turnId } } });
-      const item = { type: "agentMessage", id: "message-" + turnId, text: "Done.", phase: "final_answer" };
-      write({ method: "item/completed", params: { threadId: params.threadId, turnId, item } });
-      return write({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: turnId, status: "completed" } } });
+      const complete = () => {
+        const item = { type: "agentMessage", id: "message-" + turnId, text: "Done.", phase: "final_answer" };
+        write({ method: "item/completed", params: { threadId: params.threadId, turnId, item } });
+        write({ method: "turn/completed", params: { threadId: params.threadId, turn: { id: turnId, status: "completed" } } });
+      };
+      const text = JSON.stringify(params.input ?? []);
+      const marker = text.match(/scope-(?:management|read|held-turn)|selected-server-restored|all-servers-restored/gu)?.at(-1);
+      if (marker === "scope-held-turn") {
+        const watcher = fs.watch(${JSON.stringify(root)}, () => {
+          if (!fs.existsSync(${JSON.stringify(codexRelease)})) return;
+          watcher.close();
+          complete();
+        });
+        log({ method: "scope-turn-held", threadId: params.threadId });
+        return;
+      }
+      const tool = marker === "scope-management" ? "test_mcp_server" : marker === "scope-read" ? "read_agent" : null;
+      if (tool) {
+        const id = "scope-tool-" + turnId;
+        pendingTools.set(id, complete);
+        write({ id, method: "item/tool/call", params: { threadId: params.threadId, turnId, callId: id,
+          namespace: "openbot", tool, arguments: tool === "read_agent" ? {} : { name: "echo" } } });
+        return;
+      }
+      return complete();
     }
     case "turn/interrupt": {
       write({ id: message.id, result: {} });
@@ -182,6 +208,11 @@ process.stdin.on("data", (chunk) => {
     if (line) {
       const message = JSON.parse(line);
       if (message.method && message.id !== undefined) answer(message);
+      else if (pendingTools.has(message.id)) {
+        log({ method: "scope-tool-result", result: message.result });
+        pendingTools.get(message.id)();
+        pendingTools.delete(message.id);
+      }
     }
     newline = buffer.indexOf("\\n");
   }
@@ -569,6 +600,125 @@ try {
     assert.equal(counts.afterPromptTurn4, 3, "A tool set to ask every time replaces the Codex session.");
   });
 
+  await runCase("codex-mcp-scope-refresh", "codex", async (profile, details) => {
+    const { agents, store, sqlite } = profile;
+    const server: McpServerConfig = {
+      id: "",
+      name: "echo",
+      transport: "stdio",
+      enabled: true,
+      command: process.execPath,
+      args: [mcpScript],
+      env: [],
+      envPassthrough: [],
+      workingDirectory: "",
+      url: "",
+      headers: [],
+    };
+    const key = codexMcpServerKey(server);
+    const savedConfig = JSON.stringify({
+      [key]: { command: CODEX_PLACEHOLDER_COMMAND, enabled: false, tools: { echo: { approval_mode: "approve" } } },
+    });
+    writeFileSync(codexConfig, savedConfig);
+    const saved = await runCauseEffect(agents.saveMcpServer({ config: server }));
+    const row = saved.find((candidate) => candidate.name === "echo");
+    assert.ok(row);
+    const agent = await createAgent(agents, "Scoped Codex", "codex");
+    const other = await createAgent(agents, "Unchanged Codex", "codex");
+    const publicThread = store.list().find((candidate) => candidate.id === agent.id)?.threadId;
+    assert.ok(publicThread);
+    const starts = () =>
+      entries<{
+        method: string;
+        cwd?: string;
+        config?: {
+          mcp_servers?: Record<string, { enabled?: boolean; tools?: Record<string, { approval_mode?: string }> }>;
+        };
+      }>(codexLog).filter((entry) => entry.method === "thread/start" && entry.cwd === agent.workspacePath);
+    const count = starts().length;
+    const configWritesBefore = entries<{ method: string }>(codexLog).filter(
+      (entry) => entry.method === "config/batchWrite",
+    ).length;
+    const originalMessages = sqlite()
+      .prepare("SELECT message_id FROM projection_thread_messages WHERE thread_id = ?")
+      .all(publicThread);
+    const heldReceipt = await runCauseEffect(agents.sendMessage({ agentId: agent.id, text: "scope-held-turn" }));
+    const heldDelivery = heldReceipt.deliveries[0]?.id;
+    assert.ok(heldDelivery);
+    await waitFor("the fake provider to hold its turn", () =>
+      entries<{ method: string }>(codexLog).some((entry) => entry.method === "scope-turn-held"),
+    );
+    const sessionsDuringTurn = sessionRows(sqlite, publicThread);
+    await runCauseEffect(agents.updateAgent({ agentId: agent.id, mcpServerIds: [] }));
+    assert.deepEqual(
+      sessionRows(sqlite, publicThread),
+      sessionsDuringTurn,
+      "An active turn keeps its session until it ends.",
+    );
+    writeFileSync(codexRelease, "release");
+    await waitFor(
+      "the held turn to complete",
+      () => profile.mailbox.getDelivery(heldDelivery)?.delivery.status === "completed",
+    );
+    await sendTurn(profile, agent.id, "scope-management");
+    assert.equal(starts().length, count + 1, "Removing external servers replaces the Codex session.");
+    assert.equal(
+      starts().at(-1)?.config?.mcp_servers?.[key]?.enabled,
+      false,
+      "Saved Codex servers stay disabled in the thread.",
+    );
+    const toolResults = () =>
+      entries<{ method: string; result?: { success: boolean; contentItems: Array<{ text: string }> } }>(
+        codexLog,
+      ).filter((entry) => entry.method === "scope-tool-result");
+    assert.equal(
+      toolResults().at(-1)?.result?.success,
+      false,
+      "A scoped agent cannot probe through MCP management tools.",
+    );
+    await sendTurn(profile, agent.id, "scope-read");
+    const setup = toolResults().at(-1)?.result?.contentItems[0]?.text;
+    assert.ok(setup);
+    assert.deepEqual(JSON.parse(setup).mcpServers, [], "The setup read names no excluded server.");
+    await assert.rejects(
+      runCauseEffect(agents.updateAgent({ agentId: agent.id, mcpServerIds: null }, agent.id)),
+      /local settings/,
+    );
+    assert.deepEqual(agents.listMcpServers(), saved, "The global catalog is unchanged.");
+    const otherThread = store.list().find((candidate) => candidate.id === other.id)?.threadId;
+    assert.ok(otherThread);
+    const otherBefore = sessionRows(sqlite, otherThread);
+    await sendTurn(profile, other.id, "unaffected-agent-turn");
+    assert.deepEqual(sessionRows(sqlite, otherThread), otherBefore, "Another agent keeps its session.");
+    await runCauseEffect(agents.updateAgent({ agentId: agent.id, mcpServerIds: [row.id] }));
+    await sendTurn(profile, agent.id, "selected-server-restored");
+    assert.equal(starts().at(-1)?.config?.mcp_servers?.[key]?.enabled, true);
+    await runCauseEffect(agents.updateAgent({ agentId: agent.id, mcpServerIds: null }));
+    await sendTurn(profile, agent.id, "all-servers-restored");
+    assert.equal(starts().at(-1)?.config?.mcp_servers?.[key]?.enabled, true);
+    assert.equal(
+      starts().at(-1)?.config?.mcp_servers?.[key]?.tools?.echo?.approval_mode,
+      "approve",
+      "The restored thread receives the saved approval.",
+    );
+    assert.equal(
+      entries<{ method: string }>(codexLog).filter((entry) => entry.method === "config/batchWrite").length,
+      configWritesBefore,
+      "A scope change never writes the shared approval file.",
+    );
+    assert.equal(readFileSync(codexConfig, "utf8"), savedConfig, "Saved approvals never change.");
+    assert.equal(store.list().find((candidate) => candidate.id === agent.id)?.threadId, publicThread);
+    const finalMessages = sqlite()
+      .prepare("SELECT message_id FROM projection_thread_messages WHERE thread_id = ?")
+      .all(publicThread);
+    const finalIds = new Set(finalMessages.map((message) => message.message_id));
+    assert.ok(
+      originalMessages.every((message) => finalIds.has(message.message_id)),
+      "Every original message remains.",
+    );
+    details.sessionRows = sessionRows(sqlite, publicThread);
+  });
+
   await runCase("antigravity-channel-delta", "antigravity", async (profile, details) => {
     const { agents } = profile;
     const agent = await createAgent(agents, "Gemini reuse", "antigravity");
@@ -650,7 +800,7 @@ try {
     assert.equal(prompts().length - beforeChannel, 5, "Each channel message is one prompt, with no summary prompts.");
   });
 
-  report.passed = report.cases.length === 3 && report.cases.every((entry) => entry.passed);
+  report.passed = report.cases.length === 4 && report.cases.every((entry) => entry.passed);
 } finally {
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

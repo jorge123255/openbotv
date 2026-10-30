@@ -25,6 +25,7 @@ import {
   type InterruptTurnInput,
   isAgentAccess,
   isAgentBackupModels,
+  isAgentMcpServerIds,
   isAgentModel,
   isAgentProvider,
   isAgentTaskLimit,
@@ -656,6 +657,11 @@ export function parseUpdateAgent(value: unknown): UpdateAgentInput {
   if (value.computerUse !== undefined) {
     if (!isBoolean(value.computerUse)) throw new Error("Invalid Computer Use value.");
     result.computerUse = value.computerUse;
+  }
+  if (value.mcpServerIds !== undefined) {
+    if (value.mcpServerIds !== null && !isAgentMcpServerIds(value.mcpServerIds))
+      throw new Error("Invalid agent MCP server selection.");
+    result.mcpServerIds = value.mcpServerIds === null ? null : [...new Set(value.mcpServerIds)];
   }
   // `null` returns the agent to the account default.
   if (value.allowAutomation !== undefined) {

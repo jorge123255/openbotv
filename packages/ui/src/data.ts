@@ -245,6 +245,7 @@ export interface AgentProfile {
   access?: AgentAccess | undefined;
   /** Absent means on. Absent for an agent on a remote host too, which does not share it. */
   computerUse?: boolean | undefined;
+  mcpServerIds?: string[] | undefined;
   /** Absent means off. Absent for an agent on a remote host too, which does not share it. */
   allowAutomation?: boolean | undefined;
   /** Absent means off. Absent for an agent on a remote host too, which does not share it. */

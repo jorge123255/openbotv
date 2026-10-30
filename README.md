@@ -202,6 +202,13 @@ computer: team members do not see them.
 On Windows, install the native CLI and make sure `codex`, `claude`, or `grok` is available in PowerShell.
 Claude Code also requires Git for Windows. Then authenticate the installed CLI and restart OpenBot.
 
+To reduce MCP tool context, open an agent's settings on its host computer, then Permissions → MCP
+servers. Turn off **Use all servers** and select the external servers it needs. An empty selection
+supplies no external servers. Existing agents use all enabled servers. Changes apply before the next
+turn and keep chat history and saved approvals. Computer Use and the built-in GitHub connection
+keep their own settings. This setting does not limit shell, file or network access. Scoped agents
+must use local settings to manage MCP connections; their MCP catalog management tools are disabled.
+
 Bun and Node.js are not required when using an installed release. Optional Computer Use works on
 macOS, Windows and Linux, and the release carries the driver, so there is nothing to install. Only
 macOS asks for a permission for it: Screen Recording and Accessibility.
