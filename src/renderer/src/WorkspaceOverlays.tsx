@@ -789,6 +789,9 @@ function ServerSettings() {
           agentAccess={{ listAgents: () => appPort().agent.listAgents(server().id) }}
           initialSection={serverSettingsSection()}
           // Any member imports into this computer or a remote host with `agent-import-v1`.
+          grokBot={
+            server().kind === "local" ? { api: appPort().grokBot, openUrl: (url) => appPort().openUrl(url) } : undefined
+          }
           agentImport={
             serverSupportsCapability(server(), "agent-import-v1")
               ? {
