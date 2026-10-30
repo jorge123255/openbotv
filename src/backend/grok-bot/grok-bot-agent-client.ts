@@ -95,7 +95,14 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
   stop(): Effect.Effect<void, ProviderClientOperationError> {
     this.#running = false;
     this.#requests.rejectAll(sourceText("error.provider.grokBotSessionEnded"));
-    for (const thread of this.#threads.values()) thread.turn?.controller.abort();
+    for (const thread of this.#threads.values()) {
+      const turn = thread.turn;
+      if (!turn) continue;
+      turn.controller.abort();
+      // Abort does not always reject a blocked read before the process exits. Finish the turn
+      // here so the chat leaves thinking.
+      this.#finishTurn(thread, turn, "interrupted");
+    }
     this.#threads.clear();
     return Effect.void;
   }
@@ -273,7 +280,11 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
   async #stream(thread: SandThread, params: unknown, modelId: string): Promise<void> {
     const turn = thread.turn;
     const store = this.#options.store;
-    if (!turn || !store) return;
+    if (!turn) return;
+    if (!store) {
+      this.#finishTurn(thread, turn, "failed", sourceText("error.provider.grokBotNotSignedIn"));
+      return;
+    }
     try {
       let record = await Effect.runPromise(store.load());
       if (!record) throw new Error(sourceText("error.provider.grokBotNotSignedIn"));
@@ -359,22 +370,41 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       }
       if (thread.turn?.id !== turn.id) return;
       thread.messages = [...messages, { role: "ASSISTANT", text: lastText }];
+      this.#finishTurn(thread, turn, "completed");
+    } catch (error) {
+      if (thread.turn?.id !== turn.id) return;
+      if (turn.controller.signal.aborted) {
+        this.#finishTurn(thread, turn, "interrupted");
+        return;
+      }
+      const message = error instanceof Error ? error.message : sourceText("error.provider.grokBotTurnFailed");
+      this.#finishTurn(thread, turn, "failed", message);
+    }
+  }
+
+  /**
+   * Ends this turn once. A second call, including one from `stop` while the read is still
+   * finishing, does nothing. The assistant text is sent before `turn/completed` so the chat
+   * can store it before the thinking state clears.
+   */
+  #finishTurn(
+    thread: SandThread,
+    turn: NonNullable<SandThread["turn"]>,
+    status: "completed" | "failed" | "interrupted",
+    errorMessage?: string,
+  ): void {
+    if (thread.turn?.id !== turn.id) return;
+    thread.turn = null;
+    if (status === "completed") {
       this.#emit("item/completed", {
         threadId: thread.id,
         turnId: turn.id,
         item: { type: "agentMessage", id: turn.itemId, text: turn.text, status: "completed" },
       });
-      thread.turn = null;
-      this.#emit("turn/completed", { threadId: thread.id, turn: { id: turn.id, status: "completed" } });
-    } catch (error) {
-      if (thread.turn?.id !== turn.id) return;
-      if (turn.controller.signal.aborted) {
-        thread.turn = null;
-        this.#emit("turn/completed", { threadId: thread.id, turn: { id: turn.id, status: "interrupted" } });
-        return;
-      }
-      thread.turn = null;
-      const message = error instanceof Error ? error.message : sourceText("error.provider.grokBotTurnFailed");
+    }
+    if (status === "failed") {
+      const message =
+        errorMessage && errorMessage.length > 0 ? errorMessage : sourceText("error.provider.grokBotTurnFailed");
       // Without an `error` notification the chat shows only the user message (the turn ends silently).
       this.emit("diagnostic", `Grok Bot turn failed: ${message}`);
       this.#emit("error", { threadId: thread.id, turnId: turn.id, message });
@@ -382,7 +412,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
         threadId: thread.id,
         turn: { id: turn.id, status: "failed", error: { message } },
       });
+      return;
     }
+    this.#emit("turn/completed", { threadId: thread.id, turn: { id: turn.id, status } });
   }
 
   #interrupt(params: unknown): { turn: { id: string; status: string } } | Record<string, never> {
@@ -391,6 +423,7 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     const turn = thread?.turn;
     if (!thread || !turn) return {};
     turn.controller.abort();
+    this.#finishTurn(thread, turn, "interrupted");
     return { turn: { id: turn.id, status: "interrupted" } };
   }
 

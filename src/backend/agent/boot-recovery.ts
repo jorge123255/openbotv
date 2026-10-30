@@ -2,6 +2,7 @@ import { Cause, Effect, Schema } from "effect";
 import type { AgentProvider } from "../agent-client";
 import type { AgentStore } from "../agent-store";
 import { mergeConversationSnapshots } from "../conversation-snapshots";
+import { databaseRow, requiredStringColumn } from "../database/database-rows";
 import { causeHelpers, reportOriginalFailure } from "../effect-boundary";
 import { LineTooLongError } from "../jsonl";
 import type { DeliveryContext, MailboxStore } from "../mailbox-store";
@@ -264,7 +265,10 @@ export class BootRecovery {
           activeTurnId: null,
           changedMessages,
           eventType: "turn.reconciled-after-restart",
-          detail: { turnId: delivery.turnId, status: terminal },
+          detail: {
+            ...(recoveryTurnId ? { turnId: recoveryTurnId } : {}),
+            status: terminal,
+          },
         });
         const snapshot = structuredClone(this.#conversation.ensureSnapshot(agent.id, threadId));
         const changedById = new Map(changedMessages.map((message) => [message.id, message]));
@@ -283,8 +287,10 @@ export class BootRecovery {
   recoverPersistedTurns(): void {
     for (const { delivery } of this.#mailbox.unresolvedDeliveries()) this.#orphanedDeliveryIds.add(delivery.id);
     const runningTurns = this.#store.database.readRunningTurnIds();
+    const visited = new Set<string>();
     for (const agent of this.threads()) {
       if (!agent.threadId) continue;
+      visited.add(agent.threadId);
       const turnId = this.#store.database.readConversationRuntime(agent.id, agent.threadId).activeTurnId;
       // A running turn that is not the thread's active turn has no writer left, and no turn of
       // this process runs yet, so the recovery write below closes it too (#2214).
@@ -324,6 +330,34 @@ export class BootRecovery {
       snapshot.activeTurnId = null;
       snapshot.revision = revision;
       this.#conversation.setSnapshot(agent.id, snapshot);
+    }
+    // A provider session thread is not the agent's own chat. Its running turn has no writer
+    // after a restart, and the loop above never sees that thread id.
+    this.#interruptUnvisitedRunningTurns(visited);
+  }
+
+  #interruptUnvisitedRunningTurns(visited: ReadonlySet<string>): void {
+    for (const [threadId, turnIds] of this.#store.database.readRunningTurnIds()) {
+      if (visited.has(threadId) || turnIds.length === 0) continue;
+      const owner = databaseRow(
+        this.#store.database.connection
+          .prepare("SELECT agent_id FROM projection_threads WHERE thread_id = ?")
+          .get(threadId),
+      );
+      if (!owner) continue;
+      const agentId = requiredStringColumn(owner, "agent_id");
+      const agent = this.#store.list().find((candidate) => candidate.id === agentId);
+      if (!agent) continue;
+      const turnId = turnIds[0];
+      if (!turnId) continue;
+      this.#store.database.persistConversationChanges({
+        agentId: agent.id,
+        threadId,
+        activeTurnId: null,
+        changedMessages: [],
+        eventType: "turn.interrupted-by-restart",
+        detail: { turnId },
+      });
     }
   }
 
