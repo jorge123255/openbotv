@@ -710,7 +710,7 @@ function promptText(params: unknown): string {
 }
 
 /** Assistant text written after our prompt in the transcript tail. */
-export function replyAfter(
+function replyAfter(
   before: readonly GrokBotInferenceMessage[],
   after: readonly GrokBotInferenceMessage[],
   prompt: string,
