@@ -640,7 +640,7 @@ async function proxyCases(auth: Awaited<ReturnType<typeof startAuthorizationServ
         }),
     };
     // Read at each `initialize`, so a rename here shows in the next session.
-    const agents = [
+    const agents: Array<{ id: string; name: string; mcpServerIds?: string[] }> = [
       { id: "agent-research", name: "Research Bot" },
       { id: "chief", name: "Ops\u0007\n\u202eBot" },
     ];
@@ -750,7 +750,7 @@ async function proxyCases(auth: Awaited<ReturnType<typeof startAuthorizationServ
     assert.ok(research);
     research.name = "Renamed Bot";
     assert.equal(await titleOf(researchRoute), "Renamed Bot (OpenBot)");
-    assert.equal(await titleOf(await endpointOf(gateway, direct, "removed-agent")), "OpenBot");
+    assert.ok("error" in (await runCauseEffect(gateway.endpoint(direct, "removed-agent"))));
     // The bearer of a route opens neither the same row for another agent nor the row with no agent.
     const hitsBeforeCross = resource.hits.length;
     assert.equal(await rawPost(researchRoute.url, { authorization: `Bearer ${directRoute.bearer}` }), 403);
@@ -762,10 +762,21 @@ async function proxyCases(auth: Awaited<ReturnType<typeof startAuthorizationServ
       agent: "Research Bot (OpenBot)",
       controlCharacters: "Ops Bot (OpenBot)",
       renamed: "Renamed Bot (OpenBot)",
-      unknownAgent: "OpenBot",
+      unknownAgent: "refused",
       userAgent: "OpenBot/9.9.9-e2e",
       crossAgentBearers: 403,
     };
+
+    // A retained agent bearer cannot reach a server after its owner removes it from the scope.
+    research.mcpServerIds = [];
+    const hitsAtScopeChange = resource.hits.length;
+    assert.ok("error" in (await runCauseEffect(gateway.endpoint(direct, research.id))));
+    assert.equal(await rawPost(researchRoute.url, { authorization: `Bearer ${researchRoute.bearer}` }), 200);
+    assert.equal(resource.hits.length, hitsAtScopeChange, "An excluded agent route reached the server.");
+    assert.equal(await titleOf(chiefRoute), "Ops Bot (OpenBot)", "Another agent keeps access.");
+    research.mcpServerIds = [direct.id];
+    assert.equal(await titleOf(researchRoute), "Renamed Bot (OpenBot)");
+    delete research.mcpServerIds;
 
     // The GET stream stays open through the proxy and carries a server notification.
     await resource.waitFor(

@@ -1,6 +1,8 @@
 import { defineMessages } from "../../../message";
 
 export const messages = defineMessages("error.agent", {
+  "error.agent.mcpScopeUserOnly": "Manage MCP server access in this agent's local settings.",
+  "error.agent.mcpServerNotSelected": "This MCP server is not selected for this agent.",
   "error.agent.historyUnavailable":
     "History is unavailable for this request. Read recent history again, or use channel_history for channel work.",
   "error.agent.toolRequestInvalid":

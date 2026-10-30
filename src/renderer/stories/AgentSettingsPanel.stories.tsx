@@ -178,3 +178,32 @@ export const SaveFailure: Story = {
     }),
   },
 };
+
+/** Local external server selection. The saved list follows the real panel update callback. */
+export const McpServerScope: Story = {
+  render: (args) => {
+    const [state, setState] = createStore<{ agent: typeof STORY_AGENT & { mcpServerIds?: string[] | undefined } }>({
+      agent: { ...STORY_AGENT, mcpServerIds: ["docs"] },
+    });
+    return (
+      <main class="agent-memories-story-stage">
+        <AgentSettingsPanel
+          {...meta.args}
+          {...args}
+          agent={state.agent}
+          mcpServers={[
+            { id: "docs", name: "Docs" },
+            { id: "calendar", name: "Calendar" },
+          ]}
+          onUpdateAgent={async (_agentId, patch) => {
+            if (patch.mcpServerIds !== undefined)
+              setState((draft) => {
+                if (patch.mcpServerIds === null) delete draft.agent.mcpServerIds;
+                else if (patch.mcpServerIds !== undefined) draft.agent.mcpServerIds = [...patch.mcpServerIds];
+              });
+          }}
+        />
+      </main>
+    );
+  },
+};

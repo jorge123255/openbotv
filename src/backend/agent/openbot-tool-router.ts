@@ -161,7 +161,7 @@ export interface OpenBotToolRouterHooks {
   updateAgent(input: UpdateAgentInput, initiatingAgentId: string): Effect.Effect<AgentSummary, ToolOperationFailed>;
   setAvatar(agentId: string, image: AvatarImageInput | null): Effect.Effect<AgentSummary, ToolOperationFailed>;
   /** The MCP servers of this computer that are turned on, before the Computer Use setting of one agent. */
-  enabledMcpServers(): McpServerConfig[];
+  enabledMcpServers(agentId?: string): McpServerConfig[];
   emitError(code: string, error: unknown, agentId?: string): void;
   /** Masks the MCP secret values and handoff values that `redactText` does not know. */
   redactMcp(text: string): string;
@@ -726,7 +726,7 @@ export class OpenBotToolRouter {
         schedule: routine.trigger.schedule,
         nextRunAt: routine.trigger.nextRunAt,
       })),
-      mcpServers: agentMcpServers(this.#hooks.enabledMcpServers(), computerUse).map((server) => ({
+      mcpServers: agentMcpServers(this.#hooks.enabledMcpServers(agent.id), computerUse).map((server) => ({
         name: server.name,
         transport: server.transport,
       })),
@@ -1228,6 +1228,8 @@ export class OpenBotToolRouter {
     if (!agentId || !servers || !isMcpServerTool(params.tool))
       return openBotToolFailure(sourceText("error.agent.toolRequestInvalid"));
     const threadId = this.#conversation.publicThreadId(agentId, params.threadId);
+    if (this.#requireAgent(agentId).mcpServerIds !== undefined)
+      return openBotToolFailure(sourceText("error.agent.mcpScopeUserOnly"));
     return yield* handleMcpServerTool(servers, {
       tool: params.tool,
       arguments: params.arguments,
@@ -1264,7 +1266,8 @@ export class OpenBotToolRouter {
   ) {
     const servers = this.#mcpServers;
     if (!servers || params.tool !== "tool_search") return [];
-    const configs = servers.list();
+    const selected = this.#requireAgent(agentId).mcpServerIds;
+    const configs = servers.list().filter((config) => selected === undefined || selected.includes(config.id));
     const names = new Set(
       namesInSearch(
         params,

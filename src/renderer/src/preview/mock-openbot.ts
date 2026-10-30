@@ -1012,6 +1012,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       reasoningEffort: input.reasoningEffort ?? "low",
       access: input.access ?? "full",
       computerUse: input.computerUse ?? true,
+      ...(input.mcpServerIds === undefined ? {} : { mcpServerIds: [...input.mcpServerIds] }),
       ...(input.allowAutomation ? { allowAutomation: true } : {}),
       threadId: input.threadId ?? `thread-${id}`,
       workspacePath: input.workspacePath ?? `/mock/OpenBot/Agents/${id}`,
@@ -2294,6 +2295,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           agentId: _agentId,
           busyMessageMode,
           taskLimit,
+          mcpServerIds,
           providerAccountId,
           backupModels,
           leaveUsageLimit: _leaveUsageLimit,
@@ -2310,6 +2312,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           if (flag === null) delete updated[key];
           else if (flag !== undefined) updated[key] = flag;
         }
+        if (mcpServerIds === null) delete updated.mcpServerIds;
+        else if (mcpServerIds !== undefined) updated.mcpServerIds = [...new Set(mcpServerIds)].sort();
         if (backupModels === null) delete updated.backupModels;
         else if (backupModels) updated.backupModels = backupModels;
         if (providerAccountId === null || (updates.provider && !providerAccountId)) delete updated.providerAccountId;

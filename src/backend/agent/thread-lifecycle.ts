@@ -974,9 +974,9 @@ export class ThreadLifecycle {
     return this.#conversation.isTaskThread(publicThreadId) && agentComputerUseEnabled(agent);
   }
 
-  /** The enabled servers this agent is given. Without Computer Use the fingerprint changes, so Codex replaces the session. */
+  /** The scoped servers this agent is given. Changes enter the fingerprint so Codex replaces the session. */
   #agentMcpServers(agent: AgentSummary): readonly McpServerConfig[] {
-    return agentMcpServers(this.#mcpServers(), agentComputerUseEnabled(agent));
+    return agentMcpServers(this.#mcpServers(agent.id), agentComputerUseEnabled(agent));
   }
 
   /**

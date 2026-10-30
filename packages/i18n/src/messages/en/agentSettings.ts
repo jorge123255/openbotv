@@ -1,6 +1,10 @@
 import { defineMessages } from "../../message";
 
 export const messages = defineMessages("agentSettings", {
+  "agentSettings.mcp.title": "MCP servers",
+  "agentSettings.mcp.all": "Use all servers",
+  "agentSettings.mcp.description":
+    "Give this agent only the external servers it needs. Changes apply before the next turn. Computer Use and GitHub keep their own settings.",
   "agentSettings.session.title": "Provider settings",
   "agentSettings.session.readFailed": "Could not read provider settings.",
   "agentSettings.session.pending": "Saved changes apply before the next turn.",

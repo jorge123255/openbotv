@@ -1432,7 +1432,9 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       held &&
       !recovering &&
       !held.activeTurn &&
-      (held.computerUse !== computerUseParam(params) || this.#workspaceRootsChanged(held, params))
+      ((mcpAgentParam(params) !== null && held.agentId !== mcpAgentParam(params)) ||
+        held.computerUse !== computerUseParam(params) ||
+        this.#workspaceRootsChanged(held, params))
     ) {
       yield* this.#threads.close(held).pipe(toProviderClientOperationError);
     }
@@ -1441,7 +1443,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     // the turn that follows must not run on the settings of whoever loaded the session first.
     else if (held && !recovering) {
       held.developerInstructions = getString(params, "developerInstructions") ?? held.developerInstructions;
-      // A session loaded for a read has no agent. Its MCP servers keep that until it opens again.
+      // A session loaded for a read has no agent and is reopened above before an owned turn.
       held.agentId ??= mcpAgentParam(params);
       yield* this.#configuration.applyConfig(
         held,
@@ -1519,7 +1521,7 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
               providerResult(
                 yield* Effect.result(
                   usableMcpServers(
-                    agentMcpServers(this.options.mcpServers?.() ?? [], computerUse),
+                    agentMcpServers(this.options.mcpServers?.(agentId) ?? [], computerUse),
                     this.options.mcpToolRuntimes?.(),
                     this.options.mcpEndpoint,
                     agentId,

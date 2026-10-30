@@ -46,6 +46,11 @@ export function agentComputerUseEnabled(agent: { computerUse?: boolean | undefin
   return agent.computerUse !== false;
 }
 
+/** The external MCP server IDs selected locally. Absent means all; an empty list means none. */
+export function isAgentMcpServerIds(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= INPUT_LIMITS.mcpServers && value.every(isIdentifier);
+}
+
 /** The agent settings that have an account default. An agent with no value of its own follows it. */
 export const AGENT_DEFAULT_KEYS = ["allowAutomation", "allowNewChat", "quickAcknowledgement"] as const;
 export type AgentDefaultKey = (typeof AGENT_DEFAULT_KEYS)[number];
@@ -233,6 +238,8 @@ export interface AgentSummary {
    * `agentComputerUseEnabled`.
    */
   computerUse?: boolean;
+  /** Local-only. Absent means all external MCP servers; an empty list means none. */
+  mcpServerIds?: string[];
   /**
    * Whether a local script can run this agent's routines through the automation server. Local-only,
    * like `access`. Absent means the account default; see `agentAutomationAllowed`.
@@ -343,6 +350,7 @@ function hasAgentSummaryFields(value: DynamicRecord): boolean {
     (value.additionalFolders === undefined || isAgentAdditionalFolders(value.additionalFolders)) &&
     (value.excludedFolders === undefined || isAgentAdditionalFolders(value.excludedFolders)) &&
     (value.computerUse === undefined || isBoolean(value.computerUse)) &&
+    (value.mcpServerIds === undefined || isAgentMcpServerIds(value.mcpServerIds)) &&
     (value.allowAutomation === undefined || isBoolean(value.allowAutomation)) &&
     (value.allowNewChat === undefined || isBoolean(value.allowNewChat)) &&
     (value.quickAcknowledgement === undefined || isBoolean(value.quickAcknowledgement)) &&
@@ -395,6 +403,8 @@ export interface UpdateAgentInput {
   reasoningEffort?: AgentReasoningEffort;
   access?: AgentAccess;
   computerUse?: boolean;
+  /** Local-only. `null` restores all external MCP servers. */
+  mcpServerIds?: string[] | null;
   /** `null` returns the agent to the account default, as for `allowNewChat` and `quickAcknowledgement`. */
   allowAutomation?: boolean | null;
   allowNewChat?: boolean | null;
