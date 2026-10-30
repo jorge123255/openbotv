@@ -171,6 +171,8 @@ interface AcpAuthenticateSignIn {
 type ProviderCodeSignIn =
   | { kind: "codex-device" }
   | { kind: "muse-device"; timeoutMs: number }
+  /** Cursor's `loginDeepControl` poll. The CLI does not have to stay open. */
+  | { kind: "cursor-deep"; timeoutMs: number }
   | { kind: "cli"; flow: "device" | "paste" | "link"; command: ProviderCliCommand };
 
 /**
@@ -885,13 +887,9 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
     // `cursor_login` opens the Cursor sign-in page from the server. `CURSOR_API_KEY` in the user's
     // environment signs the CLI in without it.
     signIn: { kind: "acp-authenticate", methodId: "cursor_login", argv: ["acp"], timeoutMs: CLI_LOGIN_TIMEOUT_MS },
-    // With `NO_OPEN_BROWSER`, `login` prints the sign-in link and waits until the page signs it in.
-    // The ACP `cursor_login` method gives up instead when it cannot open a browser.
-    codeSignIn: {
-      kind: "cli",
-      flow: "link",
-      command: { argv: ["login"], env: () => ({ NO_OPEN_BROWSER: "1" }), timeoutMs: CLI_LOGIN_TIMEOUT_MS },
-    },
+    // The same page BotAI opens for Grok Bot. OpenBot polls `/auth/poll` and writes the CLI auth file.
+    // `cursor-agent login` gives up when it cannot open a browser.
+    codeSignIn: { kind: "cursor-deep", timeoutMs: CLI_LOGIN_TIMEOUT_MS },
     resolveCli: resolveCursorCli,
     createClient: (cli, timeout, context, confinement) =>
       new AcpAgentClient(cli, timeout, {
