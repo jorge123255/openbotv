@@ -8,7 +8,12 @@
 
 import { INPUT_LIMITS } from "./input-limits";
 import { isBoundedString } from "./ipc-bounded-values";
-import { CUSTOM_PROVIDER_LIMITS, type CustomProviderHeader, isNewCustomProviderId } from "./ipc-custom-providers";
+import {
+  CUSTOM_PROVIDER_LIMITS,
+  type CustomProviderHeader,
+  isCustomProviderContextWindow,
+  isNewCustomProviderId,
+} from "./ipc-custom-providers";
 import { isBoolean, isDynamicRecord } from "./runtime-values";
 
 export const PROVIDER_DETECTION_LIMITS = {
@@ -49,6 +54,8 @@ export const DEFAULT_PROVIDER_DETECTION_SETTINGS: ProviderDetectionSettings = {
 
 export interface DetectedModel {
   id: string;
+  /** The loaded context window, when the server reports one within the saved-model bounds. */
+  contextWindow?: number;
 }
 
 /** One server that answered `GET {baseUrl}/models` with no key. */
@@ -79,7 +86,12 @@ export interface DiscoverModelsResult {
 }
 
 function isDetectedModel(value: unknown): value is DetectedModel {
-  return isDynamicRecord(value) && isBoundedString(value.id, INPUT_LIMITS.identifier) && value.id.length > 0;
+  return (
+    isDynamicRecord(value) &&
+    isBoundedString(value.id, INPUT_LIMITS.identifier) &&
+    value.id.length > 0 &&
+    (value.contextWindow === undefined || isCustomProviderContextWindow(value.contextWindow))
+  );
 }
 
 function isDetectedModels(value: unknown): value is DetectedModel[] {

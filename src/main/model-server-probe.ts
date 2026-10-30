@@ -7,7 +7,7 @@
 
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type { CustomProviderHeader, DetectedModel } from "@openbot/contracts/ipc";
-import { PROVIDER_DETECTION_LIMITS } from "@openbot/contracts/ipc";
+import { isCustomProviderContextWindow, PROVIDER_DETECTION_LIMITS } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { Context, Effect, Layer, Schema } from "effect";
@@ -151,7 +151,10 @@ function parseModelList(entries: readonly unknown[]): DetectedModel[] {
     const id = entry.id.trim();
     if (!id || id.length > INPUT_LIMITS.identifier || seen.has(id)) continue;
     seen.add(id);
-    models.push({ id });
+    // llama.cpp reports the loaded window, which can differ from the model's trained maximum.
+    // Without it, OpenCode uses its default and can compact a long-context model too early.
+    const contextWindow = isDynamicRecord(entry.meta) ? entry.meta.n_ctx : undefined;
+    models.push(isCustomProviderContextWindow(contextWindow) ? { id, contextWindow } : { id });
   }
   return models;
 }

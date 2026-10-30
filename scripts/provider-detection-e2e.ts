@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Effect } from "effect";
 import { runCauseEffect } from "../src/backend/effect-boundary";
+import { openCodeConfigEnv } from "../src/backend/opencode-config";
 import { type CustomProviderCipher, CustomProviderStore } from "../src/main/custom-provider-store";
 import { probeModels } from "../src/main/model-server-probe";
 import { createProviderDetection } from "../src/main/provider-detection";
@@ -33,7 +34,11 @@ interface FakeServer {
 }
 
 /** An OpenAI-compatible server that lists `models`, or redirects every request to `redirectTo`. */
-async function fakeServer(models: string[], redirectTo?: string): Promise<FakeServer> {
+async function fakeServer(
+  models: string[],
+  redirectTo?: string,
+  contextWindows: Readonly<Record<string, number | string | null>> = {},
+): Promise<FakeServer> {
   const seen: Seen[] = [];
   const server: Server = createServer((request: IncomingMessage, response) => {
     seen.push({
@@ -46,7 +51,12 @@ async function fakeServer(models: string[], redirectTo?: string): Promise<FakeSe
       return;
     }
     response.writeHead(200, { "content-type": "application/json" });
-    response.end(JSON.stringify({ object: "list", data: models.map((id) => ({ id, object: "model" })) }));
+    response.end(
+      JSON.stringify({
+        object: "list",
+        data: models.map((id) => ({ id, object: "model", meta: { n_ctx: contextWindows[id] } })),
+      }),
+    );
   });
   await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
   const address = server.address();
@@ -60,6 +70,7 @@ async function fakeServer(models: string[], redirectTo?: string): Promise<FakeSe
 
 interface Report {
   passed: boolean;
+  contextWindow?: { detected: number; stored: number; configured: number; invalidOmitted: boolean };
   scan?: {
     servers: { id: string; baseUrl: string; models: number }[];
     redirectFollowed: boolean;
@@ -108,6 +119,44 @@ try {
     }),
   );
   detections.push(detection);
+
+  // A llama.cpp catalog reports the loaded context window. Carry it through discovery, save,
+  // reload, and the actual OpenCode config; otherwise its default triggers early compaction.
+  const catalog = await fakeServer(["large", "zero", "fraction", "string", "too-large", "unknown"], undefined, {
+    large: 1_048_576,
+    zero: 0,
+    fraction: 1_024.5,
+    string: "1048576",
+    "too-large": 100_000_001,
+  });
+  servers.push(catalog);
+  const discovered = await Effect.runPromise(
+    detection.discoverModels({ baseUrl: catalog.baseUrl, apiKey: null, headers: [] }),
+  );
+  assert.equal(discovered.models[0]?.contextWindow, 1_048_576, "Discovery keeps the loaded context window.");
+  assert.ok(discovered.models.slice(1).every((model) => model.contextWindow === undefined));
+  const catalogPath = join(root, "catalog-provider.json");
+  const catalogStore = new CustomProviderStore({ path: catalogPath, cipher });
+  await runCauseEffect(catalogStore.load());
+  await runCauseEffect(
+    catalogStore.save({
+      id: "catalog",
+      name: "Catalog",
+      baseUrl: catalog.baseUrl,
+      apiKey: null,
+      headers: [],
+      models: discovered.models.map((model) => ({ ...model, name: model.id })),
+    }),
+  );
+  const reloadedCatalog = new CustomProviderStore({ path: catalogPath, cipher });
+  await runCauseEffect(reloadedCatalog.load());
+  const stored = reloadedCatalog.list()[0]?.models[0]?.contextWindow;
+  const config = openCodeConfigEnv({}, () => reloadedCatalog.configs(), null).OPENCODE_CONFIG_CONTENT;
+  assert.ok(config);
+  const configured = JSON.parse(config).provider.catalog.models.large.limit.context;
+  assert.equal(stored, 1_048_576, "The saved window survives a restart.");
+  assert.equal(configured, 1_048_576, "OpenCode gets the server's window instead of its 200K default.");
+  report.contextWindow = { detected: 1_048_576, stored, configured, invalidOmitted: true };
 
   // 1. A listed address is found with its models, with no key; a redirect is not followed.
   const agentFolder = join(root, "tools");
