@@ -17,6 +17,9 @@ export function grokBotIpcHandlers({ grokBotAccount }: GrokBotIpcDependencies): 
       listAgents: handler(() => runCauseEffect(grokBotAccount.list())),
       getUsage: handler(() => runCauseEffect(grokBotAccount.usage())),
       importAgents: handler(() => runCauseEffect(grokBotAccount.importAgents())),
+      getComputer: handler(() => runCauseEffect(grokBotAccount.computerStatus())),
+      openComputer: handler(() => runCauseEffect(grokBotAccount.openComputer())),
+      handBackComputer: handler(() => runCauseEffect(grokBotAccount.handBackComputer())),
       createAgent: payloadHandler(parseCreateGrokBotAgentInput, (input) =>
         runCauseEffect(grokBotAccount.create(input)),
       ),

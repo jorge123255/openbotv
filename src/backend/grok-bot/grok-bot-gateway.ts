@@ -8,6 +8,7 @@ import {
   type GrokBotAccountStore,
   type GrokBotGatewaySession,
 } from "./grok-bot-account";
+import { buildGrokBotVncProxy, type GrokBotComputerStatus, parseGrokBotComputerStatus } from "./grok-bot-computer";
 
 /** `grokbot_api` 1.2.0 `DEFAULT_CLIENT_VERSION`. This is a header, not a protocol registration. */
 export const GROK_BOT_CURSOR_CLIENT_VERSION = "0.70.2";
@@ -73,6 +74,42 @@ export const readGrokBotTranscript = Effect.fn("GrokBotGateway.transcript")(func
   options: GrokBotGatewayCallOptions,
 ) {
   return yield* gatewayJson(store, options, "/api/getAgentTranscriptTail", { id: agentId, limit: 200 });
+});
+
+/** BotAI `getForeverBoxStatus {}`: the sand computer, with its screen URL rewritten off loopback. */
+export const readGrokBotComputer = Effect.fn("GrokBotGateway.computerStatus")(function* (
+  store: GrokBotAccountStore,
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* computerCall(store, options, "/api/getForeverBoxStatus", {});
+});
+
+/** BotAI `ensureForeverBox {}`: creates or wakes the sand computer (what "Open computer" does). */
+export const ensureGrokBotComputer = Effect.fn("GrokBotGateway.computerEnsure")(function* (
+  store: GrokBotAccountStore,
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* computerCall(store, options, "/api/ensureForeverBox", {});
+});
+
+/** BotAI `handBackForeverBox { id, trigger }`: "I'm done, continue" after an agent asked for a takeover. */
+export const handBackGrokBotComputer = Effect.fn("GrokBotGateway.computerHandBack")(function* (
+  store: GrokBotAccountStore,
+  agentId: string,
+  options: GrokBotGatewayCallOptions,
+) {
+  yield* gatewayJson(store, options, "/api/handBackForeverBox", { id: agentId, trigger: "button" });
+});
+
+const computerCall = Effect.fn("GrokBotGateway.computerCall")(function* (
+  store: GrokBotAccountStore,
+  options: GrokBotGatewayCallOptions,
+  path: string,
+  body: unknown,
+) {
+  const raw = yield* gatewayJson(store, options, path, body);
+  const record = yield* store.load();
+  return parseGrokBotComputerStatus(raw, record?.gateway?.vnc ?? null) satisfies GrokBotComputerStatus;
 });
 
 const gatewayJson = Effect.fn("GrokBotGateway.call")(function* (
@@ -188,7 +225,14 @@ function parseGatewaySession(value: unknown, allowLoopback: boolean): GrokBotGat
   const headers = headerMap(value.gatewayHeaders ?? value.gateway_headers);
   const anyrun = stringField(value, "anyrunNetworkToken", "anyrun_network_token", "networkToken");
   if (anyrun && headers["x-anyrun-network-token"] === undefined) headers["x-anyrun-network-token"] = anyrun;
-  return { url, token, headers };
+  const vnc = buildGrokBotVncProxy(
+    stringField(value, "vncUrl", "vnc_url"),
+    stringField(value, "forkVncBaseUrl", "fork_vnc_base_url"),
+    anyrun,
+  );
+  // BotAI's passthrough token is the literal `local`; only a real per-box token is a secret.
+  if (vnc && vnc.networkToken.length >= 16) registerSecretValue(vnc.networkToken);
+  return { url, token, headers, ...(vnc ? { vnc } : {}) };
 }
 
 function acceptGatewayUrl(value: string, allowLoopback: boolean): boolean {

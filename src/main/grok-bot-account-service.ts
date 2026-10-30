@@ -1,4 +1,4 @@
-import type { CreateGrokBotAgentInput } from "@openbot/contracts/ipc";
+import type { CreateGrokBotAgentInput, GrokBotComputerSummary } from "@openbot/contracts/ipc";
 import { IPC_ENDPOINTS } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
 import { Effect } from "effect";
@@ -9,9 +9,17 @@ import {
   type SecretCipher,
   startGrokBotSignIn,
 } from "../backend/grok-bot/grok-bot-account";
-import { createGrokBotAgent, listGrokBotAgents } from "../backend/grok-bot/grok-bot-gateway";
+import type { GrokBotComputerStatus } from "../backend/grok-bot/grok-bot-computer";
+import {
+  createGrokBotAgent,
+  ensureGrokBotComputer,
+  handBackGrokBotComputer,
+  listGrokBotAgents,
+  readGrokBotComputer,
+} from "../backend/grok-bot/grok-bot-gateway";
 import { readGrokBotUsageSummary } from "../backend/grok-bot/grok-bot-usage";
 import { type GrokBotImportStore, importGrokBotAgents } from "./grok-bot-agent-import";
+import { GrokBotComputerWindow } from "./grok-bot-computer-window";
 import { type RendererIpcWindow, sendToRenderer } from "./renderer-ipc";
 
 const GROK_BOT_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
@@ -33,6 +41,7 @@ export class GrokBotAccountService {
   readonly #store: GrokBotAccountStore;
   readonly #agentStore: GrokBotImportStore | undefined;
   #abort: AbortController | null = null;
+  #computer = new GrokBotComputerWindow();
 
   constructor(options: GrokBotAccountServiceOptions) {
     this.#path = options.path;
@@ -115,10 +124,44 @@ export class GrokBotAccountService {
     return yield* createGrokBotAgent(this.#store, input, callOptions());
   });
 
+  /** The sand computer (BotAI forever box). The screen URL stays in main. */
+  readonly computerStatus = Effect.fn("GrokBotAccountService.computerStatus")(function* (this: GrokBotAccountService) {
+    return computerSummary(yield* readGrokBotComputer(this.#store, callOptions()), this.#computer.isOpen());
+  });
+
+  /** BotAI "Open computer": ensure the box, then show its screen in the computer window. */
+  readonly openComputer = Effect.fn("GrokBotAccountService.openComputer")(function* (this: GrokBotAccountService) {
+    const status = yield* ensureGrokBotComputer(this.#store, callOptions());
+    if (status.vncUrl) this.#computer.open(status.vncUrl, status.networkToken, "Grok Bot computer");
+    return computerSummary(status, this.#computer.isOpen());
+  });
+
+  /** BotAI "I'm done, continue": give the computer back to the agent that asked for a takeover. */
+  readonly handBackComputer = Effect.fn("GrokBotAccountService.handBackComputer")(function* (
+    this: GrokBotAccountService,
+  ) {
+    const status = yield* readGrokBotComputer(this.#store, callOptions());
+    if (status.handoffAgentId) yield* handBackGrokBotComputer(this.#store, status.handoffAgentId, callOptions());
+    return computerSummary(yield* readGrokBotComputer(this.#store, callOptions()), this.#computer.isOpen());
+  });
+
   dispose(): void {
+    this.#computer.close();
     this.#abort?.abort();
     this.#abort = null;
   }
+}
+
+function computerSummary(status: GrokBotComputerStatus, windowOpen: boolean): GrokBotComputerSummary {
+  return {
+    phase: status.phase,
+    screenAvailable: status.vncUrl !== null,
+    windowOpen,
+    pullPercent: status.pullPercent,
+    imageUpdateAvailable: status.imageUpdateAvailable,
+    needsYou: status.handoffAgentId !== null,
+    handoffReason: status.handoffReason,
+  };
 }
 
 function callOptions(): { allowLoopback: false; apiBaseUrl?: string } {
