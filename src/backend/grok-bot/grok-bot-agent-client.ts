@@ -17,7 +17,7 @@ import type {
 } from "../protocol";
 import { getString, isRecord } from "../protocol";
 import { type ProviderClientOperationError, providerFailure } from "../provider-client-effects";
-import type { GrokBotAccountStore } from "./grok-bot-account";
+import { accessTokenNeedsRefresh, type GrokBotAccountStore } from "./grok-bot-account";
 import { readOrCreateMachineId } from "./grok-bot-checksum";
 import { createGrokBotAgent, listGrokBotAgents, readGrokBotTranscript } from "./grok-bot-gateway";
 import {
@@ -275,54 +275,71 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     const store = this.#options.store;
     if (!turn || !store) return;
     try {
-      const record = await Effect.runPromise(store.load());
+      let record = await Effect.runPromise(store.load());
       if (!record) throw new Error(sourceText("error.provider.grokBotNotSignedIn"));
+      // Match BotAI's getValidAccessToken: refresh the sand access token before InferenceService/Stream.
+      const refresh = async (force: boolean) => {
+        if (!record) return;
+        if (!force && !accessTokenNeedsRefresh(record.accessToken, Date.now())) return;
+        const next = await Effect.runPromise(store.refreshAccess(this.#callOptions()));
+        if (!next) throw new Error(sourceText("error.provider.grokBotNotSignedIn"));
+        record = next;
+      };
+      await refresh(false);
       const machineId = await this.#machine();
       let messages: GrokBotInferenceMessage[] = [...thread.messages, await userMessage(params)];
       let lastText = "";
       for (let round = 0; round < 8; round += 1) {
         const calls: GrokBotStreamTool[] = [];
         const roundText = { value: "" };
-        await readGrokBotInference({
-          apiBaseUrl: this.#apiBase(),
-          accessToken: record.accessToken,
-          machineId,
-          ...(this.#options.checksumNow ? { checksumNow: this.#options.checksumNow } : {}),
-          signal: turn.controller.signal,
-          ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
-          body: grokBotStreamBody({
-            messages,
-            tools: thread.tools,
-            modelId,
-            conversationId: thread.id,
-            invocationId: `${turn.id}:${round}`,
-          }),
-          onEvent: (event) => {
-            if (thread.turn?.id !== turn.id) return;
-            if (event.kind === "tool") {
-              if (event.isComplete) calls.push(event);
-              else this.#emitTool(thread, turn.id, event, "inProgress");
-              return;
-            }
-            if (event.kind === "thinking") {
-              this.#emit("item/reasoning/textDelta", {
+        const streamRound = (accessToken: string) =>
+          readGrokBotInference({
+            apiBaseUrl: this.#apiBase(),
+            accessToken,
+            machineId,
+            ...(this.#options.checksumNow ? { checksumNow: this.#options.checksumNow } : {}),
+            signal: turn.controller.signal,
+            ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
+            body: grokBotStreamBody({
+              messages,
+              tools: thread.tools,
+              modelId,
+              conversationId: thread.id,
+              invocationId: `${turn.id}:${round}`,
+            }),
+            onEvent: (event) => {
+              if (thread.turn?.id !== turn.id) return;
+              if (event.kind === "tool") {
+                if (event.isComplete) calls.push(event);
+                else this.#emitTool(thread, turn.id, event, "inProgress");
+                return;
+              }
+              if (event.kind === "thinking") {
+                this.#emit("item/reasoning/textDelta", {
+                  threadId: thread.id,
+                  turnId: turn.id,
+                  itemId: `think-${turn.id}`,
+                  delta: event.text,
+                });
+                return;
+              }
+              roundText.value += event.text;
+              turn.text += event.text;
+              this.#emit("item/agentMessage/delta", {
                 threadId: thread.id,
                 turnId: turn.id,
-                itemId: `think-${turn.id}`,
+                itemId: turn.itemId,
                 delta: event.text,
               });
-              return;
-            }
-            roundText.value += event.text;
-            turn.text += event.text;
-            this.#emit("item/agentMessage/delta", {
-              threadId: thread.id,
-              turnId: turn.id,
-              itemId: turn.itemId,
-              delta: event.text,
-            });
-          },
-        });
+            },
+          });
+        try {
+          await streamRound(record.accessToken);
+        } catch (error) {
+          if (!isUnauthenticated(error) || roundText.value.length > 0 || calls.length > 0) throw error;
+          await refresh(true);
+          await streamRound(record.accessToken);
+        }
         if (thread.turn?.id !== turn.id) return;
         lastText = roundText.value;
         if (calls.length === 0) break;
@@ -587,4 +604,9 @@ function isToolResult(value: unknown): value is DynamicToolResult {
           (item.type === "inputImage" && typeof item.imageUrl === "string")),
     )
   );
+}
+
+function isUnauthenticated(error: unknown): boolean {
+  const text = error instanceof Error ? error.message : String(error);
+  return /unauthenticated|HTTP 401/iu.test(text);
 }
