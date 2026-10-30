@@ -112,10 +112,11 @@ const server = createServer((request, response: ServerResponse) => {
     if (url.pathname === "/aiserver.v1.InferenceService/Stream") {
       streamAuth.push(request.headers.authorization ?? "");
       streamChecksums.push(String(request.headers["x-cursor-checksum"] ?? ""));
-      streamBodies.push(body);
+      streamBodies.push(body.slice(5));
       assert.equal(request.headers.authorization, `Bearer ${ACCESS}`);
       assert.equal(request.headers["connect-protocol-version"], "1");
       assert.equal(request.headers["x-cursor-client-type"], "sand");
+      assert.equal(request.headers["content-type"], "application/connect+json");
       const toolFollowUp = body.includes("toolContent");
       const toolRequest = body.includes("use-tool") && !toolFollowUp;
       response.writeHead(200, { "content-type": "application/connect+json" });
