@@ -98,6 +98,7 @@ export const messages = {
   "agentSettings.agentTitlePlaceholder": "Ajanınızın ne yaptığını açıklayın",
   "agentSettings.instructions": "Talimatlar",
   "agentSettings.instructionsLabel": "Ajan talimatları",
+  "agentSettings.instructionsResize": "Talimatları yeniden boyutlandır",
   "agentSettings.instructionsPlaceholder": "Bu ajanın amacı nedir",
   "agentSettings.avatar.edit": "Ajan avatarını düzenle",
   "agentSettings.avatar.editor": "Avatar düzenleyici",
@@ -152,7 +153,10 @@ export const messages = {
   "agentSettings.taskLimit.default": "Varsayılan ({count})",
   "agentSettings.taskLimit.oneTurn":
     "{provider} aynı anda tek tur çalıştırır. Bu ajanın mesaj dizileri birbirini bekler.",
-  "agentSettings.notifications.title": "Bildirimler",
+  "agentSettings.notificationLevel.title": "Bana bildir",
+  "agentSettings.notificationLevel.server": "Sunucu varsayılanı ({level})",
+  "agentSettings.notificationLevel.note":
+    "Bu seçim yalnızca sizin için geçerlidir ve tüm cihazlarınızda uygulanır. Sunucu sessize alınmışsa veya “Hiçbir şey” seçiliyse bu ajan da sessiz kalır.",
   "agentSettings.newChat.title": "Yeni sohbet",
   "agentSettings.newChat.description": "Ajan bu sohbeti unutur. Yapılandırması kalır.",
   "agentSettings.newChat.button": "Başlat",

@@ -95,6 +95,7 @@ export const messages = {
   "agentSettings.agentTitlePlaceholder": "에이전트가 하는 일을 설명해 주세요",
   "agentSettings.instructions": "지침",
   "agentSettings.instructionsLabel": "에이전트 지침",
+  "agentSettings.instructionsResize": "지침 크기 조정",
   "agentSettings.instructionsPlaceholder": "이 에이전트의 용도",
   "agentSettings.avatar.edit": "에이전트 아바타 편집",
   "agentSettings.avatar.editor": "아바타 편집기",
@@ -148,7 +149,10 @@ export const messages = {
   "agentSettings.taskLimit.default": "기본값({count})",
   "agentSettings.taskLimit.oneTurn":
     "{provider}은(는) 한 번에 한 턴씩 실행해요. 이 에이전트의 스레드는 서로를 기다려요.",
-  "agentSettings.notifications.title": "알림",
+  "agentSettings.notificationLevel.title": "내 알림",
+  "agentSettings.notificationLevel.server": "서버 기본값 ({level})",
+  "agentSettings.notificationLevel.note":
+    "이 설정은 나에게만 적용되며 내 모든 기기에 적용돼요. 서버가 음소거되었거나 '없음'으로 설정되면 이 에이전트도 알리지 않아요.",
   "agentSettings.newChat.title": "새 채팅",
   "agentSettings.newChat.description": "에이전트가 이 채팅을 잊어요. 설정은 그대로 유지돼요.",
   "agentSettings.newChat.button": "시작",

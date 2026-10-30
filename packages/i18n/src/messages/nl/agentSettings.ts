@@ -98,6 +98,7 @@ export const messages = {
   "agentSettings.agentTitlePlaceholder": "Beschrijf wat je agent doet",
   "agentSettings.instructions": "Instructies",
   "agentSettings.instructionsLabel": "Instructies voor agent",
+  "agentSettings.instructionsResize": "Formaat van instructies wijzigen",
   "agentSettings.instructionsPlaceholder": "Waar deze agent voor is",
   "agentSettings.avatar.edit": "Avatar van agent bewerken",
   "agentSettings.avatar.editor": "Avatar-editor",
@@ -152,7 +153,10 @@ export const messages = {
   "agentSettings.taskLimit.default": "Standaard ({count})",
   "agentSettings.taskLimit.oneTurn":
     "{provider} voert één beurt tegelijk uit. De threads van deze agent wachten op elkaar.",
-  "agentSettings.notifications.title": "Meldingen",
+  "agentSettings.notificationLevel.title": "Meld mij",
+  "agentSettings.notificationLevel.server": "Serverstandaard ({level})",
+  "agentSettings.notificationLevel.note":
+    "Deze keuze geldt alleen voor jou, op al je apparaten. Is de server gedempt of op ‘Niets’ gezet, dan blijft ook deze agent stil.",
   "agentSettings.newChat.title": "Nieuwe chat",
   "agentSettings.newChat.description": "De agent vergeet deze chat. De instellingen blijven.",
   "agentSettings.newChat.button": "Starten",

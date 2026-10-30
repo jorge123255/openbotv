@@ -3,7 +3,8 @@
 OpenBot is local-first, but it is not offline-only. Agent workspaces, conversations, attachments,
 browser data, and team data stay on the computer that runs OpenBot. The optional OpenBot account
 service stores the minimum central data needed for email sign-in, account avatars, remote host
-configuration, memberships, invitations, and logical sessions.
+configuration, memberships, invitations, logical sessions, and the account's product analytics
+answer.
 
 The optional browser client at `/app` connects to the computer that runs OpenBot. Conversation
 and attachment data travel through the existing encrypted host connection, not through the
@@ -74,6 +75,10 @@ because the account service sends them and not your computer.
 For each email that the account service sends from its mailbox (a sign-in code, an invitation, a contact
 message or a welcome email), it sends OpenPanel one event with the kind of email and the result of the send. This
 event has no account ID, email address, name or message content.
+
+Every 5 minutes, each Signal host sends OpenPanel one event with the number of TURN relay allocations
+and the number of Signal connections. It has no account ID, address, session or
+message content.
 
 The account service also records a return from Checkout without payment and later payment
 recovery. Verified paid invoices produce a revenue event in USD, with the original amount,
@@ -216,14 +221,29 @@ browser, clear the site data of openbot.run. OpenPanel can also derive
 session, device, browser, operating-system, network, and approximate geographic metadata from a
 request. The analytics service runs on OpenBot's self-hosted infrastructure and receives events
 through `analytics.openbot.run`.
-Analytics is enabled in production by default. Desktop users can disable it under **Settings →
+Desktop and web installs from before the first-run analytics box keep analytics on. On a new desktop
+install, and at web sign-in with no saved choice, the **Help make OpenBot better** box starts ticked
+only when both the region (of the system on desktop, of the browser language on web) and the time
+zone are in the United States and its territories, Mexico, Australia, New Zealand or Japan. The
+check runs on the device and sends nothing. Everywhere else, and when the region is unknown, the box starts
+clear and nothing is sent until the user ticks it. Desktop users can disable it under **Settings →
 General → Permissions → Share product analytics**. The preference is stored locally and disables both UI
 analytics and lifecycle analytics emitted by the local host. Website analytics does not use the
 desktop preference. Mobile has its own phone-wide **Settings → Privacy → Share product analytics**
 preference, independent of desktop and host collection. It defaults to enabled in a
 configured production build, is read before collection starts, and remains disabled if the stored
-preference cannot be read. Disabling it drops pending mobile events; it does not remove previously
-received events or retract an in-flight request. There is no persistent offline analytics queue.
+preference cannot be read.
+When the user signs in, the account service keeps their latest analytics answer: on, off, or no
+answer yet. A box that the user ticks or clears, and a Settings switch that the user changes on
+desktop, web or mobile, sends the answer (one true or false value) and the age of the choice in
+milliseconds to the account. The account service stores the time of the answer, from its own clock.
+A default that the user did not change is not sent. After sign-in on another device, that device
+follows the account's answer. A device that saved "off" before the account kept answers stays off
+when the account's answer is "on"; only a change on that device turns it on. A choice made while
+the device was offline or signed out goes to the account at the next sign-in, start or profile
+refresh; the account keeps it only if it has no newer answer from another device. Disabling it
+drops pending mobile events; it does not remove previously received events or retract an in-flight
+request. There is no persistent offline analytics queue.
 When a user turns product analytics off on desktop, web or mobile, the app first sends one event
 that says analytics was turned off, then stops. Turning it on again sends nothing.
 Development and preview mobile builds do not collect product analytics. Mobile sign-in uses the
@@ -707,6 +727,12 @@ server can change it.
   choices. Only the user can read the file, and it is not in the diagnostics export or the data
   export. See [iPhone notifications](#iphone-notifications) and
   [Android notifications](#android-notifications).
+- `~/Library/Application Support/OpenBot/openbot-agent-notification-levels-v1.json` holds the
+  notification level that the owner and each member of this host chose for the whole server and for
+  each agent ("All activity", "Only when it needs me" or "Nothing"), by member ID and agent ID. Each member reads and
+  sets only their own levels, and the host applies them to the desktop notifications of this computer
+  and to the notifications that it sends to that member's phones. A removed member's levels are
+  deleted. It is never sent to the OpenBot account service.
 
 Attachments copied into OpenBot remain in managed storage after their original file is moved or
 deleted. By default, all agents share one embedded browser profile, including cookies and website
@@ -1350,8 +1376,9 @@ memory only, for the session that gave them. It forgets them when the phone remo
 session ends, when the member is removed or disabled, when Apple refuses the token, after 12 hours,
 and when the host stops.
 
-Each update contains the text that the view shows: agent names, the current task, the last reply,
-a question and its options, or a command that waits for approval. The host seals the update with
+Each update contains the text that the view shows: agent names, the current task, the first
+sentences of the last reply, a question and its options, or a command that waits for approval. The
+host and the phone hide secrets and email addresses in this text, as in notifications. The host seals the update with
 keys made from the secret (an HMAC-SHA256 keystream and an HMAC-SHA256 tag) and sends it to the
 OpenBot account service, which sends it to Apple. The account service and Apple receive only the
 push token, the sealed bytes, the time, the priority, the time when the content becomes out of
@@ -1376,8 +1403,10 @@ an answer, an approval, or a step in the browser, while the app is not on screen
 send one while the member uses a desktop app. For this, it keeps in memory the time of the last
 send, answer or typing of each session, and on its own computer it reads whether the OpenBot window
 has focus and how long the computer has had no input. While the phone shows the Live Activity of
-that host, the host sends no notification. With Play sound on, the Live Activity update lights up
-the screen and plays the sound instead. For this, the phone gives each connected host, over the
+that host and the activity shows the event, the host sends no notification. With Play sound on, the
+Live Activity update lights up the screen and plays the sound instead. An event that comes while
+the app looks on screen stays in the memory of the host for at most 5 minutes, in case iOS suspended
+the app before it said that it went away, and then goes as a notification if you did not see it. For this, the phone gives each connected host, over the
 encrypted host connection, the Apple push token of the app (none when notifications are off and only
 the Live Activity plays the sound), the 32-byte secret for
 that host (the one of the Live Activity), its interface language, and the choices of the user: the
@@ -1387,9 +1416,9 @@ keeps these values in a file that only the user of that computer can read, so it
 after a restart. It removes them when the phone removes them, when the member is removed or
 disabled, and when the account service or Apple refuses the phone.
 
-Each notification contains the agent name and a short text. With previews on, the text is the start
-of the agent reply, the question, or the command or reason of an approval, at most 200 characters,
-with secrets hidden as in desktop notifications. With previews off, it only says what
+Each notification contains the agent name and a short text. With previews on, the text is the first
+sentences of the agent reply, the question, or the command or reason of an approval, at most 200
+characters, with secrets and email addresses hidden as in desktop notifications. With previews off, it only says what
 happened, such as "Finished working.". The host seals the notification with keys made from the
 secret, as it seals a Live Activity update, and sends it to the OpenBot account service with the
 account session of the phone. The account service sends nothing when that session has ended, when

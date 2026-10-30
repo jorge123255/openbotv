@@ -97,6 +97,7 @@ export const messages = {
   "agentSettings.agentTitlePlaceholder": "Descrivi cosa fa il tuo agente",
   "agentSettings.instructions": "Istruzioni",
   "agentSettings.instructionsLabel": "Istruzioni dell'agente",
+  "agentSettings.instructionsResize": "Ridimensiona le istruzioni",
   "agentSettings.instructionsPlaceholder": "A cosa serve questo agente",
 
   "agentSettings.avatar.edit": "Modifica l'avatar dell'agente",
@@ -155,7 +156,10 @@ export const messages = {
   "agentSettings.taskLimit.oneTurn":
     "{provider} esegue un turno alla volta. I thread di questo agente si aspettano a vicenda.",
 
-  "agentSettings.notifications.title": "Notifiche",
+  "agentSettings.notificationLevel.title": "Avvisami",
+  "agentSettings.notificationLevel.server": "Predefinita del server ({level})",
+  "agentSettings.notificationLevel.note":
+    "Questa scelta vale solo per te, su tutti i tuoi dispositivi. Se il server è silenziato o impostato su «Niente», anche questo agente resta in silenzio.",
 
   "agentSettings.newChat.title": "Nuova chat",
   "agentSettings.newChat.description": "L'agente dimentica questa chat. La sua configurazione resta.",

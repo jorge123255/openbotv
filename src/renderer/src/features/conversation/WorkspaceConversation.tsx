@@ -87,6 +87,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
     setPendingPluginConnect,
     agentAutoApproves,
     generalSettings,
+    openNotificationLevels,
   } = useSettings();
   const {
     providerRuntimeStatuses,
@@ -158,6 +159,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
     conversations,
     sendMessage,
     markAgentMessagesRead,
+    markAgentMessagesUnread,
     loadOlderAgentMessages,
     loadLatestAgentMessages,
     searchAgentMessages,
@@ -465,13 +467,12 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
   createEffect(
     () => {
       const ask = usageLimitAsk();
-      return ask ? `${activeAgent()?.id ?? ""}:${ask.resetsAt ?? ""}` : null;
+      return ask ? { key: `${activeAgent()?.id ?? ""}:${ask.resetsAt ?? ""}`, provider: ask.provider } : null;
     },
-    (key) => {
-      const ask = usageLimitAsk();
-      if (!key || !ask || shownUsageLimits.has(key)) return;
-      shownUsageLimits.add(key);
-      desktopAnalytics.track("usage_limit_action", { action: "shown", from_provider: ask.provider });
+    (shown) => {
+      if (!shown || shownUsageLimits.has(shown.key)) return;
+      shownUsageLimits.add(shown.key);
+      desktopAnalytics.track("usage_limit_action", { action: "shown", from_provider: shown.provider });
     },
   );
 
@@ -518,6 +519,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         onSignInWithCodeProvider={composerCodeSignIn() ? signInWithCode : undefined}
         onManageProviders={manageProviders() ? openProviderSettings : undefined}
         onManageBrowserProfiles={manageBrowserProfiles() ? openBrowserProfileSettings : undefined}
+        onOpenNotificationSettings={openNotificationLevels}
         agent={conversationAgent()}
         agents={agentList()}
         mentionAgents={agentList().filter((agent) => !userHiddenAgentIds().has(agent.id))}
@@ -595,6 +597,15 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         onSetAgentAvatar={setAgentAvatar}
         onSendMessage={sendMessage}
         onMarkRead={() => markAgentMessagesRead()}
+        // The Team API unread route marks a whole chat, so only an agent on this computer has the item.
+        onMarkUnread={
+          activeServer()?.kind === "local"
+            ? (messageId) => {
+                const agentId = activeAgent()?.id;
+                return agentId ? markAgentMessagesUnread(agentId, messageId) : Promise.resolve();
+              }
+            : undefined
+        }
         onLoadOlder={() => void loadOlderAgentMessages()}
         onLoadLatest={() => (activeAgent() ? loadLatestAgentMessages(activeAgent()?.id ?? "") : Promise.resolve())}
         onSearchMessages={(query) =>

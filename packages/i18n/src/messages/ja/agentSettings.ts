@@ -96,6 +96,7 @@ export const messages = {
   "agentSettings.agentTitlePlaceholder": "エージェントの役割を説明してください",
   "agentSettings.instructions": "指示",
   "agentSettings.instructionsLabel": "エージェントへの指示",
+  "agentSettings.instructionsResize": "指示欄のサイズを変更",
   "agentSettings.instructionsPlaceholder": "このエージェントの用途",
 
   "agentSettings.avatar.edit": "エージェントのアバターを編集",
@@ -154,7 +155,10 @@ export const messages = {
   "agentSettings.taskLimit.oneTurn":
     "{provider} は一度に1ターンずつ実行します。このエージェントのスレッドは互いに待ち合わせます。",
 
-  "agentSettings.notifications.title": "通知",
+  "agentSettings.notificationLevel.title": "自分への通知",
+  "agentSettings.notificationLevel.server": "サーバーの既定 ({level})",
+  "agentSettings.notificationLevel.note":
+    "この設定はあなただけに適用され、すべてのデバイスで有効です。サーバーがミュート中か「なし」の場合、このエージェントも通知しません。",
 
   "agentSettings.newChat.title": "新しいチャット",
   "agentSettings.newChat.description": "エージェントはこのチャットを忘れます。設定はそのままです。",

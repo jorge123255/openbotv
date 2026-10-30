@@ -118,6 +118,7 @@ export const messages = {
   "agentSettings.agentTitlePlaceholder": "Опишите, чем занимается агент",
   "agentSettings.instructions": "Инструкции",
   "agentSettings.instructionsLabel": "Инструкции агента",
+  "agentSettings.instructionsResize": "Изменить размер инструкций",
   "agentSettings.instructionsPlaceholder": "Для чего нужен этот агент",
 
   "agentSettings.avatar.edit": "Изменить аватар агента",
@@ -175,7 +176,10 @@ export const messages = {
   "agentSettings.taskLimit.default": "По умолчанию ({count})",
   "agentSettings.taskLimit.oneTurn": "{provider} выполняет один ход за раз. Ветки этого агента ждут друг друга.",
 
-  "agentSettings.notifications.title": "Уведомления",
+  "agentSettings.notificationLevel.title": "Уведомлять меня",
+  "agentSettings.notificationLevel.server": "{level} (по умолчанию на сервере)",
+  "agentSettings.notificationLevel.note":
+    "Этот выбор действует только для вас, на всех ваших устройствах. Если у сервера отключены уведомления или выбрано «Ничего», этот агент тоже молчит.",
 
   "agentSettings.newChat.title": "Новый чат",
   "agentSettings.newChat.description": "Агент забудет этот чат. Настройки сохранятся.",

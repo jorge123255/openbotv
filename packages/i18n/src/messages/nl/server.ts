@@ -208,6 +208,8 @@ export const messages = {
   "server.rail.restart": "Server herstarten",
   "server.rail.leave": "Server verlaten",
   "server.rail.delete": "Server wissen",
+  "server.rail.hide": "Server verbergen",
+  "server.rail.showLocal": "{name} tonen",
   "server.select.failedTitle": "Kan de server niet kiezen",
   "server.select.failedDescription": "Kan niet van server wisselen. Probeer het opnieuw.",
   "server.select.openAgentFailed": "Kan {name} niet openen. Zoek hem in de zijbalk.",
@@ -311,13 +313,6 @@ export const messages = {
   "server.settings.setUpDesktopDescription": "Bekijk en bedien deze Mac vanaf een andere computer.",
   "server.settings.later": "Later",
   "server.settings.setUp": "Instellen",
-  "server.settings.notifications": "Meldingen",
-  "server.settings.muteNotifications": "Meldingen dempen",
-  "server.settings.muteDescription":
-    "Stop bureaubladmeldingen, geluiden en updates in de MacBook-notch van deze server.",
-  "server.settings.mutedUntilDescription": "{until}. Zet uit om het dempen nu op te heffen.",
-  "server.settings.notifyAbout": "Meld me over",
-  "server.settings.notifyAboutDescription": "Welke gebeurtenissen van agents een bureaubladmelding tonen.",
   "server.settings.agents": "Agents",
   "server.settings.timezone": "Tijdzone",
   "server.settings.timezoneDescription":
