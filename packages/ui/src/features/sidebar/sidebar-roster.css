@@ -109,10 +109,6 @@
   background: var(--openbot-hover);
 }
 
-.roster-row-asleep {
-  opacity: 0.42;
-}
-
 .roster-row-rising {
   animation: roster-rise var(--openbot-duration-slow) ease;
 }
@@ -121,6 +117,12 @@
   align-self: stretch;
   border-radius: var(--openbot-radius-pill);
   background: var(--roster-accent);
+}
+
+/* Keep row text and focus feedback readable. Only the category marks become quiet. */
+.roster-row-asleep .roster-bar,
+.roster-row-asleep .roster-dot {
+  opacity: 0.42;
 }
 
 .roster-avatar {
@@ -191,7 +193,7 @@
 
 .roster-status,
 .roster-time {
-  color: var(--openbot-text-muted);
+  color: var(--openbot-text-secondary);
   font-size: var(--openbot-text-sm);
   font-weight: var(--openbot-weight-regular);
 }
@@ -202,19 +204,10 @@
   white-space: nowrap;
 }
 
-.roster-status-full {
-  display: none;
-  white-space: normal;
-}
-
-.roster-row:hover .roster-status-short,
-.roster-row:focus-visible .roster-status-short {
-  display: none;
-}
-
-.roster-row:hover .roster-status-full,
-.roster-row:focus-visible .roster-status-full {
-  display: block;
+.roster-tooltip {
+  max-width: min(36ch, calc(100vw - var(--openbot-space-4)));
+  overflow-wrap: anywhere;
+  font-weight: var(--openbot-weight-regular);
 }
 
 .roster-time {

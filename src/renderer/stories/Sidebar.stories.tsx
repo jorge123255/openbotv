@@ -1,4 +1,5 @@
 import type { ChannelSummary, HiddenAgent, SidebarLayoutAction, SidebarLayoutSnapshot } from "@openbot/contracts/ipc";
+import { Button } from "@openbot/ui";
 import type { AvatarMood } from "@openbot/ui/bloub-avatar";
 import { Sidebar } from "@openbot/ui/features/sidebar/Sidebar";
 import { SidebarCommunityCard } from "@openbot/ui/features/sidebar/SidebarCommunityCard";
@@ -390,28 +391,72 @@ const rosterAgents = [
   ),
 ];
 
-/** The bots list: newest first, category filters, and quiet agents under Asleep. */
-export const Roster: Story = {
-  render: () => {
-    const [view, setView] = createSignal<"roster" | "agents" | "routines">("roster");
-    const [activeAgentId, setActiveAgentId] = createSignal("lantern");
-    return (
-      <div style={{ width: "340px", height: "100vh" }}>
-        <Sidebar
-          {...args}
-          view={view()}
-          onViewChange={setView}
-          agents={rosterAgents}
-          activeAgentId={activeAgentId()}
-          people={[]}
-          directThreads={[]}
-          pinnedItems={[]}
-          agentMoods={{}}
-          agentStates={{
+function RosterStory(props: { agents?: typeof rosterAgents; states?: Record<string, SidebarAgentState> }) {
+  const [view, setView] = createSignal<"roster" | "agents" | "routines">("roster");
+  const [activeAgentId, setActiveAgentId] = createSignal("lantern");
+  return (
+    <div style={{ width: "340px", height: "100vh" }}>
+      <Sidebar
+        {...args}
+        view={view()}
+        onViewChange={setView}
+        agents={props.agents ?? rosterAgents}
+        activeAgentId={activeAgentId()}
+        people={[]}
+        directThreads={[]}
+        pinnedItems={[]}
+        agentMoods={{}}
+        agentStates={
+          props.states ?? {
             pocket: { kind: "waiting", reason: "question", detail: "Can you pick one for tomorrow?" },
-          }}
-          onSelectAgent={setActiveAgentId}
+          }
+        }
+        onSelectAgent={setActiveAgentId}
+      />
+    </div>
+  );
+}
+
+/** The bots list: newest first, category filters, and quiet agents under Asleep. */
+export const Roster: Story = { render: () => <RosterStory /> };
+
+/** Host states and long copy remain readable without moving the other rows on hover or focus. */
+export const RosterStates: Story = {
+  render: () => {
+    const initialStates: Record<string, SidebarAgentState> = {
+      rocket: { kind: "working" },
+      orbit: { kind: "routine", phase: "running", count: 2 },
+      moon: { kind: "unread", count: 3 },
+      pocket: {
+        kind: "waiting",
+        reason: "approval",
+        detail: "Approve the synthetic workspace check before work continues.",
+      },
+      lantern: { kind: "limited", resetsAt: null },
+      cosmo: { kind: "routine", phase: "failed", count: 1 },
+      star: { kind: "responded" },
+    };
+    const [states, setStates] = createSignal(initialStates);
+    return (
+      <div style={{ display: "grid", "grid-template-columns": "340px 180px" }}>
+        <RosterStory
+          agents={rosterAgents.map((agent) =>
+            agent.id === "star" || agent.id === "nebula"
+              ? {
+                  ...agent,
+                  preview:
+                    "The workspace notes and sketches are saved. The next task can start when you are ready to review the details and choose what to do next.",
+                  description:
+                    "A profile description explains the agent's role. It is not a live status message. ".repeat(8),
+                }
+              : agent,
+          )}
+          states={states()}
         />
+        <div>
+          <Button onClick={() => setStates({})}>Clear host states</Button>
+          <Button onClick={() => setStates(initialStates)}>Restore host states</Button>
+        </div>
       </div>
     );
   },
