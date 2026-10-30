@@ -395,6 +395,16 @@ const MOCK_MCP_TOOL_COUNTS: Record<string, number> = { "Local SQLite": 12, Linea
 /** The one address that asks for a sign-in until it has one, so the preview shows Save signing in. */
 const MOCK_MCP_SIGN_IN_URL = "https://mcp.granola.ai/mcp";
 
+const previewGrokBotComputer = {
+  phase: "off",
+  screenAvailable: false,
+  windowOpen: false,
+  pullPercent: null,
+  imageUpdateAvailable: false,
+  needsYou: false,
+  handoffReason: null,
+} as const;
+
 export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBotControls {
   const appInfo = clone(options.appInfo ?? STORY_APP_INFO);
   let setupState = clone<AppSetupState>(
@@ -1431,6 +1441,14 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       listAgents: async () => [],
       getUsage: async () => null,
       importAgents: async () => ({ imported: 0, skipped: 0, agentIds: [] }),
+      getComputer: async () => previewGrokBotComputer,
+      openComputer: async () => ({
+        ...previewGrokBotComputer,
+        phase: "running",
+        screenAvailable: true,
+        windowOpen: true,
+      }),
+      handBackComputer: async () => previewGrokBotComputer,
       createAgent: async (input) => ({
         id: "preview-agent",
         name: input.name,

@@ -1,13 +1,14 @@
 import type {
   GrokBotAccountEvent,
   GrokBotAgentSummary,
+  GrokBotComputerSummary,
   GrokBotImportResult,
   GrokBotSignInStart,
   GrokBotUsageSummary,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 
-const SECRET_KEYS = new Set(["accessToken", "refreshToken", "gatewayToken", "verifier"]);
+const SECRET_KEYS = new Set(["accessToken", "refreshToken", "gatewayToken", "verifier", "vncUrl", "networkToken"]);
 
 export function decodeGrokBotStatus(value: unknown): { signedIn: boolean } {
   rejectSecrets(value);
@@ -132,6 +133,30 @@ function rejectSecrets(value: unknown): void {
     if (SECRET_KEYS.has(key)) throw new Error("Invalid Grok Bot response.");
     rejectSecrets(nested);
   }
+}
+
+const COMPUTER_PHASES: readonly GrokBotComputerSummary["phase"][] = [
+  "off",
+  "starting",
+  "sleeping",
+  "local",
+  "running",
+  "pulling",
+];
+
+export function decodeGrokBotComputer(value: unknown): GrokBotComputerSummary {
+  rejectSecrets(value);
+  const phase = isDynamicRecord(value) ? COMPUTER_PHASES.find((candidate) => candidate === value.phase) : undefined;
+  if (!isDynamicRecord(value) || phase === undefined) throw new Error("Invalid Grok Bot response.");
+  return {
+    phase,
+    screenAvailable: value.screenAvailable === true,
+    windowOpen: value.windowOpen === true,
+    pullPercent: typeof value.pullPercent === "number" ? value.pullPercent : null,
+    imageUpdateAvailable: value.imageUpdateAvailable === true,
+    needsYou: value.needsYou === true,
+    handoffReason: typeof value.handoffReason === "string" ? value.handoffReason : null,
+  };
 }
 
 export function decodeGrokBotImportResult(value: unknown): GrokBotImportResult {
