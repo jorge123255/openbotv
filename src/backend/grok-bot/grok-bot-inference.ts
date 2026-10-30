@@ -168,7 +168,7 @@ export async function readGrokBotInference(input: {
     signal: input.signal,
     headers: {
       Authorization: `Bearer ${input.accessToken}`,
-      "Content-Type": "application/json",
+      "Content-Type": "application/connect+json",
       "connect-protocol-version": "1",
       "x-cursor-client-type": "sand",
       "x-cursor-client-version": GROK_BOT_CURSOR_CLIENT_VERSION,
@@ -176,7 +176,7 @@ export async function readGrokBotInference(input: {
       "x-ghost-mode": "true",
       "x-cursor-checksum": createCursorChecksum(input.machineId, input.checksumNow?.() ?? Date.now()),
     },
-    body: JSON.stringify(input.body),
+    body: encodeConnectEnvelope(input.body),
   });
   if (!response.ok || !response.body) {
     const detail = response.ok
@@ -271,4 +271,13 @@ function connectErrorText(error: unknown): string {
       .join(": ")
       .slice(0, 300) || "stream error"
   );
+}
+
+/** Connect server-streaming requires an enveloped body: 1 flag byte + 4-byte BE length + JSON. */
+export function encodeConnectEnvelope(message: unknown): Uint8Array<ArrayBuffer> {
+  const payload = new TextEncoder().encode(JSON.stringify(message));
+  const out = new Uint8Array(5 + payload.length);
+  new DataView(out.buffer).setUint32(1, payload.length);
+  out.set(payload, 5);
+  return out;
 }
