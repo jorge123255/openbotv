@@ -5,7 +5,7 @@ import { Effect, Result } from "effect";
 import { CliCodeLoginFailed } from "./cli-code-login";
 
 /** Desktop BotAI uses `cli` so the official Grok Bot `sand://` callback stays with Grok Bot. */
-export const SAND_AUTH_REDIRECT_TARGET = "cli";
+const SAND_AUTH_REDIRECT_TARGET = "cli";
 const MAX_POLL_ATTEMPTS = 150;
 
 export function cursorLoginHandshake(websiteUrl: string): { uuid: string; verifier: string; loginUrl: string } {
@@ -20,7 +20,7 @@ export function cursorLoginHandshake(websiteUrl: string): { uuid: string; verifi
   return { uuid, verifier, loginUrl: url.toString() };
 }
 
-export function pollDelayMs(attempt: number): number {
+function pollDelayMs(attempt: number): number {
   return Math.min(1_000 * 1.2 ** attempt, 10_000);
 }
 
