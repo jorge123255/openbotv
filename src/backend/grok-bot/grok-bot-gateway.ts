@@ -75,6 +75,27 @@ export const readGrokBotTranscript = Effect.fn("GrokBotGateway.transcript")(func
   return yield* gatewayJson(store, options, "/api/getAgentTranscriptTail", { id: agentId, limit: 200 });
 });
 
+/**
+ * BotAI's Mac app never calls `InferenceService/Stream` itself. It sends the turn to the in-box
+ * Sand gateway (`POST /api/sendPrompt`); the box host runs inference with its own box-scoped
+ * credential (`/sand-box/inference-credential`). A user sand token on Stream is unauthenticated.
+ */
+export const sendGrokBotPrompt = Effect.fn("GrokBotGateway.sendPrompt")(function* (
+  store: GrokBotAccountStore,
+  input: { agentId: string; prompt: string; clientNonce: string },
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* gatewayJson(store, options, "/api/sendPrompt", {
+    prompt: input.prompt,
+    agentId: input.agentId,
+    clientNonce: input.clientNonce,
+    attachmentPaths: [],
+    attachmentNames: [],
+    enterEpochMs: Date.now(),
+    composedAtMs: Date.now(),
+  });
+});
+
 const gatewayJson = Effect.fn("GrokBotGateway.call")(function* (
   store: GrokBotAccountStore,
   options: GrokBotGatewayCallOptions,
