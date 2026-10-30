@@ -250,7 +250,12 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         channels.hasUnread()
       }
       view={layout.sidebarView()}
-      onViewChange={layout.setSidebarView}
+      onViewChange={(view) => {
+        // The bots list and the routines view have no channel row. Close an open channel first,
+        // or the effect above sends the list straight back to Agents and the switch looks dead.
+        if (view !== "agents" && channels.state.selectedId !== null) channels.close();
+        layout.setSidebarView(view);
+      }}
       serverName={activeServer()?.name ?? t("sidebar.topbar.localServer")}
       onOpenServerSettings={(trigger) => {
         const server = activeServer();

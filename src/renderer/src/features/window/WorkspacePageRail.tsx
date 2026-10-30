@@ -40,7 +40,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   function showSidebarView(view: SidebarView) {
     windowPage.showAgents();
     // An open channel would stay in the middle with no row in the list.
-    if (view === "routines") channels.close();
+    if (view !== "agents") channels.close();
     layout.setSidebarView(view);
   }
   const usageRows = usePlanLimitRows();

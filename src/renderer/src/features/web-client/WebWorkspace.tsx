@@ -1575,7 +1575,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
     showAgents();
     setMobilePane("workspace");
     // An open channel would stay in the middle with no row in the list.
-    if (view === "routines") channels.close();
+    if (view !== "agents") channels.close();
     layout.setSidebarView(view);
   }
   /**
@@ -1903,7 +1903,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                   // The browser client does not know the unread counts of agent chats it has not opened.
                   hasUnread
                   view={layout.sidebarView()}
-                  onViewChange={layout.setSidebarView}
+                  onViewChange={showSidebarView}
                   serverName={workspace.state.host?.name ?? "OpenBot"}
                   serverUpdate={(() => {
                     const id = server()?.id;
