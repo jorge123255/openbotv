@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
@@ -99,6 +100,8 @@ interface BridgeRoute {
 
 export class LocalMcpBridge {
   #server: HttpServer | null = null;
+  /** Sockets the provider still holds. Close drops them so quit does not wait for that process. */
+  readonly #sockets = new Set<Socket>();
   #port: number | null = null;
   #listening: Deferred.Deferred<void, McpOperationError> | null = null;
   /** Counts the closes, so a session asked for before a close does not register after it. */
@@ -206,9 +209,12 @@ export class LocalMcpBridge {
             server.close(() => resolve());
             // The provider keeps this connection until its process ends, and that process ends
             // only after this close returns. Drop the sockets, or quit waits past the 10 s step.
+            // Bun's closeAllConnections leaves a request that is still open in its own set.
             server.closeAllConnections();
+            for (const socket of this.#sockets) socket.destroy();
           }),
       );
+    this.#sockets.clear();
     this.#listening = null;
   });
 
@@ -232,7 +238,16 @@ export class LocalMcpBridge {
   ): Effect.fn.Return<void, McpOperationError> {
     let retained = false;
     yield* Effect.acquireUseRelease(
-      mcpSync(() => createServer((request, response) => void runCauseEffect(this.#handle(request, response)))),
+      mcpSync(() => {
+        const server = createServer((request, response) => void runCauseEffect(this.#handle(request, response)));
+        server.on("connection", (socket) => {
+          this.#sockets.add(socket);
+          socket.on("close", () => {
+            this.#sockets.delete(socket);
+          });
+        });
+        return server;
+      }),
       (server) =>
         Effect.gen({ self: this }, function* () {
           yield* mcpCall(

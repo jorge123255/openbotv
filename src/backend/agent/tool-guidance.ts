@@ -122,9 +122,6 @@ export function toolGuidance(
       return "When a command, a script, or a service needs an API key or a token, call openbot.list_api_keys; when the key is missing, call openbot.request_api_key with the variable name that the program reads, such as OPENAI_API_KEY. Never tell the user to connect to the server, edit a file, or set a variable for it. When the user pastes a key in chat, ask for it again with request_api_key. Read the saved key from its file in the command that needs it, and quote the path, which can hold spaces: OPENAI_API_KEY=\"$(cat '<path>')\" npm run deploy. Never print or log the key, and never copy it into the workspace, a commit, a message, a tool argument, or your memory. Ask the user before you write it into a .env file. Remove a key with openbot.remove_api_key only when the user asks.";
     case "interrupt_agent":
       return "openbot.list_agents reports each agent's status, queuedMessages, turnStartedAt, and lastActivityAt. openbot.interrupt_agent takes the agent id and a short reason. It stops only a turn that works on your message, cancels your requests still queued for that agent, and sends the agent a notice. Do not interrupt work only because it is slow.";
-    case "channel_assign":
-    case "channel_transfer":
-      return "Pass recipientAgentId, task, expectedResult, and sourceMessageIds. sourceMessageIds are the id values of the channel messages this work uses. Read them from the channel packet or from channel_history. channel_assign gives one subtask and you stay the owner. channel_transfer gives the whole task away. End your turn after either call.";
     case "list_agents":
     case "send_message":
       return [
