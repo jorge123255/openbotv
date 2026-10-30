@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Sign in to a Grok Bot (Cursor sand) account inside OpenBot, then list and create the real Grok Bot agents for that account.
+**Goal:** Sign in to a Grok Bot (Cursor sand) account inside OpenBot, list and create the real Grok Bot agents for that account, and show that account's sand usage beside provider usage.
 
-**Architecture:** Reuse the BotAI desktop login: PKCE, `loginDeepControl`, and `GET /auth/poll`, with `redirectTarget=cli`. Store the tokens in an OpenBot secret file. Do not write the Cursor CLI auth file or the `cursor-access-token` keychain item. After login, exchange the access token with `EnsureSandBox`, then call the sand gateway `listAgents` and `createAgent`. The settings panel is local to this computer. The Cursor provider Connect path and the Grok Bot zip import stay as they are.
+**Architecture:** Reuse the BotAI desktop login: PKCE, `loginDeepControl`, and `GET /auth/poll`, with `redirectTarget=cli`. Store the tokens in an OpenBot secret file. Do not write the Cursor CLI auth file or the `cursor-access-token` keychain item. After login, exchange the access token with `EnsureSandBox`, then call the sand gateway `listAgents` and `createAgent`. Read sand usage with that same account token (`GetSandUsageStatus` and `GetCurrentPeriodUsage`). Show it on the page-rail usage rings and in the Grok Bot settings section. The label is "Grok Bot". The Cursor provider dock keeps `readCursorUsage`. The settings panel is local to this computer. The Cursor provider Connect path and the Grok Bot zip import stay as they are.
 
 **Tech Stack:** Effect 4.0.0, Electron `safeStorage`, existing IPC groups (`packages/contracts`, `src/main/ipc`, `src/preload`, `src/renderer/src/preview/mock-openbot.ts`), SolidJS settings UI, `@openbot/i18n` catalog keys, e2e scripts under `scripts/`.
 
@@ -56,7 +56,24 @@ The coordinator file was not readable here. The same method names `listAgents` a
 
 `createAgentFromTemplate` is not in the `grokbot_api` 1.2.0 method table, and the verified notes do not give its fields. This plan does not send it. See Non-goals.
 
-Hypothesis, checked: `redirectTarget=cli` plus the poll is enough for the session. The poll returns the access token. `EnsureSandBox` takes that token. The `sand://` callback is not required. Mobile BotAI docs can still say `redirectTarget=sand`. Desktop OpenBot follows desktop BotAI and uses `cli`.
+Hypothesis, checked: `redirectTarget=cli` plus the poll is enough for the session. The poll returns the access token. `EnsureSandBox` takes that token. The same token is the sand access token BotAI sends to the dashboard RPCs below. The `sand://` callback is not required. Mobile BotAI docs can still say `redirectTarget=sand`. Desktop OpenBot follows desktop BotAI and uses `cli`.
+
+Sand usage, from BotAI `source/electron-main/account/cursor-profile.ts`. The account menu calls `bridge.cursorAccount.getUsageSummary()` when the sand account is signed in. `fetchSandUsageSummary` and `fetchSandWeeklyUsage` send the sand access token to Cursor dashboard RPCs:
+
+- `getSandUsageStatus` returns `sandUsagePercent`, `nextResetTimestampUtc`, `hasAvailableUsage`, trial fields, and `upgradeRecommendation`.
+- `getCurrentPeriodUsage` returns on-demand `spendLimitUsage` (`individualUsed`, `individualLimit`) and `billingCycleEnd`.
+- `getTeams` and `getSandTrialClaimStatus` feed the enterprise and trial calls to action.
+
+OpenBot already reads Cursor **provider** usage in `src/backend/cursor-usage.ts`: `GetCurrentPeriodUsage` and `GetPlanInfo` with the CLI token. That reading fills the provider dock (`autoPercentUsed`, `apiPercentUsed`, `totalPercentUsed`). It is not sand usage. This plan does not change that function.
+
+Public Connect paths for the same RPCs, used by this plan:
+
+- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus`
+- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetCurrentPeriodUsage`
+- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetTeams`
+- `POST https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandTrialClaimStatus`
+
+Each body is `{}`. Headers match Task 4's sand backend call: `Authorization: Bearer <Grok Bot account access token>`, `Content-Type: application/json`, `connect-protocol-version: 1`, `x-cursor-client-type: sand`, `x-cursor-client-version: 0.70.2`, `x-sand-box-namespace: prod`. Do not send a checksum header. Do not send the CLI token.
 
 ## Non-goals
 
@@ -67,6 +84,7 @@ Hypothesis, checked: `redirectTarget=cli` plus the poll is enough for the sessio
 - Do not change `apps/mobile`.
 - Do not show this account on the web client or on a joined server.
 - Do not refresh the Cursor CLI auth file when the Grok Bot token refreshes.
+- Do not fold sand usage into `readCursorUsage` or into `AccountUsage.limits`. The Cursor provider dock stays on the CLI token.
 
 ## File map
 
@@ -86,6 +104,9 @@ Hypothesis, checked: `redirectTarget=cli` plus the poll is enough for the sessio
 | `scripts/cursor-login-poll-e2e.ts` | Poll returns tokens and writes no file. |
 | `scripts/grok-bot-account-e2e.ts` | Account file, sign-out, refresh, CLI file untouched. |
 | `scripts/grok-bot-gateway-e2e.ts` | List and create against a local gateway. |
+| `src/backend/grok-bot/grok-bot-usage.ts` | Sand usage summary from the Grok Bot account token. |
+| `packages/ui/src/features/account/account-usage-view.ts` | One extra rail row labeled "Grok Bot". |
+| `scripts/grok-bot-usage-e2e.ts` | Summary mapping. The CLI reading stays separate. |
 
 ---
 
@@ -1043,6 +1064,207 @@ git add packages/ui/src/features/grok-bot/GrokBotAccountPanel.tsx packages/ui/pa
 git commit -m "feat: show the Grok Bot account in Server settings"
 ```
 
+### Task 7: Grok Bot usage on the provider usage rail
+
+**Files:**
+- Create: `src/backend/grok-bot/grok-bot-usage.ts`
+- Create: `scripts/grok-bot-usage-e2e.ts`
+- Modify: `packages/contracts/src/ipc-grok-bot.ts`
+- Modify: `packages/contracts/src/ipc-endpoints.ts`
+- Modify: `src/main/ipc/grok-bot-handlers.ts`
+- Modify: `src/main/grok-bot-account-service.ts`
+- Modify: `src/preload/grok-bot-decoding.ts`
+- Modify: `src/preload/index.ts`
+- Modify: `src/renderer/src/preview/mock-openbot.ts`
+- Modify: `packages/ui/src/features/account/account-usage-view.ts`
+- Modify: `packages/ui/src/features/account/AccountUsageDetails.tsx`
+- Modify: `packages/ui/src/features/window/PageRail.tsx`
+- Modify: `src/renderer/src/features/usage/plan-limit-rows.ts`
+- Modify: `src/renderer/src/features/servers/ServerGrokBotPanel.tsx`
+- Modify: `packages/ui/src/features/grok-bot/GrokBotAccountPanel.tsx`
+- Modify: `packages/i18n/src/messages/en/account.ts`
+- Modify: `docs/architecture/agents.md`
+- Test: `scripts/grok-bot-usage-e2e.ts`, then `bun run typecheck:node`, then `bun run typecheck:renderer`, then `bun run test:desktop -- src/main/ipc-channel-coverage.test.ts`
+
+**Interfaces:**
+- Consumes: `GrokBotAccountStore`, `refreshGrokBotAccessToken`, and `GrokBotAccountFailed` from Tasks 2 and 3. The IPC group from Task 5. The settings panel from Task 6. `AccountUsageProviderRow` and `AccountUsageWindowRow` from `packages/ui/src/features/account/account-usage-view.ts`. `usePlanLimitRows` in `src/renderer/src/features/usage/plan-limit-rows.ts`. `AccountUsageDetails` and `UsageRings` in `packages/ui/src/features/window/PageRail.tsx`.
+- Produces:
+
+```ts
+export interface GrokBotUsageSummary {
+  /** 0–100. Null when neither percent field is present. */
+  readonly includedUsedPercent: number | null;
+  /** Unix seconds from `nextResetTimestampUtc`. Null when that field is absent or not a date. */
+  readonly includedResetsAt: number | null;
+  readonly hasAvailableUsage: boolean;
+  /** True when GetTeams has a non-empty `teams` array, or GetSandUsageStatus has `usesPooledEnterpriseAllowance: true`. */
+  readonly enterprise: boolean;
+  /** True when `sandTrialExpiresAt` is a date after `now`. */
+  readonly trialActive: boolean;
+  /** True only when GetSandTrialClaimStatus JSON has `claimable: true`. */
+  readonly trialClaim: boolean;
+  /** True when `upgradeRecommendation` is a non-empty string. The string itself is dropped. */
+  readonly changeLimit: boolean;
+  /** Dollars from cents. Null when `individualLimit` is missing or 0. */
+  readonly onDemand: { readonly usedUsd: number; readonly limitUsd: number; readonly usedPercent: number; readonly resetsAt: number | null } | null;
+}
+
+export const GROK_BOT_USAGE_ACCOUNT_ID = "grok-bot";
+
+export function grokBotUsageRow(summary: GrokBotUsageSummary, text: UsageText): AccountUsageProviderRow | null
+```
+
+`readGrokBotUsageSummary(store, options)` returns `GrokBotUsageSummary | null`. `options` is `{ fetchImpl?: typeof fetch; apiBaseUrl?: string; now?: () => number }`. The default `apiBaseUrl` is `https://api2.cursor.sh`. A caller may pass `http://127.0.0.1` with a port for the e2e. Any other non-https base is `GrokBotAccountFailed`. `null` means not signed in, or `GetSandUsageStatus` and `GetCurrentPeriodUsage` both failed after one refresh. A usage failure does not call `store.clear()`.
+
+- [ ] **Step 1: Write the failing usage script**
+
+Create `scripts/grok-bot-usage-e2e.ts`. It writes `.openbot-build/grok-bot-usage-e2e/report.json`.
+
+Use one loopback server. Seed a Grok Bot account file with access token `grok-access-e2e` and refresh token `grok-refresh-e2e`. Write a separate CLI file `{ "accessToken": "cli-access", "refreshToken": "cli-refresh" }` and keep its bytes.
+
+The server records the bearer token and the path. It does not record the token in the report. The report stores `usedGrokToken: true` when every dashboard call used `grok-access-e2e`, and `usedCliToken: false`.
+
+Cases, each a fresh store:
+
+1. **Weekly and on-demand.** `GetSandUsageStatus` returns `{ "sandUsagePercent": 40, "nextResetTimestampUtc": "2026-11-06T18:00:00.000Z", "hasAvailableUsage": true, "upgradeRecommendation": "raise", "sandTrialExpiresAt": "2020-01-01T00:00:00.000Z" }`. `GetCurrentPeriodUsage` returns `{ "planUsage": { "autoPercentUsed": 99, "apiPercentUsed": 88 }, "billingCycleEnd": "1760000000000", "spendLimitUsage": { "individualUsed": 300, "individualLimit": 5000 } }`. `GetTeams` returns `{ "teams": [] }`. `GetSandTrialClaimStatus` returns `{}`. Assert `includedUsedPercent` is 40, not 99. Assert `includedResetsAt` is `Date.parse("2026-11-06T18:00:00.000Z") / 1000`. Assert `onDemand.usedUsd` is 3, `onDemand.limitUsd` is 50, and `onDemand.usedPercent` is 6. Assert `changeLimit` is true and `JSON.stringify(summary)` does not contain `raise`. Assert `trialActive` is false and `enterprise` is false.
+2. **Alias.** A body with `usagePercent: 15` and no `sandUsagePercent` maps `includedUsedPercent` to 15.
+3. **No grant.** A body with neither percent maps `includedUsedPercent` to null. `grokBotUsageRow` returns null.
+4. **Enterprise.** `GetTeams` returns `{ "teams": [{ "id": "t1" }] }`. `enterprise` is true. `grokBotUsageRow` has no included window. An on-demand window remains when `individualLimit` is greater than 0.
+5. **Pooled flag.** `usesPooledEnterpriseAllowance: true` on `GetSandUsageStatus` also sets `enterprise` true and drops the included window, even when `teams` is empty.
+6. **Trial claim.** `GetSandTrialClaimStatus` `{ "claimable": true }` sets `trialClaim` true. A body with no `claimable` boolean sets it false. `sandTrialExpiresAt` one day after the script's `now` sets `trialActive` true.
+7. **Missing cap.** `individualLimit: 0` sets `onDemand` to null.
+8. **Refresh once.** The first `GetSandUsageStatus` returns 401. The script's `POST /oauth/token` returns a new access token `grok-access-e2e-2`. The retry uses that bearer and then returns the weekly body from case 1. A second 401 does not call refresh again.
+9. **CLI file.** After every case, the CLI file bytes are the original bytes.
+
+`grokBotUsageRow` for case 1:
+
+- `name` is the English catalog string for `account.usage.grokBot` (`Grok Bot`).
+- `provider` is `"grok"`.
+- `accountId` is `"grok-bot"`.
+- `sharedQuotaWith` is null.
+- `reportsUsage` is true.
+- The first window label is the English string for `account.usage.grokBot.included` (`Included`). `remainingPercent` is 60. `resetsAt` is the included reset.
+- The second window label is the English template `account.usage.grokBot.onDemandLabel` with `{used}` and `{limit}` set to `createFormat("en").currencyUsd(3)` and `createFormat("en").currencyUsd(50)`. `remainingPercent` is 94.
+
+The report is `{ "passed": true, "weekly": true, "ignoresPlanUsage": true, "alias": true, "noGrant": true, "enterprise": true, "pooled": true, "trial": true, "noCap": true, "refreshed": true, "cliUntouched": true, "usedGrokToken": true, "usedCliToken": false }`. Exit 1 when `passed` is false.
+
+- [ ] **Step 2: Run the script and confirm it fails**
+
+Run: `bun scripts/grok-bot-usage-e2e.ts`
+
+Expected: FAIL. `src/backend/grok-bot/grok-bot-usage.ts` does not exist.
+
+- [ ] **Step 3: Implement the summary**
+
+Create `src/backend/grok-bot/grok-bot-usage.ts`.
+
+`readGrokBotUsageSummary` loads the account. No record returns null. When `accessTokenNeedsRefresh` is true, call `refreshGrokBotAccessToken` first. Use the saved access token. Do not import `readCursorUsage` or `cursorAuthFile`.
+
+Send the four POSTs above with `redirect: "manual"` and a 10 s timeout, the same limit `cursor-usage.ts` uses (`CURSOR_USAGE_TIMEOUT_MS` is 10_000). Copy that number here as `GROK_BOT_USAGE_TIMEOUT_MS`. Do not export the CLI helper.
+
+Read percents from `sandUsagePercent`, then `usagePercent`. Clamp to 0–100. Accept a finite number only. Read `nextResetTimestampUtc` with `Date.parse`. A failed parse is null. Do not add 7 days when the field is missing.
+
+Read `spendLimitUsage.individualUsed` and `individualLimit` as a finite number or a numeric string, the same way `Int64` works in `cursor-usage.ts`. Divide by 100 for dollars. `usedPercent` is `individualUsed / individualLimit * 100`, clamped. `billingCycleEnd` is unix milliseconds. Divide by 1000 for `onDemand.resetsAt`. Ignore `planUsage`.
+
+`upgradeRecommendation` sets `changeLimit` when it is a non-empty string. Omit the string from the return value. Ignore `onDemandSettings.dashboardUrl` and every other URL in the body.
+
+`GetTeams` failure or a body that is not `{ teams: object[] }` with length greater than 0 means `enterprise` is false, except when `usesPooledEnterpriseAllowance` is true. `GetSandTrialClaimStatus` failure means `trialClaim` is false.
+
+On HTTP 401 from `GetSandUsageStatus` or `GetCurrentPeriodUsage`, call `refreshGrokBotAccessToken` once and retry those two calls once. Do not loop. `GetTeams` and `GetSandTrialClaimStatus` failures stay soft. Register the access token with `registerSecretValue` before the calls.
+
+`grokBotUsageRow`:
+
+- Returns null when `includedUsedPercent` is null and `onDemand` is null.
+- When `enterprise` is true, omit the included window. Keep the on-demand window when `onDemand` is set.
+- Included window: `usedPercent` is `includedUsedPercent`, `windowDurationMins` is null, `resetsAt` is `includedResetsAt`. Build the row with the same `usageRemainingPercent` and `usageTone` helpers the provider rows use. The label is `text.t("account.usage.grokBot.included")`.
+- On-demand window: `usedPercent` is `onDemand.usedPercent`, `resetsAt` is `onDemand.resetsAt`. The label is `text.t("account.usage.grokBot.onDemandLabel", { used: text.format.currencyUsd(onDemand.usedUsd), limit: text.format.currencyUsd(onDemand.limitUsd) })`. `currencyUsd` is the method on `AppFormat` in `packages/i18n/src/format.ts`. Do not call `toLocaleString`.
+- `name` is `text.t("account.usage.grokBot")`.
+- `provider` is `"grok"`. `accountId` is `GROK_BOT_USAGE_ACCOUNT_ID`. `sharedQuotaWith` is null. `reportsUsage` is true. `ringWindows` is the same list as `windows`.
+- Add optional `changeLimit?: boolean` on `AccountUsageProviderRow`. Set it from `summary.changeLimit`. Provider rows leave it unset.
+
+Add the English keys in `packages/i18n/src/messages/en/account.ts`:
+
+```ts
+"account.usage.grokBot": "Grok Bot",
+"account.usage.grokBot.included": "Included",
+"account.usage.grokBot.onDemandLabel": "On demand · {used} of {limit}",
+"account.usage.grokBot.changeLimit": "Change limit",
+"account.usage.grokBot.trial": "Trial",
+"account.usage.grokBot.enterprise": "Team pool. This is not a personal included limit.",
+```
+
+Leave the other locales without these keys.
+
+- [ ] **Step 4: Run the usage script**
+
+Run: `bun scripts/grok-bot-usage-e2e.ts`
+
+Expected: exit 0. The report fields in Step 1 are all true, and `usedCliToken` is false.
+
+- [ ] **Step 5: Show the row where provider usage already shows**
+
+Add `getUsage: request<undefined, GrokBotUsageSummary | null>()("grok-bot:get-usage")` to `IPC_ENDPOINTS.grokBot`. The handler calls `readGrokBotUsageSummary` with no `apiBaseUrl`, so the call uses `https://api2.cursor.sh`. The preload decoder `decodeGrokBotUsageSummary` checks the fields above and throws `new Error("Invalid Grok Bot response.")` when the payload contains `accessToken`, `refreshToken`, `upgradeRecommendation`, or `dashboardUrl`. The mock returns null.
+
+`usePlanLimitRows` appends `grokBotUsageRow` after `accountUsageProviderRows`. It reads `window.openbot.grokBot.getUsage()` only when `getStatus().signedIn` is true. A signed-out account adds no row. Do not write the summary into `auth.accountUsage()` or `AccountUsage.limits`. Do not change `WebWorkspace.tsx`. The web client has no Grok Bot account.
+
+`AccountUsageDetails` already prints `row.name` and the window list. That name is "Grok Bot" on this row and the Cursor provider name on the Cursor row. In `UsageRings`, when `row.changeLimit` is true, add a button under the window list. The button label is `t("account.usage.grokBot.changeLimit")`. The click calls `openUrl("https://cursor.com/dashboard/spending")`. Pass `openUrl` into `PageRail` from `WorkspacePageRail` as `appPort().openUrl`. No other row shows that button. Do not open `onDemandSettings.dashboardUrl`.
+
+In `GrokBotAccountPanel` from Task 6, add:
+
+```ts
+usage: GrokBotUsageSummary | null;
+onChangeLimit: () => void;
+onTrial: () => void;
+```
+
+When `usage` is non-null, render `AccountUsageWindowList` with the windows from `grokBotUsageRow`. When `enterprise` is true, also show `t("account.usage.grokBot.enterprise")`. When `changeLimit` is true, show the Change limit button. When `trialClaim` is true, show the Trial button. `ServerGrokBotPanel` loads `api.getUsage()` with the agent list and passes `onChangeLimit` as `openUrl("https://cursor.com/dashboard/spending")` and `onTrial` as `openUrl("https://cursor.com/dashboard")`.
+
+Add this paragraph under the Grok Bot account section in `docs/architecture/agents.md`:
+
+```markdown
+The page rail shows a Grok Bot ring when that account is signed in on this computer.
+The ring uses GetSandUsageStatus and the on-demand fields of GetCurrentPeriodUsage
+with the Grok Bot account token. The Cursor provider ring still uses the CLI token
+and readCursorUsage. The two rows use different labels.
+```
+
+- [ ] **Step 6: Typecheck and coverage**
+
+Run: `bun run typecheck:node`
+
+Expected: exit 0.
+
+Run: `bun run typecheck:renderer`
+
+Expected: exit 0.
+
+Run: `bun run test:desktop -- src/main/ipc-channel-coverage.test.ts`
+
+Expected: exit 0. The preload bridge includes `grok-bot:get-usage`.
+
+Run: `bunx biome check --write --max-diagnostics=none src/backend/grok-bot/grok-bot-usage.ts scripts/grok-bot-usage-e2e.ts packages/contracts/src/ipc-grok-bot.ts packages/contracts/src/ipc-endpoints.ts src/main/ipc/grok-bot-handlers.ts src/main/grok-bot-account-service.ts src/preload/grok-bot-decoding.ts src/preload/index.ts src/renderer/src/preview/mock-openbot.ts packages/ui/src/features/account/account-usage-view.ts packages/ui/src/features/account/AccountUsageDetails.tsx packages/ui/src/features/window/PageRail.tsx src/renderer/src/features/usage/plan-limit-rows.ts src/renderer/src/features/servers/ServerGrokBotPanel.tsx packages/ui/src/features/grok-bot/GrokBotAccountPanel.tsx packages/i18n/src/messages/en/account.ts docs/architecture/agents.md`
+
+Expected: exit 0.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add src/backend/grok-bot/grok-bot-usage.ts scripts/grok-bot-usage-e2e.ts \
+  packages/contracts/src/ipc-grok-bot.ts packages/contracts/src/ipc-endpoints.ts \
+  src/main/ipc/grok-bot-handlers.ts src/main/grok-bot-account-service.ts \
+  src/preload/grok-bot-decoding.ts src/preload/index.ts \
+  src/renderer/src/preview/mock-openbot.ts \
+  packages/ui/src/features/account/account-usage-view.ts \
+  packages/ui/src/features/account/AccountUsageDetails.tsx \
+  packages/ui/src/features/window/PageRail.tsx \
+  src/renderer/src/features/usage/plan-limit-rows.ts \
+  src/renderer/src/features/servers/ServerGrokBotPanel.tsx \
+  packages/ui/src/features/grok-bot/GrokBotAccountPanel.tsx \
+  packages/i18n/src/messages/en/account.ts \
+  docs/architecture/agents.md
+git commit -m "feat: show Grok Bot account usage apart from Cursor provider usage"
+```
+
 ## Spec coverage
 
 | Requirement | Task |
@@ -1053,10 +1275,12 @@ git commit -m "feat: show the Grok Bot account in Server settings"
 | `listAgents` and `createAgent` | Task 4 |
 | IPC that does not leak tokens | Task 5 |
 | Zip import and Cursor provider Connect stay | Tasks 1, 2, and 6 |
-| Tests with reports under `.openbot-build/` | Tasks 1–4 |
+| Tests with reports under `.openbot-build/` | Tasks 1–4 and 7 |
+| Sand usage from the Grok Bot account token, labeled "Grok Bot" | Task 7 |
+| Cursor provider usage stays on `readCursorUsage` | Task 7 |
 | No mobile app | Non-goals |
 | `createAgentFromTemplate` named, not invented | Non-goals |
 
 ## Placeholders
 
-No step uses an open question, a missing path, or a missing command. `createAgentFromTemplate` is excluded because its fields are not in the verified notes and not in `grokbot_api` 1.2.0.
+No step uses an open question, a missing path, or a missing command. `createAgentFromTemplate` is excluded because its fields are not in the verified notes and not in `grokbot_api` 1.2.0. Task 7 owns the `claimable` boolean on `GetSandTrialClaimStatus` because the verified notes name that RPC and do not name its fields.
