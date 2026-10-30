@@ -1430,6 +1430,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       signOut: async () => ({ signedIn: false }),
       listAgents: async () => [],
       getUsage: async () => null,
+      importAgents: async () => ({ imported: 0, skipped: 0, agentIds: [] }),
       createAgent: async (input) => ({
         id: "preview-agent",
         name: input.name,

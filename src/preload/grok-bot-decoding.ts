@@ -1,6 +1,7 @@
 import type {
   GrokBotAccountEvent,
   GrokBotAgentSummary,
+  GrokBotImportResult,
   GrokBotSignInStart,
   GrokBotUsageSummary,
 } from "@openbot/contracts/ipc";
@@ -131,4 +132,14 @@ function rejectSecrets(value: unknown): void {
     if (SECRET_KEYS.has(key)) throw new Error("Invalid Grok Bot response.");
     rejectSecrets(nested);
   }
+}
+
+export function decodeGrokBotImportResult(value: unknown): GrokBotImportResult {
+  rejectSecrets(value);
+  if (!isDynamicRecord(value) || !Array.isArray(value.agentIds)) throw new Error("Invalid Grok Bot response.");
+  return {
+    imported: typeof value.imported === "number" ? value.imported : 0,
+    skipped: typeof value.skipped === "number" ? value.skipped : 0,
+    agentIds: value.agentIds.filter((id): id is string => typeof id === "string"),
+  };
 }

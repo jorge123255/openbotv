@@ -236,6 +236,7 @@ import {
   decodeGrokBotAccountEvent,
   decodeGrokBotAgent,
   decodeGrokBotAgents,
+  decodeGrokBotImportResult,
   decodeGrokBotSignInStart,
   decodeGrokBotStatus,
   decodeGrokBotUsageSummary,
@@ -1072,6 +1073,7 @@ const openbotApi: OpenBotDesktopApi = {
     listAgents: decodeGrokBotAgents,
     createAgent: decodeGrokBotAgent,
     getUsage: decodeGrokBotUsageSummary,
+    importAgents: decodeGrokBotImportResult,
     account: decodeGrokBotAccountEvent,
   }),
   instanceTransfer: bridgeGroup(IPC_ENDPOINTS.instanceTransfer, {

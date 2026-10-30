@@ -11,6 +11,13 @@ export interface GrokBotAgentSummary {
   readonly room: boolean;
 }
 
+/** A read-only mirror of Grok Bot agents into local `grok-bot` agents on this computer. */
+export interface GrokBotImportResult {
+  readonly imported: number;
+  readonly skipped: number;
+  readonly agentIds: readonly string[];
+}
+
 export interface CreateGrokBotAgentInput {
   readonly name: string;
   readonly description: string;
