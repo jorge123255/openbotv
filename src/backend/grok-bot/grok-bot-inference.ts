@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { registerSecretValue } from "@openbot/logging";
@@ -174,6 +175,7 @@ export async function readGrokBotInference(input: {
       "x-cursor-client-version": GROK_BOT_CURSOR_CLIENT_VERSION,
       "x-sand-box-namespace": "prod",
       "x-ghost-mode": "true",
+      "x-request-id": randomUUID(),
       "x-cursor-checksum": createCursorChecksum(input.machineId, input.checksumNow?.() ?? Date.now()),
     },
     body: encodeConnectEnvelope(input.body),
