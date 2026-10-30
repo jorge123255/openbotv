@@ -394,5 +394,4 @@ export const messages = defineMessages("error.provider", {
   "error.provider.grokBotAgentRejected": "Grok Bot did not accept this agent.",
   "error.provider.grokBotNameRequired": "Enter a name.",
   "error.provider.grokBotTurnFailed": "Grok Bot did not finish this turn.",
-  "error.provider.grokBotToolUnsupported": "Grok Bot asked for a tool. This build streams text only.",
 });
