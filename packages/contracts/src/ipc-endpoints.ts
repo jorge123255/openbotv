@@ -292,6 +292,7 @@ import type {
   CreateGrokBotAgentInput,
   GrokBotAccountEvent,
   GrokBotAgentSummary,
+  GrokBotComputerSummary,
   GrokBotImportResult,
   GrokBotSignInStart,
   GrokBotUsageSummary,
@@ -1778,6 +1779,9 @@ export const IPC_ENDPOINTS = {
     createAgent: request<CreateGrokBotAgentInput, GrokBotAgentSummary>()("grok-bot:create-agent"),
     getUsage: request<undefined, GrokBotUsageSummary | null>()("grok-bot:get-usage"),
     importAgents: request<undefined, GrokBotImportResult>()("grok-bot:import-agents"),
+    getComputer: request<undefined, GrokBotComputerSummary>()("grok-bot:get-computer"),
+    openComputer: request<undefined, GrokBotComputerSummary>()("grok-bot:open-computer"),
+    handBackComputer: request<undefined, GrokBotComputerSummary>()("grok-bot:hand-back-computer"),
     account: event<GrokBotAccountEvent>()("grok-bot:account"),
   },
   // Bound against the instance transfer service: a server's agents and server settings in one file for
