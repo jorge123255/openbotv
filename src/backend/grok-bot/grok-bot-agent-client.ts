@@ -358,6 +358,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       }
       thread.turn = null;
       const message = error instanceof Error ? error.message : sourceText("error.provider.grokBotTurnFailed");
+      // Without an `error` notification the chat shows only the user message (the turn ends silently).
+      this.emit("diagnostic", `Grok Bot turn failed: ${message}`);
+      this.#emit("error", { threadId: thread.id, turnId: turn.id, message });
       this.#emit("turn/completed", {
         threadId: thread.id,
         turn: { id: turn.id, status: "failed", error: { message } },

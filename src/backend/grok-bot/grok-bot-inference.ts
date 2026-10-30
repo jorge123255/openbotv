@@ -178,7 +178,12 @@ export async function readGrokBotInference(input: {
     },
     body: JSON.stringify(input.body),
   });
-  if (!response.ok || !response.body) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+  if (!response.ok || !response.body) {
+    const detail = response.ok
+      ? "empty body"
+      : `HTTP ${response.status} ${(await response.text().catch(() => "")).slice(0, 300)}`;
+    throw new Error(`${sourceText("error.provider.grokBotTurnFailed")} (${detail.trim()})`);
+  }
   const reader = response.body.getReader();
   let pending: Uint8Array<ArrayBufferLike> = new Uint8Array();
   try {
@@ -198,7 +203,7 @@ export async function readGrokBotInference(input: {
 function emitStreamMessage(message: unknown, onEvent: (event: GrokBotStreamEvent) => void): void {
   if (!isDynamicRecord(message)) return;
   if (isDynamicRecord(message.error)) {
-    throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+    throw new Error(`${sourceText("error.provider.grokBotTurnFailed")} (${connectErrorText(message.error)})`);
   }
   if (isDynamicRecord(message.toolCallPart)) {
     const part = message.toolCallPart;
@@ -235,7 +240,9 @@ function takeConnectMessages(bytes: Uint8Array<ArrayBufferLike>): {
     const text = new TextDecoder().decode(payload);
     const json = text.length === 0 ? {} : JSON.parse(text);
     if ((flags & 0x02) !== 0) {
-      if (isDynamicRecord(json) && json.error != null) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+      if (isDynamicRecord(json) && json.error != null) {
+        throw new Error(`${sourceText("error.provider.grokBotTurnFailed")} (${connectErrorText(json.error)})`);
+      }
       return { messages, rest: new Uint8Array(0) };
     }
     messages.push(json);
@@ -252,4 +259,16 @@ function concatBytes(
   next.set(left);
   next.set(right, left.length);
   return next;
+}
+
+function connectErrorText(error: unknown): string {
+  if (!isDynamicRecord(error)) return String(error);
+  const code = typeof error.code === "string" ? error.code : "";
+  const message = typeof error.message === "string" ? error.message : "";
+  return (
+    [code, message]
+      .filter((part) => part.length > 0)
+      .join(": ")
+      .slice(0, 300) || "stream error"
+  );
 }
