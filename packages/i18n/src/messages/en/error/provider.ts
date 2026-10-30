@@ -393,4 +393,5 @@ export const messages = defineMessages("error.provider", {
   "error.provider.grokBotSessionEnded": "The Grok Bot session ended. Sign in again.",
   "error.provider.grokBotAgentRejected": "Grok Bot did not accept this agent.",
   "error.provider.grokBotNameRequired": "Enter a name.",
+  "error.provider.grokBotTurnFailed": "Grok Bot did not finish this turn.",
 });

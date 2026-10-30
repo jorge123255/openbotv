@@ -46,6 +46,9 @@ import {
 import { clineFreeModels } from "./cline-free-models";
 import { readCursorUsage } from "./cursor-usage";
 import { CustomAcpAgentsClient, type CustomAgentConfig, type CustomAgentSource } from "./custom-acp-agents-client";
+import type { GrokBotAccountStore } from "./grok-bot/grok-bot-account";
+import { GrokBotAgentClient } from "./grok-bot/grok-bot-agent-client";
+import { GROK_BOT_RUNTIME } from "./grok-bot/grok-bot-runtime";
 import { GrokAgentClient } from "./grok-client";
 import type { McpOAuthAuthority } from "./mcp-oauth-provider";
 import type { McpOAuthProxySettingsStore } from "./mcp-oauth-proxy";
@@ -393,6 +396,13 @@ export interface ProviderClientContext {
    * same reason as `reportMcpDrops`: without it the CLI uses its own cache time.
    */
   readonly promptCacheTtl?: () => PromptCacheTtl;
+  /**
+   * The Grok Bot sand account on this computer. Absent in a context that has no account file:
+   * the provider then reports signed out.
+   */
+  readonly grokBotAccount?: GrokBotAccountStore;
+  /** File that keeps the Grok Bot checksum machine id. Absent in tests that pass an id. */
+  readonly grokBotMachineIdPath?: string;
 }
 
 /** The agent environment with the account's home folder after it, so the account folder wins. */
@@ -968,6 +978,26 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
         servesModel: context.servesModel,
       }),
     authState: (account) => ({ kind: "cline", email: account?.email ?? null }),
+    validateAccount: () => undefined,
+  },
+  {
+    id: "grok-bot",
+    signIn: { kind: "external" },
+    catalog: { hiddenWhenSignedOut: true },
+    resolveCli: () => Effect.succeed(GROK_BOT_RUNTIME),
+    createClient: (_cli, timeout, context) =>
+      new GrokBotAgentClient({
+        ...(context.grokBotAccount ? { store: context.grokBotAccount } : {}),
+        ...(context.grokBotMachineIdPath ? { machineIdPath: context.grokBotMachineIdPath } : {}),
+        requestTimeoutMs: timeout,
+      }),
+    createProfileClient: (_cli, timeout, context) =>
+      new GrokBotAgentClient({
+        ...(context.grokBotAccount ? { store: context.grokBotAccount } : {}),
+        ...(context.grokBotMachineIdPath ? { machineIdPath: context.grokBotMachineIdPath } : {}),
+        requestTimeoutMs: timeout,
+      }),
+    authState: (account) => ({ kind: "grok-bot", email: account?.email ?? null }),
     validateAccount: () => undefined,
   },
   {

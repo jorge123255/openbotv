@@ -37,6 +37,11 @@ export class GrokBotAccountService {
     this.#store = new GrokBotAccountStore(options.path, options.cipher);
   }
 
+  /** The sand account the Grok Bot provider reads. The renderer does not receive this store. */
+  accountStore(): GrokBotAccountStore {
+    return this.#store;
+  }
+
   readonly status = Effect.fn("GrokBotAccountService.status")(function* (this: GrokBotAccountService) {
     return publicGrokBotStatus(yield* this.#store.load());
   });

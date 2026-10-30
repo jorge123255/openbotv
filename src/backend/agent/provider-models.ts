@@ -258,6 +258,14 @@ export const FALLBACK_MODELS: AgentModelOption[] = [
     defaultReasoningEffort: "high",
     supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
   },
+  {
+    provider: "grok-bot",
+    id: "default",
+    name: "Grok Bot",
+    description: "The model on the signed-in Grok Bot account.",
+    defaultReasoningEffort: "medium",
+    supportedReasoningEfforts: ["medium"],
+  },
 ];
 
 /**

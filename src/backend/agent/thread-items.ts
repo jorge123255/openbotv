@@ -135,6 +135,7 @@ export function isMissingProviderSessionError(error: unknown, provider: AgentPro
   if (provider === "codex") return isCodexMissingThreadError(error);
   if (
     (provider !== "grok" &&
+      provider !== "grok-bot" &&
       provider !== "opencode" &&
       provider !== "antigravity" &&
       provider !== "cursor" &&
