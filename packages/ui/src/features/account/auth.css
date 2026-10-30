@@ -397,6 +397,7 @@
 
 .setup-route-button {
   width: 100%;
+  height: auto;
   min-height: 96px;
   display: grid;
   grid-template-columns: 48px minmax(0, 1fr) 20px;
@@ -408,6 +409,7 @@
   padding: 15px 17px;
   color: var(--openbot-text-primary);
   text-align: left;
+  white-space: normal;
   transition:
     border-color var(--openbot-duration-hover) ease,
     background-color var(--openbot-duration-hover) ease,
@@ -462,6 +464,7 @@
 }
 
 .setup-route-copy {
+  min-width: 0;
   display: grid;
   gap: 4px;
 }

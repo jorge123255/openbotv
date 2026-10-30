@@ -21,11 +21,18 @@
   border-top: 1px solid var(--openbot-border-grouped);
 }
 
-/* The steps that turn on a server another app runs. The heading leaves room for the setup link
-   that sits in the row's corner. */
+/* The setup link moves below the heading when the words do not fit on one line. */
+.mcp-local-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--openbot-space-2) var(--openbot-space-3);
+}
+
 .mcp-local-heading {
+  min-width: 0;
   margin: 0;
-  padding-right: var(--openbot-space-6);
   color: var(--openbot-text-primary);
   font-size: var(--openbot-text-sm);
   font-weight: var(--openbot-weight-semibold);
@@ -82,6 +89,13 @@
   height: var(--openbot-icon-sm);
   flex: 0 0 auto;
   stroke-width: var(--openbot-icon-stroke);
+}
+
+.mcp-local-heading-row > .mcp-connect-docs {
+  position: static;
+  max-width: 100%;
+  white-space: normal;
+  text-align: left;
 }
 
 .mcp-connect-privacy {
