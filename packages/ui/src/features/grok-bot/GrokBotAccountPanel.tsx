@@ -1,4 +1,4 @@
-import type { GrokBotUsageSummary } from "@openbot/contracts/ipc";
+import type { GrokBotComputerSummary, GrokBotUsageSummary } from "@openbot/contracts/ipc";
 import {
   Button,
   Input,
@@ -35,6 +35,10 @@ export interface GrokBotAccountPanelProps {
   /** Mirrors the listed agents into this computer's roster. Never creates anything in Grok Bot. */
   onImport?: (() => void) | undefined;
   notice?: string | null | undefined;
+  /** BotAI's Computer: the sand box desktop the agents drive. Absent, the row is hidden. */
+  computer?: GrokBotComputerSummary | null | undefined;
+  onOpenComputer?: (() => void) | undefined;
+  onHandBackComputer?: (() => void) | undefined;
   onCreate: (input: { name: string; description: string }) => void;
   usage: GrokBotUsageSummary | null;
   onChangeLimit: () => void;
@@ -58,6 +62,17 @@ export function GrokBotAccountPanel(props: GrokBotAccountPanelProps) {
         : "",
       formatReset: (date) => format.date(date, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
     });
+  };
+  const computerLine = () => {
+    const computer = props.computer;
+    if (!computer) return t("server.settings.grokBotComputerHint");
+    if (computer.phase === "pulling")
+      return t("server.settings.grokBotComputerPulling", { percent: Math.round(computer.pullPercent ?? 0) });
+    if (computer.phase === "running") return t("server.settings.grokBotComputerRunning");
+    if (computer.phase === "sleeping") return t("server.settings.grokBotComputerSleeping");
+    if (computer.phase === "starting") return t("server.settings.grokBotComputerStarting");
+    if (computer.phase === "local") return t("server.settings.grokBotComputerNoScreen");
+    return t("server.settings.grokBotComputerOff");
   };
   const [name, setName] = createSignal("");
   const [description, setDescription] = createSignal("");
@@ -127,6 +142,33 @@ export function GrokBotAccountPanel(props: GrokBotAccountPanelProps) {
             </ItemActions>
             <Show when={props.notice}>{(notice) => <ItemDescription>{notice()}</ItemDescription>}</Show>
           </Item>
+          <Show when={props.onOpenComputer}>
+            {(onOpen) => (
+              <Item class="settings-modal-row">
+                <ItemContent>
+                  <ItemTitle>{t("server.settings.grokBotComputer")}</ItemTitle>
+                  <ItemDescription>{computerLine()}</ItemDescription>
+                  <Show when={props.computer?.needsYou}>
+                    <ItemDescription>
+                      {props.computer?.handoffReason ?? t("server.settings.grokBotComputerNeedsYou")}
+                    </ItemDescription>
+                  </Show>
+                </ItemContent>
+                <ItemActions>
+                  <Button type="button" disabled={props.busy} onClick={() => onOpen()()}>
+                    {t("server.settings.grokBotComputerOpen")}
+                  </Button>
+                  <Show when={props.computer?.needsYou ? props.onHandBackComputer : undefined}>
+                    {(onHandBack) => (
+                      <Button type="button" disabled={props.busy} onClick={() => onHandBack()()}>
+                        {t("server.settings.grokBotComputerHandBack")}
+                      </Button>
+                    )}
+                  </Show>
+                </ItemActions>
+              </Item>
+            )}
+          </Show>
           <Show
             when={visible().length > 0}
             fallback={

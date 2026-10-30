@@ -1,4 +1,9 @@
-import type { GrokBotAgentSummary, GrokBotUsageSummary, OpenBotDesktopApi } from "@openbot/contracts/ipc";
+import type {
+  GrokBotAgentSummary,
+  GrokBotComputerSummary,
+  GrokBotUsageSummary,
+  OpenBotDesktopApi,
+} from "@openbot/contracts/ipc";
 import { GrokBotAccountPanel } from "@openbot/ui/features/grok-bot/GrokBotAccountPanel";
 import { useText } from "@openbot/ui/text";
 import { createEffect, createStore } from "solid-js";
@@ -18,7 +23,8 @@ export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
     busy: boolean;
     usage: GrokBotUsageSummary | null;
     notice: string | null;
-  } = { signedIn: false, agents: [], error: null, busy: false, usage: null, notice: null };
+    computer: GrokBotComputerSummary | null;
+  } = { signedIn: false, agents: [], error: null, busy: false, usage: null, notice: null, computer: null };
   const [state, setState] = createStore(initial);
 
   const load = async (api: OpenBotDesktopApi["grokBot"]) => {
@@ -30,6 +36,19 @@ export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
     const agents = await api.listAgents();
     const usage = await api.getUsage();
     setState((current) => ({ ...current, signedIn: true, agents: [...agents], error: null, usage }));
+    // The computer is optional: a box that cannot answer must not hide the account.
+    const computer = await api.getComputer().catch(() => null);
+    setState((current) => ({ ...current, computer }));
+  };
+
+  const computerAction = (run: () => Promise<GrokBotComputerSummary>) => {
+    setState((current) => ({ ...current, busy: true, error: null }));
+    void run()
+      .then((computer) => setState((current) => ({ ...current, computer })))
+      .catch((error: unknown) => {
+        setState((current) => ({ ...current, error: error instanceof Error ? error.message : null }));
+      })
+      .finally(() => setState((current) => ({ ...current, busy: false })));
   };
 
   createEffect(
@@ -59,6 +78,9 @@ export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
       error={state.error}
       usage={state.usage}
       notice={state.notice}
+      computer={state.computer}
+      onOpenComputer={() => computerAction(() => props.api.openComputer())}
+      onHandBackComputer={() => computerAction(() => props.api.handBackComputer())}
       onImport={() => {
         const api = props.api;
         setState((current) => ({ ...current, busy: true, error: null, notice: null }));
