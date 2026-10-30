@@ -1304,6 +1304,7 @@ export async function createApplicationServices({
     path: join(app.getPath("userData"), "openbot-grok-bot-account-v1.json"),
     cipher: secretCipher,
     getMainWindow: () => windows.getMainWindow(),
+    agentStore: store,
   });
   teardown.push(TEARDOWN_ORDER.grokBotAccount, "the Grok Bot account poll", () => grokBotAccount.dispose());
   const customProviders = new CustomProviderStore({

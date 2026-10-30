@@ -11,6 +11,7 @@ import {
 } from "../backend/grok-bot/grok-bot-account";
 import { createGrokBotAgent, listGrokBotAgents } from "../backend/grok-bot/grok-bot-gateway";
 import { readGrokBotUsageSummary } from "../backend/grok-bot/grok-bot-usage";
+import { type GrokBotImportStore, importGrokBotAgents } from "./grok-bot-agent-import";
 import { type RendererIpcWindow, sendToRenderer } from "./renderer-ipc";
 
 const GROK_BOT_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
@@ -20,6 +21,8 @@ export interface GrokBotAccountServiceOptions {
   path: string;
   cipher: SecretCipher;
   getMainWindow: () => RendererIpcWindow | null;
+  /** The local roster an import writes to. Absent, import fails; Grok Bot is never written. */
+  agentStore?: GrokBotImportStore;
 }
 
 /** One Grok Bot sign-in on this computer. The file and cipher come from the caller. */
@@ -28,12 +31,14 @@ export class GrokBotAccountService {
   readonly #cipher: SecretCipher;
   readonly #getMainWindow: () => RendererIpcWindow | null;
   readonly #store: GrokBotAccountStore;
+  readonly #agentStore: GrokBotImportStore | undefined;
   #abort: AbortController | null = null;
 
   constructor(options: GrokBotAccountServiceOptions) {
     this.#path = options.path;
     this.#cipher = options.cipher;
     this.#getMainWindow = options.getMainWindow;
+    this.#agentStore = options.agentStore;
     this.#store = new GrokBotAccountStore(options.path, options.cipher);
   }
 
@@ -89,6 +94,14 @@ export class GrokBotAccountService {
 
   readonly list = Effect.fn("GrokBotAccountService.list")(function* (this: GrokBotAccountService) {
     return yield* listGrokBotAgents(this.#store, callOptions());
+  });
+
+  /** Lists Grok Bot agents and mirrors them locally. Read-only toward Grok Bot: no create call. */
+  readonly importAgents = Effect.fn("GrokBotAccountService.importAgents")(function* (this: GrokBotAccountService) {
+    const store = this.#agentStore;
+    if (!store) return yield* Effect.die(new Error("Grok Bot import has no local agent store."));
+    const remote = yield* listGrokBotAgents(this.#store, callOptions());
+    return yield* importGrokBotAgents(remote, store);
   });
 
   readonly usage = Effect.fn("GrokBotAccountService.usage")(function* (this: GrokBotAccountService) {

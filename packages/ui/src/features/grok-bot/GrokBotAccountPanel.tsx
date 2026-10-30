@@ -32,6 +32,9 @@ export interface GrokBotAccountPanelProps {
   onSignIn: () => void;
   onSignOut: () => void;
   onRefresh: () => void;
+  /** Mirrors the listed agents into this computer's roster. Never creates anything in Grok Bot. */
+  onImport?: (() => void) | undefined;
+  notice?: string | null | undefined;
   onCreate: (input: { name: string; description: string }) => void;
   usage: GrokBotUsageSummary | null;
   onChangeLimit: () => void;
@@ -114,7 +117,15 @@ export function GrokBotAccountPanel(props: GrokBotAccountPanelProps) {
               <Button type="button" disabled={props.busy} onClick={() => props.onRefresh()}>
                 {t("server.settings.grokBotRefresh")}
               </Button>
+              <Show when={props.onImport}>
+                {(onImport) => (
+                  <Button type="button" disabled={props.busy} onClick={() => onImport()()}>
+                    {t("server.settings.grokBotImport")}
+                  </Button>
+                )}
+              </Show>
             </ItemActions>
+            <Show when={props.notice}>{(notice) => <ItemDescription>{notice()}</ItemDescription>}</Show>
           </Item>
           <Show
             when={visible().length > 0}

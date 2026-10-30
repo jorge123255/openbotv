@@ -283,6 +283,8 @@ export const messages = defineMessages("server", {
   "server.settings.grokBotSignIn": "Sign in",
   "server.settings.grokBotSignOut": "Sign out",
   "server.settings.grokBotRefresh": "Refresh",
+  "server.settings.grokBotImport": "Import to OpenBot",
+  "server.settings.grokBotImported": "Imported {imported} Grok Bot agents ({skipped} skipped).",
   "server.settings.grokBotEmpty": "No agents on this Grok Bot account yet.",
   "server.settings.grokBotName": "Name",
   "server.settings.grokBotInstructions": "Instructions",

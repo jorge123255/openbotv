@@ -1,5 +1,6 @@
 import type { GrokBotAgentSummary, GrokBotUsageSummary, OpenBotDesktopApi } from "@openbot/contracts/ipc";
 import { GrokBotAccountPanel } from "@openbot/ui/features/grok-bot/GrokBotAccountPanel";
+import { useText } from "@openbot/ui/text";
 import { createEffect, createStore } from "solid-js";
 
 export interface ServerGrokBotOptions {
@@ -9,13 +10,15 @@ export interface ServerGrokBotOptions {
 
 /** Desktop wiring for the Grok Bot account. The panel stays free of `window.openbot`. */
 export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
+  const { t } = useText();
   const initial: {
     signedIn: boolean;
     agents: GrokBotAgentSummary[];
     error: string | null;
     busy: boolean;
     usage: GrokBotUsageSummary | null;
-  } = { signedIn: false, agents: [], error: null, busy: false, usage: null };
+    notice: string | null;
+  } = { signedIn: false, agents: [], error: null, busy: false, usage: null, notice: null };
   const [state, setState] = createStore(initial);
 
   const load = async (api: OpenBotDesktopApi["grokBot"]) => {
@@ -55,6 +58,23 @@ export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
       busy={state.busy}
       error={state.error}
       usage={state.usage}
+      notice={state.notice}
+      onImport={() => {
+        const api = props.api;
+        setState((current) => ({ ...current, busy: true, error: null, notice: null }));
+        void api
+          .importAgents()
+          .then((result) => {
+            setState((current) => ({
+              ...current,
+              notice: t("server.settings.grokBotImported", { imported: result.imported, skipped: result.skipped }),
+            }));
+          })
+          .catch((error: unknown) => {
+            setState((current) => ({ ...current, error: error instanceof Error ? error.message : null }));
+          })
+          .finally(() => setState((current) => ({ ...current, busy: false })));
+      }}
       onChangeLimit={() => void props.openUrl("https://cursor.com/dashboard/spending")}
       onTrial={() => void props.openUrl("https://cursor.com/dashboard")}
       onSignIn={() => {
