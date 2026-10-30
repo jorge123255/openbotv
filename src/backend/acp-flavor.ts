@@ -98,7 +98,24 @@ export interface AcpFlavor {
   noiseChunk?: RegExp;
 }
 
-/** The protocol's own behavior: Grok and Cline. */
+/**
+ * Chisel, the Grok agent, answers `session/load` for a session that is not in its store with
+ * JSON-RPC `-32016` and the message `Session not found`. The session id is in the agent's log.
+ * This check runs only for the session of the request. `data` that names another session does not
+ * match. Any other code uses the protocol's `-32002` rule.
+ */
+export const GROK_ACP_FLAVOR: AcpFlavor = {
+  sessionNotFound: (error, sessionId) => {
+    if (error.code !== -32016) return null;
+    if (isRecord(error.data)) {
+      const named = error.data.sessionId ?? error.data.uri;
+      if (typeof named === "string") return named === sessionId || named === `session ${sessionId}`;
+    }
+    return error.message === "Session not found" || error.message.includes(sessionId);
+  },
+};
+
+/** The protocol's own behavior: Cline. */
 export const DEFAULT_ACP_FLAVOR: AcpFlavor = {};
 
 /**

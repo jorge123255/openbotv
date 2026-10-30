@@ -59,8 +59,13 @@ export class ProfileClients {
     }
   }).bind(this);
 
-  /** Every client, forgotten, for the caller to stop at shutdown. */
+  /**
+   * Every client, forgotten, for the caller to stop at shutdown. Cancel each generation first.
+   * One that has not spawned a process would otherwise start after this returns, and channel
+   * shutdown waits for that turn.
+   */
   release(): AgentClient[] {
+    for (const generation of this.#clients.values()) generation.cancelled = true;
     const clients = [...this.#clients.keys()];
     this.#clients.clear();
     return clients;

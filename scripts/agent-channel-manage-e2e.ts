@@ -152,6 +152,10 @@ interface ChannelToolArgs {
   instruction?: string;
   schedule?: { kind: "daily"; time: string } | { kind: "once"; date: string; time: string };
   active?: boolean;
+  recipientAgentId?: string;
+  task?: string;
+  expectedResult?: string;
+  sourceMessageIds?: string[];
 }
 
 interface ToolLog {
@@ -279,7 +283,7 @@ async function callTool(
   await settled(channelId);
   const text = entry.result?.contentItems.map((item) => item.text).join("\n") ?? JSON.stringify(entry.error);
   report.calls.push({ name, turnId: entry.turnId, success: entry.result?.success ?? null, text });
-  return { success: entry.result?.success === true, text };
+  return { success: entry.result?.success === true, text, protocolError: entry.error };
 }
 
 function lastNote(channelId: string): ChannelMessage | undefined {
@@ -380,7 +384,21 @@ try {
     lastNote(channelId)?.message.text === "Lead changed the channel instructions. Alex asked for it.",
   );
 
-  // 5. Create, list, change and delete a channel routine.
+  // 5. An incomplete handoff is a tool result, so the agent can add the missing fields.
+  const incomplete = await callTool("assign without sources", channelId, lead.id, "channel_assign", {
+    recipientAgentId: writer.id,
+    task: "Check the notes.",
+    expectedResult: "A short list.",
+  });
+  pass(
+    "An incomplete handoff returns the missing fields as a tool result",
+    incomplete.protocolError === null &&
+      !incomplete.success &&
+      incomplete.text.includes("A handoff needs a recipient, task, expected result, and source messages."),
+    incomplete.text,
+  );
+
+  // 6. Create, list, change and delete a channel routine.
   const created = await callTool("create routine", channelId, lead.id, "channel_create_routine", {
     name: "Standup",
     instruction: "Each member posts what they finished yesterday.",
@@ -427,7 +445,7 @@ try {
     lastNote(channelId)?.message.text === "Lead deleted the routine Standup. Alex asked for it.",
   );
 
-  // 6. A person whose roles do not let them chat with the agent cannot have it added, and a person
+  // 7. A person whose roles do not let them chat with the agent cannot have it added, and a person
   // who cannot see a member cannot have it removed.
   limitedVisibleAgentId = tester.id;
   const limited = await callTool(
@@ -481,11 +499,11 @@ try {
     remoteOnce.text,
   );
 
-  // 7. Removing the lead leaves the channel without one.
+  // 8. Removing the lead leaves the channel without one.
   const noLead = await callTool("remove lead", channelId, writer.id, "channel_remove_member", { agentId: lead.id });
   pass("Removing the lead clears the lead", noLead.success && channelOf(channelId).leadAgentId === null, noLead.text);
 
-  // 8. A routine run is not a person's request, so it cannot change the channel.
+  // 9. A routine run is not a person's request, so it cannot change the channel.
   const soloId = randomUUID();
   await runCauseEffect(
     channels().command(

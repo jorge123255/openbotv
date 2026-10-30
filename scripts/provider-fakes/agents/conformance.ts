@@ -19,8 +19,10 @@ const MODELS = [
 ];
 
 const MISSING_ERRORS: Readonly<Partial<Record<string, (sessionId: string) => AcpError>>> = {
-  // The protocol's own error, which Grok, Cline and custom agents give.
+  // The protocol's own error, which Cline and custom agents give.
   protocol: (sessionId) => ({ code: -32002, message: "Resource not found", data: { uri: sessionId } }),
+  // Chisel, the Grok agent: `session/load` for a session that is not in its store.
+  chisel: () => ({ code: -32016, message: "Session not found" }),
   // OpenCode 2.x.
   opencode: (sessionId) => ({
     code: -32602,
