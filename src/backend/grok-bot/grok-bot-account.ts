@@ -158,6 +158,19 @@ export class GrokBotAccountStore {
     );
   });
 
+  readonly refreshAccess = Effect.fn("GrokBotAccountStore.refreshAccess")(function* (
+    this: GrokBotAccountStore,
+    options: { apiBaseUrl?: string; fetchImpl?: typeof fetch; now?: () => number },
+  ) {
+    return yield* refreshGrokBotAccessToken({
+      authFile: this.#path,
+      cipher: this.#cipher,
+      apiBaseUrl: options.apiBaseUrl,
+      fetchImpl: options.fetchImpl,
+      now: options.now,
+    });
+  });
+
   readonly clear = Effect.fn("GrokBotAccountStore.clear")(function* (this: GrokBotAccountStore) {
     yield* Effect.tryPromise({
       try: () => rm(this.#path, { force: true }),
