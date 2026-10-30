@@ -48,6 +48,7 @@ import {
   type DiscoverModelsResult,
   decodeExternalLinkTarget,
   decodeScheduledUpdateRestart,
+  type ElevenLabsSpeechVoice,
   type ExportResult,
   type ExternalLinkBrowser,
   type ExternalLinkBrowsers,
@@ -77,10 +78,12 @@ import {
   isDetectedAcpAgent,
   isDetectedModelServer,
   isDiscoverModelsResult,
+  isElevenLabsSpeechVoice,
   isProviderDetectionSettings,
   isRemoteDesktopSetupStatus,
   isRemoteDesktopTestStatus,
   isRemoteNetworkRoute,
+  isSpeechEngine,
   isSpeechVoice,
   isVoiceLanguage,
   isVoiceModelId,
@@ -468,9 +471,23 @@ export function decodeSpeechModelStatus(value: unknown): SpeechModelStatus {
 
 export function decodeSpeechSettings(value: unknown): SpeechSettings {
   const settings = decodeRecord(value, "speech settings");
-  const { voice } = settings;
-  if (!isSpeechVoice(voice)) throw new Error("Invalid speech settings.");
-  return { readReplies: requiredBoolean(settings, "readReplies"), voice };
+  const { voice, engine, elevenLabsVoice } = settings;
+  if (!isSpeechVoice(voice) || !isSpeechEngine(engine)) throw new Error("Invalid speech settings.");
+  if (elevenLabsVoice !== null && !isElevenLabsSpeechVoice(elevenLabsVoice))
+    throw new Error("Invalid speech settings.");
+  return {
+    readReplies: requiredBoolean(settings, "readReplies"),
+    voice,
+    engine,
+    elevenLabsVoice: elevenLabsVoice === null ? null : { id: elevenLabsVoice.id, name: elevenLabsVoice.name },
+  };
+}
+
+export function decodeElevenLabsVoices(value: unknown): ElevenLabsSpeechVoice[] {
+  return decodeList(value, "ElevenLabs voices", (voice) => {
+    if (!isElevenLabsSpeechVoice(voice)) throw new Error("Invalid ElevenLabs voice.");
+    return { id: voice.id, name: voice.name };
+  });
 }
 
 export function decodeSpeechAudio(value: unknown): SpeechAudio {

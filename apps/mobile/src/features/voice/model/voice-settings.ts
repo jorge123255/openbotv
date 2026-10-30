@@ -1,5 +1,5 @@
-import { isSpeechVoice, type SpeechVoice } from "@openbot/contracts/ipc";
-import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
+import { isElevenLabsSpeechVoice, isSpeechVoice, type SpeechVoice } from "@openbot/contracts/ipc";
+import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import * as SecureStore from "expo-secure-store";
 import { create } from "zustand";
 
@@ -64,8 +64,7 @@ function decodeSettings(raw: string | null): VoiceSettings {
     engine: value.engine === "elevenlabs" ? "elevenlabs" : "supertonic",
     recognition: isRecognitionEngine(value.recognition) ? value.recognition : DEFAULT_SETTINGS.recognition,
     supertonicVoice: isSpeechVoice(value.supertonicVoice) ? value.supertonicVoice : DEFAULT_SETTINGS.supertonicVoice,
-    elevenLabsVoice:
-      isDynamicRecord(voice) && isString(voice.id) && isString(voice.name) ? { id: voice.id, name: voice.name } : null,
+    elevenLabsVoice: isElevenLabsSpeechVoice(voice) ? { id: voice.id, name: voice.name } : null,
   };
 }
 

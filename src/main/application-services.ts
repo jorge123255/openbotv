@@ -317,6 +317,7 @@ import { VaultService } from "./vault-service";
 import { VaultStore } from "./vault-store";
 import { VoiceApiKeyStore } from "./voice-api-key-store";
 import { openScribeSocket } from "./voice-cloud-stream";
+import { VoiceElevenLabsSpeech } from "./voice-elevenlabs-speech";
 import {
   BARK_PLUS_MODEL_DIRECTORY,
   PARAKEET_MODEL_DIRECTORY,
@@ -607,6 +608,7 @@ export interface ApplicationServices {
   instanceTransfer: InstanceTransferService;
   voice: VoiceTranscriptionService;
   speech: VoiceSpeechService;
+  elevenLabsSpeech: VoiceElevenLabsSpeech;
   voiceServer: VoiceServerService;
   dynamicIsland: DynamicIslandWindowController;
   cuaDriver: CuaDriverRuntime;
@@ -2830,6 +2832,7 @@ export async function createApplicationServices({
   });
   teardown.push(TEARDOWN_ORDER.speech, "speech", () => Effect.runPromise(speech.shutdown()));
   speech.on("modelStatus", forwardSpeechModelStatus);
+  const elevenLabsSpeech = new VoiceElevenLabsSpeech({ apiKeys: voiceApiKeys, preferences: speechPreferences });
   // The user's own server for either route. Its key is a file of its own, apart from the ElevenLabs key.
   const voiceServerPreferences = createVoiceServerPreferenceStore(join(app.getPath("userData"), "voice-server.json"));
   await runCauseEffect(voiceServerPreferences.load());
@@ -3212,6 +3215,7 @@ export async function createApplicationServices({
     instanceTransfer,
     voice,
     speech,
+    elevenLabsSpeech,
     voiceServer,
     dynamicIsland,
     cuaDriver,

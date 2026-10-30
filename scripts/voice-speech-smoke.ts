@@ -14,7 +14,12 @@ import { fork } from "node:child_process";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import type { SpeechAudio, SpeechLanguage, SpeechVoice } from "@openbot/contracts/ipc";
+import {
+  DEFAULT_SPEECH_SETTINGS,
+  type SpeechAudio,
+  type SpeechLanguage,
+  type SpeechVoice,
+} from "@openbot/contracts/ipc";
 import { createOpenBotLogger } from "@openbot/logging";
 import { Effect } from "effect";
 import { SpeechPreferenceStore } from "../src/main/speech-preference-store";
@@ -133,7 +138,9 @@ async function main(): Promise<void> {
     if (status.phase !== "ready") throw new Error(`The model is not ready: ${status.phase} ${status.message ?? ""}`);
     const downloadMs = Date.now() - downloadStartedAt;
     for (const sample of SAMPLES) {
-      await Effect.runPromise(speech.setSettings({ readReplies: true, voice: sample.voice }));
+      await Effect.runPromise(
+        speech.setSettings({ ...DEFAULT_SPEECH_SETTINGS, readReplies: true, voice: sample.voice }),
+      );
       const startedAt = Date.now();
       const audio = await Effect.runPromise(speech.speak({ text: sample.text, language: sample.language }));
       const synthesisMs = Date.now() - startedAt;

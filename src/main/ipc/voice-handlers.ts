@@ -1,6 +1,7 @@
 // The speech recognition models (Parakeet and Whisper turbo on this computer, ElevenLabs Scribe in
-// the cloud), their settings, and dictation. Also the speech model that reads replies aloud, and the
-// user's own OpenAI-compatible voice server, which can take either route.
+// the cloud), their settings, and dictation. Also the speech model that reads replies aloud,
+// ElevenLabs text-to-speech with the same API key, and the user's own OpenAI-compatible voice server,
+// which can take either route.
 
 import type {
   DraftAttachment,
@@ -17,6 +18,7 @@ import type {
 import { sourceText } from "@openbot/i18n/source";
 import type { AgentService } from "../../backend/agent-service";
 import { runCauseEffect } from "../../backend/effect-boundary";
+import type { VoiceElevenLabsSpeech } from "../voice-elevenlabs-speech";
 import type { VoiceServerService } from "../voice-server-service";
 import type { VoiceSpeechService } from "../voice-speech-service";
 import type { VoiceTranscriptionService } from "../voice-transcription-service";
@@ -38,6 +40,8 @@ import {
 export interface VoiceIpcDependencies {
   voice: VoiceTranscriptionService;
   speech: VoiceSpeechService;
+  /** ElevenLabs text-to-speech. Uses the dictation API key. The user's own server still wins a route. */
+  elevenLabs: VoiceElevenLabsSpeech;
   /** The user's own server. While one of its routes is on, it replaces the model on this computer. */
   server: VoiceServerService;
   /** Keeps a voice turn's recording as an attachment draft. Voice turns go to this computer's host only. */
@@ -47,6 +51,7 @@ export interface VoiceIpcDependencies {
 export function voiceIpcHandlers({
   voice,
   speech,
+  elevenLabs,
   server,
   service,
 }: VoiceIpcDependencies): Pick<IpcGroupHandlers, "voice"> {
@@ -85,10 +90,16 @@ export function voiceIpcHandlers({
             server.dictates() ? server.transcribe(audio, voice.getSettings().language) : voice.transcribe(audio),
           ),
       ),
-      setApiKey: payloadHandler(
-        parseVoiceApiKey,
-        ({ key }): Promise<VoiceModelStatus> => runCauseEffect(voice.setApiKey(key)),
-      ),
+      setApiKey: payloadHandler(parseVoiceApiKey, async ({ key }): Promise<VoiceModelStatus> => {
+        const status = await runCauseEffect(voice.setApiKey(key));
+        // The key is gone, so ElevenLabs cannot read. Supertonic 3 reads again, as on iPhone.
+        if (key === null) {
+          const current = speech.getSettings();
+          if (current.engine === "elevenlabs" || current.elevenLabsVoice)
+            await runCauseEffect(speech.setSettings({ ...current, engine: "supertonic", elevenLabsVoice: null }));
+        }
+        return status;
+      }),
       startStream: handler((): Promise<VoiceStream> => runCauseEffect(voice.startStream())),
       appendStream: payloadHandler(
         parseVoiceStreamAudio,
@@ -104,19 +115,25 @@ export function voiceIpcHandlers({
         parseSpeechSettings,
         (settings): Promise<SpeechSettings> => runCauseEffect(speech.setSettings(settings)),
       ),
+      listElevenLabsVoices: handler(() => runCauseEffect(elevenLabs.listVoices())),
       getSpeechModelStatus: handler((): Promise<SpeechModelStatus> => runCauseEffect(speech.getModelStatus())),
       downloadSpeechModel: handler((): Promise<SpeechModelStatus> => runCauseEffect(speech.downloadModel())),
       cancelSpeechModelDownload: handler(
         (): Promise<SpeechModelStatus> => runCauseEffect(speech.cancelModelDownload()),
       ),
       removeSpeechModel: handler((): Promise<SpeechModelStatus> => runCauseEffect(speech.removeModel())),
-      speak: payloadHandler(
-        parseSpeechInput,
-        (input): Promise<SpeechAudio> =>
-          runCauseEffect(server.speaks() ? server.speak(input.text) : speech.speak(input)),
+      speak: payloadHandler(parseSpeechInput, (input): Promise<SpeechAudio> => {
+        if (server.speaks()) return runCauseEffect(server.speak(input.text));
+        if (speech.getSettings().engine === "elevenlabs") return runCauseEffect(elevenLabs.speak(input.text));
+        return runCauseEffect(speech.speak(input));
+      }),
+      // A server, and ElevenLabs, have nothing to load on this computer.
+      warmSpeech: handler(
+        (): Promise<void> =>
+          server.speaks() || speech.getSettings().engine === "elevenlabs"
+            ? Promise.resolve()
+            : runCauseEffect(speech.warm()),
       ),
-      // A server has nothing to load on this computer.
-      warmSpeech: handler((): Promise<void> => (server.speaks() ? Promise.resolve() : runCauseEffect(speech.warm()))),
       keepRecording: payloadHandler(parseVoiceRecording, async ({ audio }): Promise<DraftAttachment> => {
         const [draft] = await runCauseEffect(service.prepareVoiceRecording(audio));
         if (!draft) throw new Error(sourceText("error.voice.recordingNotKept"));

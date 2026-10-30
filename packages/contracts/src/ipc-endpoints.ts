@@ -494,6 +494,7 @@ import type {
 } from "./ipc-team-host";
 import type { VaultImportResult, VaultSaveInput, VaultSecretRequest, VaultState } from "./ipc-vault";
 import type {
+  ElevenLabsSpeechVoice,
   SpeechAudio,
   SpeechInput,
   SpeechModelStatus,
@@ -831,6 +832,11 @@ export const IPC_ENDPOINTS = {
     streamTranscript: event<VoiceStreamTranscript>()("voice:stream-transcript"),
     getSpeechSettings: request<undefined, SpeechSettings>()("voice:get-speech-settings"),
     setSpeechSettings: request<SpeechSettings, SpeechSettings>()("voice:set-speech-settings"),
+    /**
+     * The ElevenLabs voices of the saved key: premade, cloned and saved. The key stays in main.
+     * Rejects when no key is saved.
+     */
+    listElevenLabsVoices: request<undefined, ElevenLabsSpeechVoice[]>()("voice:list-elevenlabs-voices"),
     getSpeechModelStatus: request<undefined, SpeechModelStatus>()("voice:get-speech-model-status"),
     /** Downloads the speech model. Answers when it is ready, failed, or cancelled. */
     downloadSpeechModel: request<undefined, SpeechModelStatus>()("voice:download-speech-model"),

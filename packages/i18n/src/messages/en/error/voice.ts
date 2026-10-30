@@ -21,6 +21,13 @@ export const messages = defineMessages("error.voice", {
   "error.voice.cloud.streamEnded": "The dictation stream ended. Record again.",
   "error.voice.cloud.tooLong": "The recording is too long.",
   "error.voice.cloud.keySaveFailed": "Could not save the ElevenLabs API key.",
+  "error.voice.cloud.unreachable": "OpenBot could not reach ElevenLabs. Check the connection and try again.",
+  "error.voice.cloud.voiceRequired": "Choose an ElevenLabs voice in Settings → Voice.",
+  "error.voice.cloud.voicesFailed": "Could not load your ElevenLabs voices.",
+  "error.voice.cloud.missingVoicesPermission":
+    "The ElevenLabs API key cannot list voices. In ElevenLabs, allow Voices: Read for this key.",
+  "error.voice.cloud.missingSpeechPermission":
+    "The ElevenLabs API key cannot read replies aloud. In ElevenLabs, allow Text to Speech for this key.",
   "error.voice.speech.runtimeUnavailable": "Local speech is not available on this platform.",
   "error.voice.speech.modelRequired": "Download the speech model in Settings → Voice.",
   "error.voice.speech.timedOut": "Reading the reply aloud timed out.",

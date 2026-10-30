@@ -311,13 +311,47 @@ export const SPEECH_LANGUAGES = [
 ] as const;
 export type SpeechLanguage = (typeof SPEECH_LANGUAGES)[number];
 
+/**
+ * What reads a reply aloud. Supertonic 3 runs on this computer. ElevenLabs reads with the user's own
+ * key, the same key as Scribe dictation, and sends the reply text to ElevenLabs. Saved in
+ * `speech-preference.json`; never rename a value.
+ */
+export const SPEECH_ENGINES = ["supertonic", "elevenlabs"] as const;
+export type SpeechEngine = (typeof SPEECH_ENGINES)[number];
+
+/** One ElevenLabs voice the user can pick. The id is what synthesis uses; the name is what Settings shows. */
+export interface ElevenLabsSpeechVoice {
+  id: string;
+  name: string;
+}
+
+export const ELEVENLABS_SPEECH_LIMITS = {
+  voiceId: 128,
+  voiceName: 256,
+  /** The voices one account list returns to Settings. */
+  voices: 500,
+} as const;
+
 export interface SpeechSettings {
   /** Read the reply to a dictated message aloud. */
   readReplies: boolean;
+  /** The Supertonic 3 voice. Kept when ElevenLabs is the engine, so a switch back keeps it. */
   voice: SpeechVoice;
+  /**
+   * Which engine reads replies. A saved file from before this field reads as Supertonic, which is
+   * what that version did.
+   */
+  engine: SpeechEngine;
+  /** The ElevenLabs voice. Null until the user picks one. Kept when Supertonic is the engine. */
+  elevenLabsVoice: ElevenLabsSpeechVoice | null;
 }
 
-export const DEFAULT_SPEECH_SETTINGS: SpeechSettings = { readReplies: false, voice: "F1" };
+export const DEFAULT_SPEECH_SETTINGS: SpeechSettings = {
+  readReplies: false,
+  voice: "F1",
+  engine: "supertonic",
+  elevenLabsVoice: null,
+};
 
 export interface SpeechModelStatus extends Omit<VoiceModelStatus, "modelId"> {
   modelId: SpeechModelId;
@@ -342,6 +376,30 @@ export interface SpeechAudio {
 
 export function isSpeechVoice(value: unknown): value is SpeechVoice {
   return isOneOf(SPEECH_VOICES, value);
+}
+
+export function isSpeechEngine(value: unknown): value is SpeechEngine {
+  return isOneOf(SPEECH_ENGINES, value);
+}
+
+/** A voice id and name inside `ELEVENLABS_SPEECH_LIMITS`. The API key is never part of this value. */
+export function isElevenLabsSpeechVoice(value: unknown): value is ElevenLabsSpeechVoice {
+  return (
+    isDynamicRecord(value) &&
+    isBoundedString(value.id, ELEVENLABS_SPEECH_LIMITS.voiceId) &&
+    value.id.length > 0 &&
+    isBoundedString(value.name, ELEVENLABS_SPEECH_LIMITS.voiceName) &&
+    value.name.length > 0
+  );
+}
+
+/**
+ * An ElevenLabs voice name such as "George - Warm, Captivating Storyteller": the name, and the
+ * description after it, so a list can show the description on its own line.
+ */
+export function elevenLabsVoiceParts(name: string): { title: string; description: string | null } {
+  const at = name.indexOf(" - ");
+  return at > 0 ? { title: name.slice(0, at), description: name.slice(at + 3) } : { title: name, description: null };
 }
 
 export function isSpeechLanguage(value: unknown): value is SpeechLanguage {
