@@ -160,6 +160,11 @@ different view, and a request to the whole group goes to all of them. Each selec
 gets the request's attachments; its packet names the other members that answer. A member that the
 model names but that cannot take work is left out. Invalid or stale routing cannot broadcast a
 request. Routing can select an existing task, ask a question, or indicate that a message needs no answer.
+A request that already names an MCP or agent-bridge reply, with from and to, is work for a member.
+An MCP server, an MCP tool, and a bridge peer are not channel members. A routing question that asks
+what to send, to whom, or which member such a name is, does not pause that request: the lead takes
+it. The member calls the named MCP tool. It does not ask a person, and it does not look the server
+or the peer up as a channel member or a Slack member.
 An existing task that routing selects keeps its instruction, and the new message is its follow-up.
 Each selected owner or existing task adds one channel message from the lead, so the selection is
 visible and the user can correct it. Deterministic selection adds no message, and a lead that selects
