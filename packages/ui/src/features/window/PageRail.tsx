@@ -73,6 +73,7 @@ function UsageRings(props: {
   row: AccountUsageProviderRow;
   shared: readonly AccountUsageProviderRow[];
   onOpen: (button: HTMLElement) => void;
+  openUrl?: ((url: string) => void) | undefined;
 }) {
   const { t, format } = useText();
   const rows = () => [props.row, ...props.shared];
@@ -92,15 +93,22 @@ function UsageRings(props: {
     <RailButton
       label={label()}
       card={() => (
-        <AccountUsageDetails
-          rows={rows()}
-          loading={false}
-          error={null}
-          refreshActive={false}
-          refreshDisabled
-          onRefresh={() => undefined}
-          title={<h2 class="account-usage-popover-title">{t("account.usage.title")}</h2>}
-        />
+        <>
+          <AccountUsageDetails
+            rows={rows()}
+            loading={false}
+            error={null}
+            refreshActive={false}
+            refreshDisabled
+            onRefresh={() => undefined}
+            title={<h2 class="account-usage-popover-title">{t("account.usage.title")}</h2>}
+          />
+          <Show when={props.row.changeLimit && props.openUrl}>
+            <Button type="button" onClick={() => props.openUrl?.("https://cursor.com/dashboard/spending")}>
+              {t("account.usage.grokBot.changeLimit")}
+            </Button>
+          </Show>
+        </>
       )}
       class="window-rail-usage"
       onClick={props.onOpen}
@@ -198,6 +206,8 @@ export interface PageRailProps {
   onPinChange: (page: PageRailPinnablePage, pinned: boolean) => void;
   /** The plan limits of each provider account. Each one with a reported window shows as rings. */
   usageRows: readonly AccountUsageProviderRow[];
+  /** Opens a https page. The Grok Bot ring uses it for Change limit. */
+  openUrl?: ((url: string) => void) | undefined;
   /** The answers of the custom agents on this computer that have a usage prompt. Absent on the web. */
   customAgentUsage?: readonly CustomAgentUsageRailRow[] | undefined;
   onAgents: () => void;
@@ -397,7 +407,9 @@ export function PageRail(props: PageRailProps) {
       <div class="window-rail-group">
         {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
         <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
-          {(ring) => <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} />}
+          {(ring) => (
+            <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} openUrl={props.openUrl} />
+          )}
         </For>
         <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>
           {(row) => <CustomAgentUsageButton row={row()} onOpen={props.onUsage} />}

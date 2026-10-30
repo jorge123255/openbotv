@@ -10,6 +10,7 @@ import {
   startGrokBotSignIn,
 } from "../backend/grok-bot/grok-bot-account";
 import { createGrokBotAgent, listGrokBotAgents } from "../backend/grok-bot/grok-bot-gateway";
+import { readGrokBotUsageSummary } from "../backend/grok-bot/grok-bot-usage";
 import { type RendererIpcWindow, sendToRenderer } from "./renderer-ipc";
 
 const GROK_BOT_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
@@ -83,6 +84,10 @@ export class GrokBotAccountService {
 
   readonly list = Effect.fn("GrokBotAccountService.list")(function* (this: GrokBotAccountService) {
     return yield* listGrokBotAgents(this.#store, callOptions());
+  });
+
+  readonly usage = Effect.fn("GrokBotAccountService.usage")(function* (this: GrokBotAccountService) {
+    return yield* readGrokBotUsageSummary(this.#store);
   });
 
   readonly create = Effect.fn("GrokBotAccountService.create")(function* (

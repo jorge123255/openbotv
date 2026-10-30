@@ -749,3 +749,8 @@ The section lists and creates agents on the Grok Bot gateway (`EnsureSandBox`, t
 `listAgents` and `createAgent`). Those agents stay on the Grok Bot account. Import still reads a
 Grok Bot zip into local OpenBot agents. Connect on the Cursor provider still writes the CLI
 sign-in. The web client and a joined server do not show this section.
+
+The page rail shows a Grok Bot ring when that account is signed in on this computer.
+The ring uses GetSandUsageStatus and the on-demand fields of GetCurrentPeriodUsage
+with the Grok Bot account token. The Cursor provider ring still uses the CLI token
+and readCursorUsage. The two rows use different labels.

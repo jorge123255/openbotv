@@ -17,6 +17,9 @@ const idle = {
   onSignOut: () => undefined,
   onRefresh: () => undefined,
   onCreate: () => undefined,
+  usage: null,
+  onChangeLimit: () => undefined,
+  onTrial: () => undefined,
 };
 
 export const SignedOut: Story = {

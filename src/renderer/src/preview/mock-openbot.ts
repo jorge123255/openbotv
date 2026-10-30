@@ -1429,6 +1429,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       cancelSignIn: async () => undefined,
       signOut: async () => ({ signedIn: false }),
       listAgents: async () => [],
+      getUsage: async () => null,
       createAgent: async (input) => ({
         id: "preview-agent",
         name: input.name,

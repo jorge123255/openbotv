@@ -293,6 +293,7 @@ import type {
   GrokBotAccountEvent,
   GrokBotAgentSummary,
   GrokBotSignInStart,
+  GrokBotUsageSummary,
 } from "./ipc-grok-bot";
 import type { ApplyHermesImportInput, HermesImportPreview } from "./ipc-hermes-import";
 import type { HiddenAgentsSnapshot, SetAgentHiddenInput } from "./ipc-hidden-agents";
@@ -1774,6 +1775,7 @@ export const IPC_ENDPOINTS = {
     signOut: request<undefined, { signedIn: boolean }>()("grok-bot:sign-out"),
     listAgents: request<undefined, readonly GrokBotAgentSummary[]>()("grok-bot:list-agents"),
     createAgent: request<CreateGrokBotAgentInput, GrokBotAgentSummary>()("grok-bot:create-agent"),
+    getUsage: request<undefined, GrokBotUsageSummary | null>()("grok-bot:get-usage"),
     account: event<GrokBotAccountEvent>()("grok-bot:account"),
   },
   // Bound against the instance transfer service: a server's agents and server settings in one file for

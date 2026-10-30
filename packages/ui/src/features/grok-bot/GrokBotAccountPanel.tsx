@@ -1,3 +1,4 @@
+import type { GrokBotUsageSummary } from "@openbot/contracts/ipc";
 import {
   Button,
   Input,
@@ -11,6 +12,8 @@ import {
 } from "@openbot/ui";
 import { createSignal, For, Show } from "solid-js";
 import { useText } from "../../text";
+import { AccountUsageWindowList } from "../account/AccountUsageDetails";
+import { grokBotUsageRow } from "../account/grok-bot-usage-row";
 
 export interface GrokBotAccountAgent {
   id: string;
@@ -30,11 +33,29 @@ export interface GrokBotAccountPanelProps {
   onSignOut: () => void;
   onRefresh: () => void;
   onCreate: (input: { name: string; description: string }) => void;
+  usage: GrokBotUsageSummary | null;
+  onChangeLimit: () => void;
+  onTrial: () => void;
 }
 
 /** The Grok Bot account on this computer. It does not call `window.openbot`. */
 export function GrokBotAccountPanel(props: GrokBotAccountPanelProps) {
-  const { t } = useText();
+  const { t, format } = useText();
+  const usageRow = () => {
+    const usage = props.usage;
+    if (!usage) return null;
+    return grokBotUsageRow(usage, {
+      name: t("account.usage.grokBot"),
+      included: t("account.usage.grokBot.included"),
+      onDemand: usage.onDemand
+        ? t("account.usage.grokBot.onDemandLabel", {
+            used: format.currencyUsd(usage.onDemand.usedUsd),
+            limit: format.currencyUsd(usage.onDemand.limitUsd),
+          })
+        : "",
+      formatReset: (date) => format.date(date, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+    });
+  };
   const [name, setName] = createSignal("");
   const [description, setDescription] = createSignal("");
   const visible = () => props.agents.filter((agent) => !agent.hidden);
@@ -61,6 +82,30 @@ export function GrokBotAccountPanel(props: GrokBotAccountPanelProps) {
             </Item>
           }
         >
+          <Show when={props.usage}>
+            {(usage) => (
+              <Item class="settings-modal-row">
+                <ItemContent>
+                  <Show when={usageRow()}>
+                    {(row) => <AccountUsageWindowList windows={row().windows} now={Date.now()} />}
+                  </Show>
+                  <Show when={usage().enterprise}>
+                    <ItemDescription>{t("account.usage.grokBot.enterprise")}</ItemDescription>
+                  </Show>
+                  <Show when={usage().changeLimit}>
+                    <Button type="button" onClick={() => props.onChangeLimit()}>
+                      {t("account.usage.grokBot.changeLimit")}
+                    </Button>
+                  </Show>
+                  <Show when={usage().trialClaim}>
+                    <Button type="button" onClick={() => props.onTrial()}>
+                      {t("account.usage.grokBot.trial")}
+                    </Button>
+                  </Show>
+                </ItemContent>
+              </Item>
+            )}
+          </Show>
           <Item class="settings-modal-row">
             <ItemActions>
               <Button type="button" disabled={props.busy} onClick={() => props.onSignOut()}>

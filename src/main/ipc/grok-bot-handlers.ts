@@ -15,6 +15,7 @@ export function grokBotIpcHandlers({ grokBotAccount }: GrokBotIpcDependencies): 
       cancelSignIn: handler(() => runCauseEffect(grokBotAccount.cancel())),
       signOut: handler(() => runCauseEffect(grokBotAccount.signOut())),
       listAgents: handler(() => runCauseEffect(grokBotAccount.list())),
+      getUsage: handler(() => runCauseEffect(grokBotAccount.usage())),
       createAgent: payloadHandler(parseCreateGrokBotAgentInput, (input) =>
         runCauseEffect(grokBotAccount.create(input)),
       ),

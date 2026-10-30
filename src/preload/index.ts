@@ -238,6 +238,7 @@ import {
   decodeGrokBotAgents,
   decodeGrokBotSignInStart,
   decodeGrokBotStatus,
+  decodeGrokBotUsageSummary,
 } from "./grok-bot-decoding";
 import { decodeHostReleaseStatusFromMain } from "./host-release-decoding";
 import { decodeMacAutomationResults } from "./mac-automation-decoding";
@@ -1070,6 +1071,7 @@ const openbotApi: OpenBotDesktopApi = {
     signOut: decodeGrokBotStatus,
     listAgents: decodeGrokBotAgents,
     createAgent: decodeGrokBotAgent,
+    getUsage: decodeGrokBotUsageSummary,
     account: decodeGrokBotAccountEvent,
   }),
   instanceTransfer: bridgeGroup(IPC_ENDPOINTS.instanceTransfer, {

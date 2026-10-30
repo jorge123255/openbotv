@@ -1,4 +1,4 @@
-import type { GrokBotAgentSummary, OpenBotDesktopApi } from "@openbot/contracts/ipc";
+import type { GrokBotAgentSummary, GrokBotUsageSummary, OpenBotDesktopApi } from "@openbot/contracts/ipc";
 import { GrokBotAccountPanel } from "@openbot/ui/features/grok-bot/GrokBotAccountPanel";
 import { createEffect, createStore } from "solid-js";
 
@@ -14,17 +14,19 @@ export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
     agents: GrokBotAgentSummary[];
     error: string | null;
     busy: boolean;
-  } = { signedIn: false, agents: [], error: null, busy: false };
+    usage: GrokBotUsageSummary | null;
+  } = { signedIn: false, agents: [], error: null, busy: false, usage: null };
   const [state, setState] = createStore(initial);
 
   const load = async (api: OpenBotDesktopApi["grokBot"]) => {
     const status = await api.getStatus();
     if (!status.signedIn) {
-      setState((current) => ({ ...current, signedIn: false, agents: [], error: null }));
+      setState((current) => ({ ...current, signedIn: false, agents: [], error: null, usage: null }));
       return;
     }
     const agents = await api.listAgents();
-    setState((current) => ({ ...current, signedIn: true, agents: [...agents], error: null }));
+    const usage = await api.getUsage();
+    setState((current) => ({ ...current, signedIn: true, agents: [...agents], error: null, usage }));
   };
 
   createEffect(
@@ -52,6 +54,9 @@ export function ServerGrokBotPanel(props: ServerGrokBotOptions) {
       agents={state.agents}
       busy={state.busy}
       error={state.error}
+      usage={state.usage}
+      onChangeLimit={() => void props.openUrl("https://cursor.com/dashboard/spending")}
+      onTrial={() => void props.openUrl("https://cursor.com/dashboard")}
       onSignIn={() => {
         const api = props.api;
         const openUrl = props.openUrl;

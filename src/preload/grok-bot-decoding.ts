@@ -1,4 +1,9 @@
-import type { GrokBotAccountEvent, GrokBotAgentSummary, GrokBotSignInStart } from "@openbot/contracts/ipc";
+import type {
+  GrokBotAccountEvent,
+  GrokBotAgentSummary,
+  GrokBotSignInStart,
+  GrokBotUsageSummary,
+} from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 
 const SECRET_KEYS = new Set(["accessToken", "refreshToken", "gatewayToken", "verifier"]);
@@ -40,6 +45,33 @@ export function decodeGrokBotAgent(value: unknown): GrokBotAgentSummary {
   };
 }
 
+export function decodeGrokBotUsageSummary(value: unknown): GrokBotUsageSummary | null {
+  if (value === null) return null;
+  rejectUsageSecrets(value);
+  if (!isDynamicRecord(value)) throw new Error("Invalid Grok Bot response.");
+  const onDemand = value.onDemand;
+  return {
+    includedUsedPercent: percentField(value.includedUsedPercent),
+    includedResetsAt: numberOrNull(value.includedResetsAt),
+    hasAvailableUsage: value.hasAvailableUsage === true,
+    enterprise: value.enterprise === true,
+    trialActive: value.trialActive === true,
+    trialClaim: value.trialClaim === true,
+    changeLimit: value.changeLimit === true,
+    onDemand:
+      onDemand === null
+        ? null
+        : isDynamicRecord(onDemand)
+          ? {
+              usedUsd: requiredNumber(onDemand.usedUsd),
+              limitUsd: requiredNumber(onDemand.limitUsd),
+              usedPercent: requiredNumber(onDemand.usedPercent),
+              resetsAt: numberOrNull(onDemand.resetsAt),
+            }
+          : failUsage(),
+  };
+}
+
 export function decodeGrokBotAccountEvent(value: unknown): GrokBotAccountEvent {
   rejectSecrets(value);
   if (!isDynamicRecord(value)) throw new Error("Invalid Grok Bot response.");
@@ -59,6 +91,33 @@ function isCursorLoginUrl(value: string): boolean {
     return url.protocol === "https:" && url.hostname === "cursor.com";
   } catch {
     return false;
+  }
+}
+
+function percentField(value: unknown): number | null {
+  if (value === null) return null;
+  return requiredNumber(value);
+}
+
+function numberOrNull(value: unknown): number | null {
+  if (value === null) return null;
+  return requiredNumber(value);
+}
+
+function requiredNumber(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) failUsage();
+  return value;
+}
+
+function failUsage(): never {
+  throw new Error("Invalid Grok Bot response.");
+}
+
+function rejectUsageSecrets(value: unknown): void {
+  const blocked = new Set(["accessToken", "refreshToken", "upgradeRecommendation", "dashboardUrl"]);
+  if (!isDynamicRecord(value)) return;
+  for (const key of Object.keys(value)) {
+    if (blocked.has(key)) throw new Error("Invalid Grok Bot response.");
   }
 }
 
