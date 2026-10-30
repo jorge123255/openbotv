@@ -21,10 +21,16 @@ import type { SidebarPinnedItem } from "./sidebar-pins";
  * view to borrow a name.
  */
 /**
- * What the main area shows for the chat picked in the list: its conversation, or its routines. The
- * list itself is the same in both.
+ * What the main area shows, and which list the sidebar uses.
+ * `roster` is the bots list on the agents page. `agents` is the chat list on that same page.
+ * `routines` opens the routine canvas and keeps the chat list.
  */
-export type SidebarView = "agents" | "routines";
+export type SidebarView = "roster" | "agents" | "routines";
+
+/** The page-rail button for this list. The bots list shares the agents page. */
+export function sidebarRailPage(view: SidebarView): "agents" | "routines" {
+  return view === "routines" ? "routines" : "agents";
+}
 
 /**
  * The "Hidden" group is not a section of the layout, and it is collapsed by default. Its id in

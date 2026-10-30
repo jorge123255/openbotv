@@ -7,7 +7,7 @@
 export const LEFT_PANEL_STORAGE_KEY = "openbot:left-panel-width";
 export const LEFT_PANEL_COLLAPSED_STORAGE_KEY = "openbot:left-panel-collapsed";
 export const SERVER_VIEW_STORAGE_KEY = "openbot:server-view";
-/** Whether the middle shows the open agent's chat or its routines. */
+/** The sidebar list: bots, chats, or routines. Absent means the bots list. */
 export const SIDEBAR_VIEW_STORAGE_KEY = "openbot:sidebar-view";
 /** The pages that the user pinned to the page rail or took off it: a JSON record of booleans. */
 export const RAIL_PINS_STORAGE_KEY = "openbot:rail-pins";

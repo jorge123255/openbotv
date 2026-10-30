@@ -98,7 +98,7 @@ import {
   sidebarAgentWaits,
   sidebarChannelWaits,
 } from "@openbot/ui/features/sidebar/sidebar-agent-states";
-import type { SidebarView } from "@openbot/ui/features/sidebar/sidebar-types";
+import { type SidebarView, sidebarRailPage } from "@openbot/ui/features/sidebar/sidebar-types";
 import { PageRail, type PageRailPage } from "@openbot/ui/features/window/PageRail";
 import { useText } from "@openbot/ui/text";
 import { Effect } from "effect";
@@ -1327,12 +1327,12 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
     await workspace.refresh();
     return created;
   }
-  /* A channel can open while the Routines view is on: from search or a restored selection. Its row
-   * must be in the list, so the list goes back to the agents view. */
+  /* A channel row lives in the chat list. The bots list and the routines view have no channel
+   * row, so an open channel returns to that list. */
   createEffect(
-    () => routinesView() && channelOpen(),
-    (channelOpenInRoutines) => {
-      if (channelOpenInRoutines) layout.setSidebarView("agents");
+    () => (layout.sidebarView() === "routines" || layout.sidebarView() === "roster") && channelOpen(),
+    (channelNeedsChatList) => {
+      if (channelNeedsChatList) layout.setSidebarView("agents");
     },
   );
   const readState = () => workspace.conversation()?.page?.readState;
@@ -1620,7 +1620,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
   /** The rail button of the page. The server settings open from the server menu, so no button is current. */
   const railPage = (): PageRailPage | null => {
     const current = page();
-    if (current === "agents") return layout.sidebarView();
+    if (current === "agents") return sidebarRailPage(layout.sidebarView());
     return current === "server-settings" ? null : current;
   };
   /** The settings page on screen, if any. */
@@ -1903,6 +1903,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                   // The browser client does not know the unread counts of agent chats it has not opened.
                   hasUnread
                   view={layout.sidebarView()}
+                  onViewChange={layout.setSidebarView}
                   serverName={workspace.state.host?.name ?? "OpenBot"}
                   serverUpdate={(() => {
                     const id = server()?.id;

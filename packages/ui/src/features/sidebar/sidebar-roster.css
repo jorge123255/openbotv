@@ -1,0 +1,343 @@
+/* The bots list in the sidebar. Category colour comes from --roster-accent. */
+
+.roster-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.roster-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  margin: 0;
+  padding: var(--openbot-space-1) var(--openbot-space-3) var(--openbot-space-2);
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-md);
+  font-weight: var(--openbot-weight-medium);
+}
+
+.roster-live {
+  width: var(--openbot-space-2);
+  height: var(--openbot-space-2);
+  flex: none;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-success);
+}
+
+.roster-filters {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  border: 0;
+  gap: var(--openbot-space-1);
+  padding: 0 var(--openbot-space-3) var(--openbot-space-2);
+  min-inline-size: 0;
+}
+
+.roster-filter {
+  --roster-accent: var(--openbot-text-secondary);
+  flex: none;
+  border-radius: var(--openbot-radius-pill);
+  color: var(--openbot-text-secondary);
+}
+
+.roster-filter[data-category="monitor"] {
+  --roster-accent: var(--openbot-question-option);
+}
+
+.roster-filter[data-category="worker"] {
+  --roster-accent: var(--openbot-accent-text);
+}
+
+.roster-filter[data-category="artist"] {
+  --roster-accent: var(--openbot-file-pink);
+}
+
+.roster-filter[data-category="helper"] {
+  --roster-accent: var(--openbot-warning);
+}
+
+.roster-filter[aria-pressed="true"] {
+  background: var(--openbot-bg-control-active);
+  color: var(--roster-accent);
+}
+
+.roster-dot {
+  width: var(--openbot-space-1);
+  height: var(--openbot-space-1);
+  flex: none;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--roster-accent);
+}
+
+.roster-row {
+  --roster-accent: var(--openbot-accent-text);
+  display: grid;
+  width: 100%;
+  height: auto;
+  min-height: calc(var(--openbot-control-xl) + var(--openbot-space-3));
+  grid-template-columns: var(--openbot-space-1) var(--openbot-control-xl) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-1) var(--openbot-space-3) var(--openbot-space-1) 0;
+  border-radius: var(--openbot-radius-md);
+  background: transparent;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-md);
+  text-align: start;
+}
+
+.roster-row[data-category="monitor"] {
+  --roster-accent: var(--openbot-question-option);
+}
+
+.roster-row[data-category="worker"] {
+  --roster-accent: var(--openbot-accent-text);
+}
+
+.roster-row[data-category="artist"] {
+  --roster-accent: var(--openbot-file-pink);
+}
+
+.roster-row[data-category="helper"] {
+  --roster-accent: var(--openbot-warning);
+}
+
+.roster-row:hover,
+.roster-row-active {
+  background: var(--openbot-hover);
+}
+
+.roster-row-asleep {
+  opacity: 0.42;
+}
+
+.roster-row-rising {
+  animation: roster-rise var(--openbot-duration-slow) ease;
+}
+
+.roster-bar {
+  align-self: stretch;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--roster-accent);
+}
+
+.roster-avatar {
+  position: relative;
+  display: grid;
+  width: var(--openbot-control-xl);
+  height: var(--openbot-control-xl);
+  place-items: center;
+}
+
+.roster-ring {
+  position: absolute;
+  inset: calc(var(--openbot-space-2) * -1);
+  border: 2px solid var(--roster-accent);
+  border-radius: var(--openbot-radius-pill);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.roster-ring-outer {
+  inset: calc(var(--openbot-space-3) * -1);
+}
+
+.roster-row:hover .roster-ring,
+.roster-row:focus-visible .roster-ring {
+  opacity: 0.8;
+}
+
+.roster-row:hover .roster-ring-outer,
+.roster-row:focus-visible .roster-ring-outer {
+  opacity: 0.35;
+}
+
+.roster-ask {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: grid;
+  width: var(--openbot-icon-sm);
+  height: var(--openbot-icon-sm);
+  place-items: center;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-warning);
+  color: var(--openbot-text-on-status);
+  font-size: var(--openbot-text-sm);
+  line-height: 1;
+}
+
+.roster-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--openbot-space-1);
+}
+
+.roster-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--openbot-space-1);
+}
+
+.roster-name strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-status,
+.roster-time {
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-regular);
+}
+
+.roster-status-short {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roster-status-full {
+  display: none;
+  white-space: normal;
+}
+
+.roster-row:hover .roster-status-short,
+.roster-row:focus-visible .roster-status-short {
+  display: none;
+}
+
+.roster-row:hover .roster-status-full,
+.roster-row:focus-visible .roster-status-full {
+  display: block;
+}
+
+.roster-time {
+  align-self: start;
+  margin-top: var(--openbot-space-2);
+}
+
+.roster-asleep-head {
+  margin: var(--openbot-space-3) var(--openbot-space-3) var(--openbot-space-1);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-regular);
+}
+
+.roster-empty {
+  margin: var(--openbot-space-3);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+}
+
+.roster-sound {
+  --roster-accent: var(--openbot-text-secondary);
+  position: sticky;
+  bottom: var(--openbot-space-2);
+  display: inline-flex;
+  align-self: flex-end;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  margin: var(--openbot-space-2) var(--openbot-space-3);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-bg-control);
+  color: var(--openbot-text-primary);
+}
+
+.roster-sound[data-category="monitor"] {
+  --roster-accent: var(--openbot-question-option);
+}
+
+.roster-sound[data-category="worker"] {
+  --roster-accent: var(--openbot-accent-text);
+}
+
+.roster-sound[data-category="artist"] {
+  --roster-accent: var(--openbot-file-pink);
+}
+
+.roster-sound[data-category="helper"] {
+  --roster-accent: var(--openbot-warning);
+}
+
+.roster-sound[data-category="needsYou"] {
+  --roster-accent: var(--openbot-warning);
+}
+
+.roster-sound[data-category="asleep"] {
+  --roster-accent: var(--openbot-text-muted);
+}
+
+.roster-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: var(--openbot-space-1);
+  height: var(--openbot-icon-sm);
+  color: var(--roster-accent);
+}
+
+.roster-eq-bar {
+  width: 2px;
+  height: 40%;
+  border-radius: var(--openbot-radius-pill);
+  background: currentColor;
+  animation: roster-eq 0.8s ease-in-out infinite;
+}
+
+.roster-eq-bar:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.roster-eq-bar:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.sidebar-compact .roster-heading,
+.sidebar-compact .roster-filters,
+.sidebar-compact .roster-copy,
+.sidebar-compact .roster-time,
+.sidebar-compact .roster-sound,
+.sidebar-compact .roster-asleep-head {
+  display: none;
+}
+
+.sidebar-compact .roster-row {
+  grid-template-columns: var(--openbot-space-1) 1fr;
+  justify-items: center;
+  padding-inline: 0;
+}
+
+@keyframes roster-rise {
+  from {
+    transform: translateY(var(--openbot-space-3));
+    opacity: 0.4;
+  }
+
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+@keyframes roster-eq {
+  from,
+  to {
+    height: 30%;
+  }
+
+  50% {
+    height: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .roster-row-rising,
+  .roster-eq-bar {
+    animation: none;
+  }
+}

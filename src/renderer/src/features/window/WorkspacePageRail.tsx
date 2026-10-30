@@ -1,6 +1,6 @@
 import { isUpdateActivePhase } from "@openbot/contracts/ipc";
 import { AGENT_TASKS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-tasks-v1";
-import type { SidebarView } from "@openbot/ui/features/sidebar/sidebar-types";
+import { type SidebarView, sidebarRailPage } from "@openbot/ui/features/sidebar/sidebar-types";
 import { PageRail, type PageRailPage } from "@openbot/ui/features/window/PageRail";
 import { useText } from "@openbot/ui/text";
 import { appPort } from "../../app-port";
@@ -60,7 +60,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   };
   const current = (): PageRailPage | null => {
     const page = windowPage.page();
-    if (page === "agents") return layout.sidebarView();
+    if (page === "agents") return sidebarRailPage(layout.sidebarView());
     return page === "server-settings" ? null : page;
   };
   return (
