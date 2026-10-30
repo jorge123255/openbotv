@@ -78,6 +78,7 @@ import { startCliCodeLogin } from "./cli-code-login";
 import { CliLoginFailed, CliLoginFlow, toCliLoginFailed } from "./cli-login-flow";
 import { CodexLoginFlow, toCodexLoginFailed } from "./codex-login";
 import type { ConversationRuntime } from "./conversation-runtime";
+import { startCursorDeepLogin } from "./cursor-deep-login";
 import { ModelCatalog } from "./model-catalog";
 import { startMuseDeviceLogin } from "./muse-login";
 import type { ProviderAccountStore, StoredProviderAccount } from "./provider-account-store";
@@ -1785,6 +1786,11 @@ export class ProviderRuntime implements ProviderPort {
           (cli) => startMuseDeviceLogin({ cli, timeoutMs: codeSignIn.timeoutMs }),
           codeSignIn.timeoutMs,
         )
+        .pipe(toProviderOperationFailed);
+    }
+    if (codeSignIn.kind === "cursor-deep") {
+      return yield* this.#cliLogin
+        .startCode(provider, () => startCursorDeepLogin({ timeoutMs: codeSignIn.timeoutMs }), codeSignIn.timeoutMs)
         .pipe(toProviderOperationFailed);
     }
     const { command, flow } = codeSignIn;
