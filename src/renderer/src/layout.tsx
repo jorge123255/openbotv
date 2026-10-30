@@ -91,6 +91,12 @@ function readRailPinChoices(): RailPinChoices {
  * The geometry itself is in `layout-constants.ts`; the view imports it directly
  * rather than reading constants through a context.
  */
+/** A saved list choice. A missing or unknown value opens the bots list. */
+function storedSidebarView(value: string | null): SidebarView {
+  if (value === "roster" || value === "agents" || value === "routines") return value;
+  return "roster";
+}
+
 const Layout = createSimpleContext({
   name: "Layout",
   init: () => {
@@ -107,7 +113,7 @@ const Layout = createSimpleContext({
       window.localStorage.getItem(SERVER_VIEW_STORAGE_KEY) === "rail" ? "rail" : "menu",
     );
     const [sidebarView, setSidebarViewSignal] = createSignal<SidebarView>(
-      window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY) === "routines" ? "routines" : "agents",
+      storedSidebarView(window.localStorage.getItem(SIDEBAR_VIEW_STORAGE_KEY)),
     );
     const [railPinChoices, setRailPinChoices] = createSignal<RailPinChoices>(readRailPinChoices());
     const railPinned = createMemo(() => {

@@ -281,6 +281,12 @@ export interface AgentProfile {
   updatedAt?: string | null;
   time: string;
   preview: string;
+  /**
+   * Roster group for the bots list: monitor, worker, artist, or helper.
+   * Absent: the list reads the title and the name, then uses worker.
+   * Not stored in the database. See `roster-model.ts`.
+   */
+  rosterCategory?: "monitor" | "worker" | "artist" | "helper" | undefined;
 }
 
 /** The agent fields that the composer, the queue, rich text and the browser dock read. */

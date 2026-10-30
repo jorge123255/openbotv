@@ -2,6 +2,7 @@ import { Show } from "solid-js";
 import { SidebarDialogs } from "./SidebarDialogs";
 import { SidebarFrame } from "./SidebarFrame";
 import { SidebarNav } from "./SidebarNav";
+import { SidebarRoster } from "./SidebarRoster";
 import { SidebarSearch } from "./SidebarSearch";
 import { SidebarTopbar } from "./SidebarTopbar";
 import { SidebarViewSwitch } from "./SidebarViewSwitch";
@@ -21,7 +22,9 @@ export function Sidebar(props: SidebarProps) {
           <SidebarViewSwitch />
         </Show>
 
-        <SidebarNav />
+        <Show when={scope.rosterOpen()} fallback={<SidebarNav />}>
+          <SidebarRoster />
+        </Show>
 
         <Show when={!props.compact}>{props.footer}</Show>
 

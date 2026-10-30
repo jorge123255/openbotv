@@ -7,7 +7,7 @@
  * is the one part that needs a closure of its own, and `createSidebarDragEngine` is it.
  */
 
-import { createContext, createEffect, onCleanup, useContext } from "solid-js";
+import { createContext, createEffect, createSignal, onCleanup, useContext } from "solid-js";
 import { createScrollFades } from "../../components/createScrollFades";
 import { createSidebarDragEngine } from "./createSidebarDragEngine";
 import type { SidebarProps } from "./sidebar-types";
@@ -19,7 +19,14 @@ import { createSidebarPendingStore } from "./stores/pending-store";
 
 export function createSidebarScope(props: SidebarProps) {
   const layoutMutable = () => props.layoutMutable !== false;
+  const rosterOpen = () => props.view === "roster";
   const scrollFades = createScrollFades();
+  const [rosterTouchedAt, setRosterTouchedAt] = createSignal<Record<string, number>>({});
+  /** A press in the bots list counts as activity for this session, then opens the chat. */
+  function touchRosterAgent(agentId: string): void {
+    setRosterTouchedAt((current) => ({ ...current, [agentId]: Date.now() }));
+    props.onSelectAgent(agentId);
+  }
 
   const { announce, announceError, reorderAnnouncement } = createSidebarAnnouncementStore();
   // The drag state is built from the data store, so the data store reads it through this reference,
@@ -176,7 +183,10 @@ export function createSidebarScope(props: SidebarProps) {
     props,
     releaseSectionNameInput,
     reorderAnnouncement,
+    rosterOpen,
     resolvedPinnedItems,
+    rosterTouchedAt,
+    touchRosterAgent,
     saveSectionEditor,
     scrollFades,
     sectionDeleteTarget,

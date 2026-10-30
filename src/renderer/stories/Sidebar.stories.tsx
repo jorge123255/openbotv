@@ -304,6 +304,119 @@ export const Populated: Story = {
   decorators: [(Story) => <div style={{ width: "280px", height: "100vh" }}>{Story()}</div>],
 };
 
+const rosterMinute = 60_000;
+const rosterNow = Date.now();
+const rosterSource = sidebarAgents[0];
+function rosterBot(
+  id: string,
+  name: string,
+  category: "monitor" | "worker" | "artist" | "helper",
+  agoMs: number,
+  preview: string,
+  description: string,
+) {
+  if (!rosterSource) throw new Error("Story agents are missing.");
+  return {
+    ...rosterSource,
+    id,
+    name,
+    title: name,
+    description,
+    preview,
+    rosterCategory: category,
+    avatarSeed: id,
+    threadId: `thread-${id}`,
+    updatedAt: new Date(rosterNow - agoMs).toISOString(),
+    time: "",
+  };
+}
+const rosterAgents = [
+  rosterBot("rocket", "Rocket Smith", "worker", 0, "starting the next level...", "The next level is loaded and ready."),
+  rosterBot(
+    "orbit",
+    "Orbit Watch",
+    "monitor",
+    15_000,
+    "all quiet, 3 jobs running",
+    "Three jobs are running. Nothing needs you.",
+  ),
+  rosterBot(
+    "moon",
+    "Moon Painter",
+    "artist",
+    8 * rosterMinute,
+    "sketching the new moon sprite",
+    "The new moon sprite is a soft pink crescent.",
+  ),
+  rosterBot(
+    "pocket",
+    "Pocket Planner",
+    "helper",
+    19 * rosterMinute,
+    "can you pick one for tomorrow?",
+    "Three options are ready. Pick one for tomorrow.",
+  ),
+  rosterBot(
+    "lantern",
+    "Lantern",
+    "monitor",
+    26 * rosterMinute,
+    "checking in on everyone",
+    "Everyone is doing fine. Three jobs are quiet.",
+  ),
+  rosterBot(
+    "cosmo",
+    "Cosmo Notes",
+    "helper",
+    29 * rosterMinute,
+    "saved your notes",
+    "Your notes are saved in the workspace.",
+  ),
+  rosterBot(
+    "star",
+    "Star Doodle",
+    "artist",
+    2 * 60 * rosterMinute,
+    "drew 4 comets",
+    "Four comet sketches are in the folder.",
+  ),
+  rosterBot(
+    "nebula",
+    "Nebula Builder",
+    "worker",
+    5 * 60 * rosterMinute,
+    "waiting for a task",
+    "No task is queued. Send one to wake this agent.",
+  ),
+];
+
+/** The bots list: newest first, category filters, and quiet agents under Asleep. */
+export const Roster: Story = {
+  render: () => {
+    const [view, setView] = createSignal<"roster" | "agents" | "routines">("roster");
+    const [activeAgentId, setActiveAgentId] = createSignal("lantern");
+    return (
+      <div style={{ width: "340px", height: "100vh" }}>
+        <Sidebar
+          {...args}
+          view={view()}
+          onViewChange={setView}
+          agents={rosterAgents}
+          activeAgentId={activeAgentId()}
+          people={[]}
+          directThreads={[]}
+          pinnedItems={[]}
+          agentMoods={{}}
+          agentStates={{
+            pocket: { kind: "waiting", reason: "question", detail: "Can you pick one for tomorrow?" },
+          }}
+          onSelectAgent={setActiveAgentId}
+        />
+      </div>
+    );
+  },
+};
+
 /** A joined server has a new OpenBot version. The header button opens its update. */
 export const ServerUpdate: Story = {
   args: { serverName: "Research server", serverUpdate: { version: "0.24.0", running: false, onOpen: fn() } },

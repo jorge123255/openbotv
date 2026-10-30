@@ -178,12 +178,13 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
   const visibleChannels = createMemo(() =>
     channelsListed() ? channels.state.channels.filter((channel) => !channel.archived) : [],
   );
-  /* A channel can open while the Routines view is on: from search, a notification, or a selection
-   * restored at start. Its row must be in the list, so the list goes back to the agents view. */
+  /* A channel row lives in the chat list. The bots list and the routines view have no channel
+   * row, so an open channel returns to that list. */
   createEffect(
-    () => layout.sidebarView() === "routines" && channels.state.selectedId !== null,
-    (channelOpenInRoutines) => {
-      if (channelOpenInRoutines) layout.setSidebarView("agents");
+    () =>
+      (layout.sidebarView() === "routines" || layout.sidebarView() === "roster") && channels.state.selectedId !== null,
+    (channelNeedsChatList) => {
+      if (channelNeedsChatList) layout.setSidebarView("agents");
     },
   );
 
@@ -249,6 +250,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
         channels.hasUnread()
       }
       view={layout.sidebarView()}
+      onViewChange={layout.setSidebarView}
       serverName={activeServer()?.name ?? t("sidebar.topbar.localServer")}
       onOpenServerSettings={(trigger) => {
         const server = activeServer();
