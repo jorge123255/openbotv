@@ -25,6 +25,18 @@ export interface GrokBotGatewaySession {
   url: string;
   token: string;
   headers: Readonly<Record<string, string>>;
+  /**
+   * BotAI `vncProxy`: where `EnsureSandBox` says the box screen is reachable. The forever box reports
+   * loopback noVNC URLs (`127.0.0.1:6080` primary, `:6081` forks); these rewrite them. Absent on
+   * records saved before the computer existed, and when the broker returns no VNC URLs.
+   */
+  vnc?: GrokBotVncProxy | null;
+}
+
+export interface GrokBotVncProxy {
+  primaryUrl: string;
+  forkBaseUrl: string;
+  networkToken: string;
 }
 
 export interface GrokBotAccountRecord {
@@ -220,6 +232,8 @@ function rememberRecord(record: GrokBotAccountRecord): void {
   registerSecretValue(record.accessToken);
   registerSecretValue(record.refreshToken);
   if (record.gateway) registerSecretValue(record.gateway.token);
+  if (record.gateway?.vnc && record.gateway.vnc.networkToken.length >= 16)
+    registerSecretValue(record.gateway.vnc.networkToken);
 }
 
 function decodeRecord(cipher: SecretCipher, text: string): GrokBotAccountRecord {
@@ -256,7 +270,17 @@ function decodeGateway(value: unknown): GrokBotGatewaySession | null {
     if (typeof header !== "string") throw new Error(sourceText("error.provider.grokBotSignInEnded"));
     headers[name] = header;
   }
-  return { url: value.url, token: value.token, headers };
+  const vnc = decodeVnc(value.vnc);
+  return { url: value.url, token: value.token, headers, ...(vnc ? { vnc } : {}) };
+}
+
+/** Lenient: a bad or missing `vnc` drops the computer, never the sign-in. */
+function decodeVnc(value: unknown): GrokBotVncProxy | null {
+  if (!isDynamicRecord(value)) return null;
+  const { primaryUrl, forkBaseUrl, networkToken } = value;
+  if (typeof primaryUrl !== "string" || typeof forkBaseUrl !== "string" || typeof networkToken !== "string")
+    return null;
+  return { primaryUrl, forkBaseUrl, networkToken };
 }
 
 function isMissingFile(cause: unknown): boolean {
