@@ -13,7 +13,7 @@
  * still running. A touch in this session counts as activity, so the row wakes and moves to the top.
  */
 
-export const ROSTER_CATEGORIES = ["monitor", "worker", "artist", "helper"] as const;
+const ROSTER_CATEGORIES = ["monitor", "worker", "artist", "helper"] as const;
 export type RosterCategory = (typeof ROSTER_CATEGORIES)[number];
 
 export const ROSTER_FILTERS = ["all", ...ROSTER_CATEGORIES] as const;
@@ -105,14 +105,14 @@ export function rosterKindKeepsAwake(kind: string | undefined): boolean {
 }
 
 /** The latest of the saved activity and a touch in this session. Zero when both are missing. */
-export function rosterActivityAt(source: RosterEntrySource, clock: RosterClock): number {
+function rosterActivityAt(source: RosterEntrySource, clock: RosterClock): number {
   const touched = clock.touchedAt[source.id] ?? 0;
   const parsed = source.updatedAt ? Date.parse(source.updatedAt) : Number.NaN;
   const updated = Number.isFinite(parsed) ? parsed : 0;
   return Math.max(updated, touched, 0);
 }
 
-export function rosterIsAsleep(source: RosterEntrySource, clock: RosterClock): boolean {
+function rosterIsAsleep(source: RosterEntrySource, clock: RosterClock): boolean {
   if (source.awake) return false;
   const activityAt = rosterActivityAt(source, clock);
   if (activityAt <= 0) return true;
