@@ -62,6 +62,7 @@ export type ProviderLogoVariant =
   | "inception"
   | "deepseek"
   | "openrouter"
+  | "grok-bot"
   | "unknown";
 
 export interface ProviderLogoPath {
@@ -91,6 +92,7 @@ export function providerLogoShape(provider: ProviderLogoVariant): ProviderLogoSh
         paths: [{ d: "M180 240H60V120H180V240Z", opacity: 0.3 }, { d: "M180 60H60V240H180V60ZM240 300H0V0H240V300Z" }],
       };
     case "grok":
+    case "grok-bot":
       return { viewBox: GRID_24, paths: GROK_PATHS.map((d) => ({ d })) };
     case "antigravity":
       return { viewBox: GRID_24, paths: [{ d: GEMINI_PATH }] };

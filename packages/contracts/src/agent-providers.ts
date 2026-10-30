@@ -32,6 +32,7 @@ export const AGENT_PROVIDERS = [
   "inception",
   "deepseek",
   "openrouter",
+  "grok-bot",
   "acp",
 ] as const;
 export type AgentProviderId = (typeof AGENT_PROVIDERS)[number];
@@ -461,6 +462,29 @@ const AGENT_PROVIDER_DESCRIPTOR_TABLE = {
     approvalsInFullAccess: true,
     foldersInFullAccess: false,
   },
+  // The Grok Bot sand account. Turns use InferenceService with that token. The `grok` row stays the CLI.
+  "grok-bot": {
+    id: "grok-bot",
+    displayName: "Grok Bot",
+    cliName: "Grok Bot",
+    onboardingDescription: "Grok Bot account on this computer",
+    signInMessage: "Sign in to Grok Bot first.",
+    installGuideLink: null,
+    defaultModel: "default",
+    legacyModelPrefix: null,
+    authKind: "grok-bot",
+    pickerOrder: 12,
+    localCodeSignIn: null,
+    signInPageEnd: "page",
+    skillFolders: [".agents/skills"],
+    homeSkills: "instructions",
+    workspaceEnforcement: "tool-sandbox",
+    steer: "deferred",
+    concurrentTurns: false,
+    reportsUsage: true,
+    approvalsInFullAccess: false,
+    foldersInFullAccess: false,
+  },
   // One provider for every Agent Client Protocol agent the user adds by command. The model id names
   // the agent (`<customAgentId>/<agentModel>`), so one provider row serves them all and the shipped
   // provider CHECK lists grow by one word only once.
@@ -562,6 +586,7 @@ export const LOCAL_ONLY_PROVIDERS = [
   "inception",
   "deepseek",
   "openrouter",
+  "grok-bot",
   "acp",
 ] as const satisfies readonly AgentProviderId[];
 

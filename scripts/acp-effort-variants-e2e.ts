@@ -298,7 +298,7 @@ try {
   for (const mode of ["flat", "provider"] as const) {
     await rm(log, { force: true });
     process.env.FAKE_AGY_MODE = mode;
-    const listed = (await listModels(open(cli))).map((model) => model.model ?? "");
+    const listed: string[] = (await listModels(open(cli))).map((row) => row.model ?? "");
     const discoveryRequests = (await readLog()).filter((entry) => entry.event === "set").length;
     assert.deepEqual(
       listed,

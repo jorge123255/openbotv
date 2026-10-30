@@ -1741,6 +1741,7 @@ export async function createApplicationServices({
         ...agentDisplayEnvironment(process.platform),
         ...githubConnector.agentEnvironment(inherited),
       }),
+      grokBotAccount: grokBotAccount.accountStore(),
     },
     // Appended to the stored servers at each spawn, so the same tools reach Codex, Claude and the
     // ACP providers. Null until the daemon runs, which is what keeps a machine with no driver from

@@ -994,6 +994,22 @@ Pi unchanged. The catalog drops the aliases that start with `~`, such as
 `provider-model-options.ts`) and marks the `:free` models as free. A 402 means the account has no
 credits. Peers see OpenRouter from v8, as Inception.
 
+## Grok Bot
+
+Grok Bot is the sand account from Settings. It is not the Grok CLI (`grok` in `AGENT_PROVIDERS`).
+There is no local binary. `GROK_BOT_RUNTIME` has `remote: true` and an empty executable, and the
+provider is not in `MANAGED_RUNTIME_PROVIDERS`.
+
+Sign-in is the Grok Bot account file. A new agent calls `EnsureSandBox`, then `POST /api/createAgent`
+on the gateway, and stores that sand agent id as the provider thread. A later turn calls
+`POST /aiserver.v1.InferenceService/Stream` with the sand access token and that id as `conversationId`.
+The same account's `GetSandUsageStatus` reading is the provider usage. Resume calls `listAgents` and
+keeps the id. It does not create a second sand agent.
+
+`Stream` can return a tool-call part. This build does not run that tool. The turn fails with
+`error.provider.grokBotToolUnsupported`. BotAI runs tools in its host runner. The checksum header
+`x-cursor-checksum` is not sent: BotAI builds it from a machine id this process does not have.
+
 ## Muse
 
 Muse uses the official `@muse-code/sdk` to run `muse serve` over MSP. The SDK is pinned to `1.4.2`;

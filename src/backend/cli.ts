@@ -59,6 +59,18 @@ export interface ClineCliInfo extends ResolvedCli {
   source?: "system" | "managed";
 }
 
+/**
+ * Grok Bot has no local binary. `remote` marks that. `source` stays unset so this value still fits
+ * the CLI info the other providers pass around; nothing spawns `executable`.
+ */
+export interface GrokBotRuntimeInfo {
+  executable: "";
+  version: "remote";
+  launchPath?: string;
+  source?: "system" | "managed";
+  remote: true;
+}
+
 export type AgentCliInfo =
   | CodexCliInfo
   | ClaudeCliInfo
@@ -66,7 +78,8 @@ export type AgentCliInfo =
   | OpencodeCliInfo
   | AntigravityCliInfo
   | CursorCliInfo
-  | ClineCliInfo;
+  | ClineCliInfo
+  | GrokBotRuntimeInfo;
 
 export class CodexCliError extends Error {
   constructor(
