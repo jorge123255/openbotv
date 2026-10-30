@@ -19,7 +19,7 @@ import { getString, isRecord } from "../protocol";
 import { type ProviderClientOperationError, providerFailure } from "../provider-client-effects";
 import { accessTokenNeedsRefresh, type GrokBotAccountStore } from "./grok-bot-account";
 import { readOrCreateMachineId } from "./grok-bot-checksum";
-import { createGrokBotAgent, listGrokBotAgents, readGrokBotTranscript } from "./grok-bot-gateway";
+import { createGrokBotAgent, listGrokBotAgents, readGrokBotTranscript, sendGrokBotPrompt } from "./grok-bot-gateway";
 import {
   GROK_BOT_MAX_IMAGE_BYTES,
   GROK_BOT_MODEL_ID,
@@ -63,6 +63,10 @@ export interface GrokBotAgentClientOptions {
   readonly machineId?: string;
   readonly machineIdPath?: string;
   readonly checksumNow?: () => number;
+  /** Call `InferenceService/Stream` directly (old path). Off by default: BotAI uses the box gateway. */
+  readonly directInference?: boolean;
+  readonly gatewayPollMs?: number;
+  readonly gatewayTurnTimeoutMs?: number;
 }
 
 /**
@@ -266,7 +270,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     const itemId = `msg-${turnId}`;
     thread.turn = { id: turnId, itemId, text: "", controller };
     this.#emit("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
-    void this.#stream(thread, params, model && model.length > 0 ? model : GROK_BOT_MODEL_ID);
+    void (this.#options.directInference === true
+      ? this.#stream(thread, params, model && model.length > 0 ? model : GROK_BOT_MODEL_ID)
+      : this.#viaGateway(thread, params));
     return { turn: { id: turnId, status: "inProgress" } };
   }
 
@@ -376,6 +382,71 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       thread.turn = null;
       const message = error instanceof Error ? error.message : sourceText("error.provider.grokBotTurnFailed");
       // Without an `error` notification the chat shows only the user message (the turn ends silently).
+      this.emit("diagnostic", `Grok Bot turn failed: ${message}`);
+      this.#emit("error", { threadId: thread.id, turnId: turn.id, message });
+      this.#emit("turn/completed", {
+        threadId: thread.id,
+        turn: { id: turn.id, status: "failed", error: { message } },
+      });
+    }
+  }
+
+  /**
+   * BotAI path: `/api/sendPrompt` on the in-box gateway, then follow `/api/getAgentTranscriptTail`
+   * until the assistant reply for this turn stops changing.
+   */
+  async #viaGateway(thread: SandThread, params: unknown): Promise<void> {
+    const turn = thread.turn;
+    const store = this.#options.store;
+    if (!turn || !store) return;
+    const options = { ...this.#callOptions(), allowLoopback: this.#options.allowLoopback === true };
+    const tail = async () =>
+      transcriptToMessages(await Effect.runPromise(readGrokBotTranscript(store, thread.id, options)));
+    try {
+      const prompt = promptText(params);
+      const none: GrokBotInferenceMessage[] = [];
+      const before = await tail().catch(() => none);
+      await Effect.runPromise(sendGrokBotPrompt(store, { agentId: thread.id, prompt, clientNonce: turn.id }, options));
+      const started = Date.now();
+      const timeoutMs = this.#options.gatewayTurnTimeoutMs ?? 10 * 60_000;
+      const pollMs = this.#options.gatewayPollMs ?? 1500;
+      let stable = 0;
+      let lastSeen = "";
+      while (Date.now() - started < timeoutMs) {
+        await sleep(pollMs, turn.controller.signal);
+        if (thread.turn?.id !== turn.id) return;
+        const messages = await tail().catch(() => null);
+        if (!messages) continue;
+        const reply = replyAfter(before, messages, prompt);
+        if (reply.length > turn.text.length && reply.startsWith(turn.text)) {
+          const delta = reply.slice(turn.text.length);
+          turn.text = reply;
+          this.#emit("item/agentMessage/delta", { threadId: thread.id, turnId: turn.id, itemId: turn.itemId, delta });
+        } else if (reply !== turn.text && reply.length > 0) {
+          turn.text = reply;
+        }
+        stable = reply.length > 0 && reply === lastSeen ? stable + 1 : 0;
+        lastSeen = reply;
+        if (stable >= 2) break;
+      }
+      if (thread.turn?.id !== turn.id) return;
+      if (turn.text.length === 0) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+      thread.messages = [...thread.messages, { role: "USER", text: prompt }, { role: "ASSISTANT", text: turn.text }];
+      this.#emit("item/completed", {
+        threadId: thread.id,
+        turnId: turn.id,
+        item: { type: "agentMessage", id: turn.itemId, text: turn.text, status: "completed" },
+      });
+      thread.turn = null;
+      this.#emit("turn/completed", { threadId: thread.id, turn: { id: turn.id, status: "completed" } });
+    } catch (error) {
+      if (thread.turn?.id !== turn.id) return;
+      thread.turn = null;
+      if (turn.controller.signal.aborted) {
+        this.#emit("turn/completed", { threadId: thread.id, turn: { id: turn.id, status: "interrupted" } });
+        return;
+      }
+      const message = error instanceof Error ? error.message : sourceText("error.provider.grokBotTurnFailed");
       this.emit("diagnostic", `Grok Bot turn failed: ${message}`);
       this.#emit("error", { threadId: thread.id, turnId: turn.id, message });
       this.#emit("turn/completed", {
@@ -609,4 +680,53 @@ function isToolResult(value: unknown): value is DynamicToolResult {
 function isUnauthenticated(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);
   return /unauthenticated|HTTP 401/iu.test(text);
+}
+
+function sleep(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) return reject(signal.reason);
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+/** Text of the user's prompt from `turn/start` params (`input` text items). */
+function promptText(params: unknown): string {
+  const parts: string[] = [];
+  for (const item of inputItems(params)) {
+    if (item.type === "text" && typeof item.text === "string") parts.push(item.text);
+    if (item.type === "mention" && typeof item.path === "string") parts.push(`Attached local file: ${item.path}`);
+  }
+  const text = parts.join("\n").trim();
+  if (text.length === 0) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+  return text;
+}
+
+/** Assistant text written after our prompt in the transcript tail. */
+export function replyAfter(
+  before: readonly GrokBotInferenceMessage[],
+  after: readonly GrokBotInferenceMessage[],
+  prompt: string,
+): string {
+  let start = -1;
+  for (let index = after.length - 1; index >= Math.min(before.length, after.length) - 1 && index >= 0; index -= 1) {
+    const message = after[index];
+    if (message && message.role === "USER" && "text" in message && message.text.trim() === prompt.trim()) {
+      start = index;
+      break;
+    }
+  }
+  if (start < 0) return "";
+  return after
+    .slice(start + 1)
+    .filter((message) => message.role === "ASSISTANT" && "text" in message)
+    .map((message) => ("text" in message ? message.text : ""))
+    .join("\n\n");
 }
