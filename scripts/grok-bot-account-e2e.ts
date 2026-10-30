@@ -10,7 +10,13 @@ import { join, resolve } from "node:path";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { redactText } from "@openbot/logging";
 import { Effect } from "effect";
-import { GrokBotAccountStore, publicGrokBotStatus, startGrokBotSignIn } from "../src/backend/grok-bot/grok-bot-account";
+import {
+  accessTokenNeedsRefresh,
+  GrokBotAccountStore,
+  publicGrokBotStatus,
+  refreshGrokBotAccessToken,
+  startGrokBotSignIn,
+} from "../src/backend/grok-bot/grok-bot-account";
 
 const OUT = resolve(import.meta.dirname, "../.openbot-build/grok-bot-account-e2e");
 const ACCESS = "grok-access-e2e";
@@ -30,6 +36,8 @@ const report = {
   statusHidesToken: false,
   redacted: false,
   signedOut: false,
+  refreshed: false,
+  loggedOut: false,
 };
 
 async function listen(
@@ -104,9 +112,72 @@ try {
     const cleared = await Effect.runPromise(store.load());
     report.signedOut = cleared === null && readFileSync(cliFile, "utf8") === CLI_JSON;
     assert.equal(report.signedOut, true);
-    report.passed = true;
   } finally {
     await approved.close();
+  }
+
+  const refreshRoot = await mkdtemp(join(tmpdir(), "openbot-grok-bot-refresh-"));
+  const refreshCli = join(refreshRoot, "cli-auth.json");
+  const refreshAuth = join(refreshRoot, "grok-account.json");
+  writeFileSync(refreshCli, CLI_JSON);
+  const exp = Math.floor(Date.now() / 1000) + 60;
+  const payload = Buffer.from(JSON.stringify({ exp })).toString("base64url");
+  const soon = `e30.${payload}.e30`;
+  assert.equal(accessTokenNeedsRefresh(soon, Date.now()), true);
+  const refreshStore = new GrokBotAccountStore(refreshAuth, cipher);
+  await Effect.runPromise(refreshStore.save({ accessToken: soon, refreshToken: REFRESH, gateway: null }));
+  let refreshCalls = 0;
+  const tokenServer = createServer((request, response) => {
+    if (request.method !== "POST" || request.url !== "/oauth/token") {
+      response.writeHead(404).end();
+      return;
+    }
+    request.resume();
+    refreshCalls += 1;
+    response.writeHead(200, { "content-type": "application/json" });
+    if (refreshCalls === 1) {
+      response.end(
+        JSON.stringify({
+          access_token: "grok-access-e2e-2",
+          refresh_token: "grok-refresh-e2e-2",
+          should_logout: false,
+        }),
+      );
+      return;
+    }
+    response.end(JSON.stringify({ access_token: "", should_logout: true }));
+  });
+  await new Promise<void>((ready) => tokenServer.listen(0, "127.0.0.1", ready));
+  const tokenAddress = tokenServer.address();
+  assert.ok(tokenAddress !== null && typeof tokenAddress === "object");
+  try {
+    const refreshed = await Effect.runPromise(
+      refreshGrokBotAccessToken({
+        authFile: refreshAuth,
+        cipher,
+        apiBaseUrl: `http://127.0.0.1:${tokenAddress.port}`,
+      }),
+    );
+    const saved = await Effect.runPromise(refreshStore.load());
+    report.refreshed =
+      refreshed?.accessToken === "grok-access-e2e-2" &&
+      saved?.accessToken === "grok-access-e2e-2" &&
+      saved.refreshToken === "grok-refresh-e2e-2" &&
+      readFileSync(refreshCli, "utf8") === CLI_JSON;
+    assert.equal(report.refreshed, true);
+    const loggedOut = await Effect.runPromise(
+      refreshGrokBotAccessToken({
+        authFile: refreshAuth,
+        cipher,
+        apiBaseUrl: `http://127.0.0.1:${tokenAddress.port}`,
+      }),
+    );
+    const afterLogout = await Effect.runPromise(refreshStore.load());
+    report.loggedOut = loggedOut === null && afterLogout === null && readFileSync(refreshCli, "utf8") === CLI_JSON;
+    assert.equal(report.loggedOut, true);
+    report.passed = true;
+  } finally {
+    await new Promise<void>((ready, reject) => tokenServer.close((error) => (error ? reject(error) : ready())));
   }
 } finally {
   mkdirSync(OUT, { recursive: true });

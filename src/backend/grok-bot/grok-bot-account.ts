@@ -8,6 +8,9 @@ import { writeJsonFileAtomically } from "../atomic-json-file";
 
 const DEFAULT_WEBSITE_URL = "https://cursor.com";
 const DEFAULT_API_BASE_URL = "https://api2.cursor.sh";
+/** Cursor's published public client id for the refresh_token grant. Not an OpenBot secret. */
+const CURSOR_OAUTH_CLIENT_ID = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB";
+const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
 export class GrokBotAccountFailed extends Schema.TaggedError<GrokBotAccountFailed>()("GrokBotAccountFailed", {
   cause: Schema.Defect(),
@@ -44,6 +47,76 @@ export interface GrokBotSignInOptions {
 
 export function publicGrokBotStatus(record: GrokBotAccountRecord | null): { signedIn: boolean } {
   return { signedIn: record !== null };
+}
+
+export interface GrokBotRefreshOptions {
+  authFile: string;
+  cipher: SecretCipher;
+  apiBaseUrl?: string;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+}
+
+/** True when a JWT expires in less than five minutes. A token that is not a JWT returns false. */
+export function accessTokenNeedsRefresh(accessToken: string, now: number): boolean {
+  const parts = accessToken.split(".");
+  if (parts.length !== 3) return false;
+  const middle = parts[1];
+  if (!middle) return false;
+  let payload: unknown;
+  try {
+    payload = JSON.parse(Buffer.from(middle, "base64url").toString("utf8"));
+  } catch {
+    return false;
+  }
+  if (!isDynamicRecord(payload) || typeof payload.exp !== "number" || !Number.isFinite(payload.exp)) return false;
+  return payload.exp * 1000 < now + REFRESH_MARGIN_MS;
+}
+
+export const refreshGrokBotAccessToken = Effect.fn("GrokBotAccount.refresh")(function* (
+  options: GrokBotRefreshOptions,
+) {
+  const store = new GrokBotAccountStore(options.authFile, options.cipher);
+  const record = yield* store.load();
+  if (!record) return null;
+  const apiBaseUrl = stripTrailingSlash(options.apiBaseUrl ?? process.env.CURSOR_API_BASE_URL ?? DEFAULT_API_BASE_URL);
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const response = yield* Effect.tryPromise({
+    try: () =>
+      fetchImpl(new URL("/oauth/token", apiBaseUrl), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        redirect: "manual",
+        body: JSON.stringify({
+          grant_type: "refresh_token",
+          client_id: CURSOR_OAUTH_CLIENT_ID,
+          refresh_token: record.refreshToken,
+        }),
+      }),
+    catch: () => sessionFailure(),
+  });
+  if (response.status < 200 || response.status >= 300) return yield* Effect.fail(sessionFailure());
+  const body = yield* Effect.tryPromise({
+    try: (): Promise<unknown> => response.json(),
+    catch: () => sessionFailure(),
+  });
+  if (!isDynamicRecord(body)) return yield* Effect.fail(sessionFailure());
+  const accessToken = typeof body.access_token === "string" ? body.access_token : "";
+  if (body.should_logout === true || accessToken.length === 0) {
+    yield* store.clear();
+    return null;
+  }
+  const refreshToken =
+    typeof body.refresh_token === "string" && body.refresh_token.length > 0 ? body.refresh_token : record.refreshToken;
+  registerSecretValue(accessToken);
+  registerSecretValue(refreshToken);
+  const next: GrokBotAccountRecord = { ...record, accessToken, refreshToken };
+  yield* store.save(next);
+  return next;
+});
+
+function sessionFailure(): GrokBotAccountFailed {
+  return new GrokBotAccountFailed({ cause: new Error(sourceText("error.provider.grokBotSessionEnded")) });
 }
 
 export class GrokBotAccountStore {
