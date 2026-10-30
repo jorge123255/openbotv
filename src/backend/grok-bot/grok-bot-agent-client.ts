@@ -1,20 +1,39 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
-import { isDynamicRecord } from "@openbot/contracts/runtime-values";
+import { readFile } from "node:fs/promises";
+import { attachmentMimeTypeForName } from "@openbot/contracts/attachment-files";
+import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { Effect } from "effect";
 import type { AgentClient, DiagnosticOrigin } from "../agent-client";
-import type { AppServerNotification, AppServerRequest, RequestId, ResponseDecoder, RpcError } from "../protocol";
+import { PendingServerRequests } from "../pending-server-requests";
+import type {
+  AppServerNotification,
+  AppServerRequest,
+  DynamicToolResult,
+  RequestId,
+  ResponseDecoder,
+  RpcError,
+} from "../protocol";
 import { getString, isRecord } from "../protocol";
 import { type ProviderClientOperationError, providerFailure } from "../provider-client-effects";
 import type { GrokBotAccountStore } from "./grok-bot-account";
-import { createGrokBotAgent, listGrokBotAgents } from "./grok-bot-gateway";
+import { readOrCreateMachineId } from "./grok-bot-checksum";
+import { createGrokBotAgent, listGrokBotAgents, readGrokBotTranscript } from "./grok-bot-gateway";
 import {
+  GROK_BOT_MAX_IMAGE_BYTES,
   GROK_BOT_MODEL_ID,
+  type GrokBotAdvertisedTool,
+  type GrokBotImagePart,
   type GrokBotInferenceMessage,
+  type GrokBotStreamTool,
+  type GrokBotTextPart,
+  type GrokBotToolCall,
+  type GrokBotToolResultPart,
   grokBotStreamBody,
   readGrokBotInference,
 } from "./grok-bot-inference";
+import { transcriptToMessages } from "./grok-bot-transcript";
 import { readGrokBotUsageSummary } from "./grok-bot-usage";
 
 const DEFAULT_API = "https://api2.cursor.sh";
@@ -30,6 +49,7 @@ interface SandThread {
   id: string;
   instructions: string | null;
   messages: GrokBotInferenceMessage[];
+  tools: readonly GrokBotAdvertisedTool[];
   turn: { id: string; itemId: string; text: string; controller: AbortController } | null;
 }
 
@@ -39,6 +59,10 @@ export interface GrokBotAgentClientOptions {
   readonly apiBaseUrl?: string;
   readonly allowLoopback?: boolean;
   readonly fetchImpl?: typeof fetch;
+  /** A fixed machine id. Tests use this. A path is used when this is absent. */
+  readonly machineId?: string;
+  readonly machineIdPath?: string;
+  readonly checksumNow?: () => number;
 }
 
 /**
@@ -50,7 +74,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
   readonly provider = "grok-bot" as const;
   readonly contextCompaction = "unsupported" as const;
   #running = false;
+  #machineId: string | null = null;
   readonly #threads = new Map<string, SandThread>();
+  readonly #requests = new PendingServerRequests((request) => this.emit("request", request));
   readonly #options: GrokBotAgentClientOptions;
 
   constructor(options: GrokBotAgentClientOptions = {}) {
@@ -68,6 +94,7 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
 
   stop(): Effect.Effect<void, ProviderClientOperationError> {
     this.#running = false;
+    this.#requests.rejectAll(sourceText("error.provider.grokBotSessionEnded"));
     for (const thread of this.#threads.values()) thread.turn?.controller.abort();
     this.#threads.clear();
     return Effect.void;
@@ -77,12 +104,12 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     /* OpenBot sends `initialized` after `initialize`. This client has nothing to start. */
   }
 
-  respond(_id: RequestId, _result: unknown): void {
-    /* This client does not ask the host to run a tool. */
+  respond(id: RequestId, result: unknown): void {
+    this.#requests.resolve(id, result);
   }
 
-  respondError(_id: RequestId, _error: RpcError): void {
-    /* This client does not ask the host to run a tool. */
+  respondError(id: RequestId, error: RpcError): void {
+    this.#requests.reject(id, error);
   }
 
   readonly request = Effect.fn("GrokBotAgentClient.request")(function* <T>(
@@ -185,6 +212,7 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       id: created.id,
       instructions,
       messages: instructions ? [{ role: "SYSTEM", text: instructions }] : [],
+      tools: advertisedTools(isRecord(params) ? params.dynamicTools : undefined),
       turn: null,
     });
     return { thread: { id: created.id } };
@@ -207,10 +235,18 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       return yield* providerFailure(new Error("Grok Bot session not found"));
     }
     const instructions = isRecord(params) ? getString(params, "developerInstructions") : null;
+    const history = yield* readGrokBotTranscript(store, id, {
+      ...this.#callOptions(),
+      allowLoopback: this.#options.allowLoopback === true,
+    }).pipe(
+      Effect.map((body) => transcriptToMessages(body)),
+      Effect.catch(() => Effect.succeed([])),
+    );
     this.#threads.set(id, {
       id,
       instructions,
-      messages: instructions ? [{ role: "SYSTEM", text: instructions }] : [],
+      messages: [...(instructions ? [{ role: "SYSTEM" as const, text: instructions }] : []), ...history],
+      tools: advertisedTools(isRecord(params) ? params.dynamicTools : undefined),
       turn: null,
     });
     return { thread: { id } };
@@ -221,65 +257,91 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     const thread = this.#threads.get(threadId);
     if (!thread) throw new Error("Grok Bot session not found");
     if (thread.turn) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
-    const prompt = promptText(params);
-    if (prompt.length === 0) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+    if (!hasPrompt(params)) throw new Error(sourceText("error.provider.grokBotTurnFailed"));
+    const listed = advertisedTools(isRecord(params) ? params.dynamicTools : undefined);
+    if (listed.length > 0) thread.tools = listed;
     const model = isRecord(params) ? getString(params, "model") : null;
     const turnId = randomUUID();
     const controller = new AbortController();
     const itemId = `msg-${turnId}`;
     thread.turn = { id: turnId, itemId, text: "", controller };
     this.#emit("turn/started", { threadId, turn: { id: turnId, status: "inProgress" } });
-    const messages = [...thread.messages, { role: "USER" as const, text: prompt }];
-    void this.#stream(thread, messages, model && model.length > 0 ? model : GROK_BOT_MODEL_ID);
+    void this.#stream(thread, params, model && model.length > 0 ? model : GROK_BOT_MODEL_ID);
     return { turn: { id: turnId, status: "inProgress" } };
   }
 
-  async #stream(thread: SandThread, messages: GrokBotInferenceMessage[], modelId: string): Promise<void> {
+  async #stream(thread: SandThread, params: unknown, modelId: string): Promise<void> {
     const turn = thread.turn;
     const store = this.#options.store;
     if (!turn || !store) return;
     try {
       const record = await Effect.runPromise(store.load());
       if (!record) throw new Error(sourceText("error.provider.grokBotNotSignedIn"));
-      let sawTool = false;
-      await readGrokBotInference({
-        apiBaseUrl: this.#apiBase(),
-        accessToken: record.accessToken,
-        signal: turn.controller.signal,
-        ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
-        body: grokBotStreamBody({
-          messages,
-          modelId,
-          conversationId: thread.id,
-          invocationId: turn.id,
-        }),
-        onEvent: (event) => {
-          if (thread.turn?.id !== turn.id) return;
-          if (event.kind === "tool") {
-            sawTool = true;
-            return;
-          }
-          if (event.kind === "thinking") {
-            this.#emit("item/reasoning/textDelta", {
+      const machineId = await this.#machine();
+      let messages: GrokBotInferenceMessage[] = [...thread.messages, await userMessage(params)];
+      let lastText = "";
+      for (let round = 0; round < 8; round += 1) {
+        const calls: GrokBotStreamTool[] = [];
+        const roundText = { value: "" };
+        await readGrokBotInference({
+          apiBaseUrl: this.#apiBase(),
+          accessToken: record.accessToken,
+          machineId,
+          ...(this.#options.checksumNow ? { checksumNow: this.#options.checksumNow } : {}),
+          signal: turn.controller.signal,
+          ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
+          body: grokBotStreamBody({
+            messages,
+            tools: thread.tools,
+            modelId,
+            conversationId: thread.id,
+            invocationId: `${turn.id}:${round}`,
+          }),
+          onEvent: (event) => {
+            if (thread.turn?.id !== turn.id) return;
+            if (event.kind === "tool") {
+              if (event.isComplete) calls.push(event);
+              else this.#emitTool(thread, turn.id, event, "inProgress");
+              return;
+            }
+            if (event.kind === "thinking") {
+              this.#emit("item/reasoning/textDelta", {
+                threadId: thread.id,
+                turnId: turn.id,
+                itemId: `think-${turn.id}`,
+                delta: event.text,
+              });
+              return;
+            }
+            roundText.value += event.text;
+            turn.text += event.text;
+            this.#emit("item/agentMessage/delta", {
               threadId: thread.id,
               turnId: turn.id,
-              itemId: `think-${turn.id}`,
+              itemId: turn.itemId,
               delta: event.text,
             });
-            return;
-          }
-          turn.text += event.text;
-          this.#emit("item/agentMessage/delta", {
-            threadId: thread.id,
-            turnId: turn.id,
-            itemId: turn.itemId,
-            delta: event.text,
-          });
-        },
-      });
+          },
+        });
+        if (thread.turn?.id !== turn.id) return;
+        lastText = roundText.value;
+        if (calls.length === 0) break;
+        const results: GrokBotToolResultPart[] = [];
+        for (const call of calls) {
+          results.push(await this.#runTool(thread, turn.id, call));
+        }
+        messages = [
+          ...messages,
+          {
+            role: "ASSISTANT",
+            text: roundText.value,
+            toolCalls: calls.map((call) => toolCallRecord(call)),
+          },
+          { role: "TOOL", results },
+        ];
+      }
       if (thread.turn?.id !== turn.id) return;
-      if (sawTool) throw new Error(sourceText("error.provider.grokBotToolUnsupported"));
-      thread.messages = [...messages, { role: "ASSISTANT", text: turn.text }];
+      thread.messages = [...messages, { role: "ASSISTANT", text: lastText }];
       this.#emit("item/completed", {
         threadId: thread.id,
         turnId: turn.id,
@@ -312,6 +374,71 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     return { turn: { id: turn.id, status: "interrupted" } };
   }
 
+  async #machine(): Promise<string> {
+    if (this.#options.machineId) return this.#options.machineId;
+    if (this.#machineId) return this.#machineId;
+    if (this.#options.machineIdPath) {
+      this.#machineId = await readOrCreateMachineId(this.#options.machineIdPath);
+      return this.#machineId;
+    }
+    this.#machineId = randomUUID();
+    return this.#machineId;
+  }
+
+  async #runTool(thread: SandThread, turnId: string, call: GrokBotStreamTool): Promise<GrokBotToolResultPart> {
+    const parsed = parseToolArgs(call.args);
+    const names = splitToolName(call.toolName, thread.tools);
+    this.#emitTool(thread, turnId, call, "inProgress");
+    const result = await Effect.runPromise(
+      this.#requests.call(
+        "item/tool/call",
+        {
+          threadId: thread.id,
+          turnId,
+          callId: call.toolCallId,
+          namespace: names.namespace,
+          tool: names.tool,
+          arguments: parsed,
+        },
+        thread.turn?.controller.signal,
+      ),
+    );
+    const toolResult = toolResultPart(call, result);
+    this.#emit("item/completed", {
+      threadId: thread.id,
+      turnId,
+      item: {
+        id: call.toolCallId,
+        type: "dynamicToolCall",
+        namespace: names.namespace,
+        tool: names.tool,
+        arguments: parsed,
+        status: toolResult.isError ? "failed" : "completed",
+        contentItems: [
+          { type: "inputText", text: toolResult.text },
+          ...toolResult.images.map((image) => ({ type: "inputImage", imageUrl: image.data })),
+        ],
+      },
+    });
+    return toolResult;
+  }
+
+  #emitTool(thread: SandThread, turnId: string, call: GrokBotStreamTool, status: string): void {
+    const names = splitToolName(call.toolName, thread.tools);
+    this.#emit("item/started", {
+      threadId: thread.id,
+      turnId,
+      item: {
+        id: call.toolCallId,
+        type: "dynamicToolCall",
+        namespace: names.namespace,
+        tool: names.tool,
+        arguments: parseToolArgs(call.args),
+        status,
+      },
+    });
+  }
+
   #emit(method: string, params: unknown): void {
     this.emit("notification", { method, params });
   }
@@ -334,11 +461,127 @@ function requiredId(params: unknown, key: string): string {
   return value;
 }
 
-function promptText(params: unknown): string {
-  if (!isDynamicRecord(params) || !Array.isArray(params.input)) return "";
-  return params.input
-    .filter(isDynamicRecord)
-    .flatMap((item) => (item.type === "text" && typeof item.text === "string" ? [item.text] : []))
-    .join("\n")
-    .trim();
+function hasPrompt(params: unknown): boolean {
+  return inputItems(params).some(
+    (item) =>
+      (item.type === "text" && typeof item.text === "string" && item.text.trim().length > 0) ||
+      (item.type === "localImage" && typeof item.path === "string") ||
+      (item.type === "mention" && typeof item.path === "string"),
+  );
+}
+
+function inputItems(params: unknown): DynamicRecord[] {
+  if (!isDynamicRecord(params) || !Array.isArray(params.input)) return [];
+  return params.input.filter(isDynamicRecord);
+}
+
+async function userMessage(params: unknown): Promise<GrokBotInferenceMessage> {
+  const parts: Array<GrokBotTextPart | GrokBotImagePart> = [];
+  for (const item of inputItems(params)) {
+    if (item.type === "text" && typeof item.text === "string") parts.push({ type: "text", text: item.text });
+    if (item.type === "mention" && typeof item.path === "string") {
+      parts.push({ type: "text", text: `Attached local file: ${item.path}` });
+    }
+    if (item.type === "localImage" && typeof item.path === "string") parts.push(await imageFromPath(item.path));
+  }
+  if (!parts.some((part) => part.type === "image")) {
+    return {
+      role: "USER",
+      text: parts
+        .flatMap((part) => (part.type === "text" ? [part.text] : []))
+        .join("\n")
+        .trim(),
+    };
+  }
+  return { role: "USER", parts };
+}
+
+async function imageFromPath(path: string): Promise<GrokBotTextPart | GrokBotImagePart> {
+  const bytes = await readFile(path);
+  const mimeType = attachmentMimeTypeForName(path);
+  if (bytes.length > GROK_BOT_MAX_IMAGE_BYTES) {
+    return { type: "text", text: `[image omitted: failed to process ${bytes.length} bytes (${mimeType})]` };
+  }
+  return { type: "image", data: `data:${mimeType};base64,${bytes.toString("base64")}`, mimeType };
+}
+
+function advertisedTools(value: unknown): GrokBotAdvertisedTool[] {
+  if (!Array.isArray(value)) return [];
+  const tools: GrokBotAdvertisedTool[] = [];
+  for (const namespace of value) {
+    if (!isDynamicRecord(namespace) || typeof namespace.name !== "string" || !Array.isArray(namespace.tools)) continue;
+    for (const tool of namespace.tools) {
+      if (!isDynamicRecord(tool) || typeof tool.name !== "string") continue;
+      tools.push({
+        name: `${namespace.name}.${tool.name}`,
+        description: typeof tool.description === "string" ? tool.description : "",
+        parameters: isDynamicRecord(tool.inputSchema) ? tool.inputSchema : { type: "object" },
+      });
+    }
+  }
+  return tools;
+}
+
+function splitToolName(
+  name: string,
+  tools: readonly GrokBotAdvertisedTool[],
+): { namespace: string | null; tool: string } {
+  const source = tools.find((tool) => tool.name === name)?.name ?? name;
+  const dot = source.indexOf(".");
+  if (dot <= 0) return { namespace: null, tool: source };
+  return { namespace: source.slice(0, dot), tool: source.slice(dot + 1) };
+}
+
+function parseToolArgs(raw: string): DynamicRecord {
+  try {
+    const parsed = JSON.parse(raw);
+    if (isDynamicRecord(parsed)) return parsed;
+  } catch {
+    return {};
+  }
+  return {};
+}
+
+function toolCallRecord(call: GrokBotStreamTool): GrokBotToolCall {
+  return { toolCallId: call.toolCallId, toolName: call.toolName, args: parseToolArgs(call.args), rawArgs: call.args };
+}
+
+function toolResultPart(call: GrokBotStreamTool, result: unknown): GrokBotToolResultPart {
+  if (!isToolResult(result)) {
+    return {
+      toolCallId: call.toolCallId,
+      toolName: call.toolName,
+      text: sourceText("error.provider.grokBotTurnFailed"),
+      isError: true,
+      images: [],
+    };
+  }
+  return {
+    toolCallId: call.toolCallId,
+    toolName: call.toolName,
+    text: result.contentItems.flatMap((item) => (item.type === "inputText" ? [item.text] : [])).join("\n"),
+    isError: !result.success,
+    images: result.contentItems.flatMap((item) => (item.type === "inputImage" ? [imagePart(item.imageUrl)] : [])),
+  };
+}
+
+function imagePart(imageUrl: string): GrokBotImagePart {
+  const mimeType = imageUrl.startsWith("data:")
+    ? (imageUrl.slice(5).split(";")[0] ?? "application/octet-stream")
+    : "image/png";
+  return { type: "image", data: imageUrl, mimeType };
+}
+
+function isToolResult(value: unknown): value is DynamicToolResult {
+  return (
+    isRecord(value) &&
+    typeof value.success === "boolean" &&
+    Array.isArray(value.contentItems) &&
+    value.contentItems.every(
+      (item) =>
+        isRecord(item) &&
+        ((item.type === "inputText" && typeof item.text === "string") ||
+          (item.type === "inputImage" && typeof item.imageUrl === "string")),
+    )
+  );
 }

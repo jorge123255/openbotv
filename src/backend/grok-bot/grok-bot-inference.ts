@@ -1,6 +1,7 @@
-import { isDynamicRecord } from "@openbot/contracts/runtime-values";
+import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { registerSecretValue } from "@openbot/logging";
+import { createCursorChecksum } from "./grok-bot-checksum";
 import { GROK_BOT_CURSOR_CLIENT_VERSION } from "./grok-bot-gateway";
 
 /**
@@ -10,18 +11,52 @@ import { GROK_BOT_CURSOR_CLIENT_VERSION } from "./grok-bot-gateway";
  * the part and carries no extra text, as `ProtoPromptExecutor.protoResponseToStreamParts` does.
  *
  * Headers match `createSandInferenceInterceptor` in
- * `source/shared/node/cursor-backend/cursor-inference.ts`, except `x-cursor-checksum`. BotAI builds
- * that header from a machine id this process does not have. A live Stream call may refuse the
- * request until that id is copied. Do not invent one.
+ * `source/shared/node/cursor-backend/cursor-inference.ts`, including `x-cursor-checksum` from
+ * `createCursorChecksum`.
  *
  * A compressed Connect frame (flag bit 0) is refused. BotAI's Connect transport can compress; this
  * client does not.
  */
 export const GROK_BOT_MODEL_ID = "default";
 
-export interface GrokBotInferenceMessage {
-  readonly role: "SYSTEM" | "USER" | "ASSISTANT";
+export const GROK_BOT_MAX_IMAGE_BYTES = 1024 * 1024;
+
+export interface GrokBotTextPart {
+  readonly type: "text";
   readonly text: string;
+}
+
+export interface GrokBotImagePart {
+  readonly type: "image";
+  readonly data: string;
+  readonly mimeType: string;
+}
+
+export interface GrokBotToolCall {
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly args: DynamicRecord;
+  readonly rawArgs: string;
+}
+
+export interface GrokBotToolResultPart {
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly text: string;
+  readonly isError: boolean;
+  readonly images: readonly GrokBotImagePart[];
+}
+
+export type GrokBotInferenceMessage =
+  | { readonly role: "SYSTEM" | "USER" | "ASSISTANT"; readonly text: string }
+  | { readonly role: "USER"; readonly parts: readonly (GrokBotTextPart | GrokBotImagePart)[] }
+  | { readonly role: "ASSISTANT"; readonly text: string; readonly toolCalls: readonly GrokBotToolCall[] }
+  | { readonly role: "TOOL"; readonly results: readonly GrokBotToolResultPart[] };
+
+export interface GrokBotAdvertisedTool {
+  readonly name: string;
+  readonly description: string;
+  readonly parameters: DynamicRecord;
 }
 
 export interface GrokBotStreamText {
@@ -31,14 +66,17 @@ export interface GrokBotStreamText {
 
 export interface GrokBotStreamTool {
   readonly kind: "tool";
-  readonly name: string;
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly args: string;
+  readonly isComplete: boolean;
 }
 
 export type GrokBotStreamEvent = GrokBotStreamText | GrokBotStreamTool;
 
 export interface GrokBotStreamRequest {
-  readonly messages: readonly GrokBotInferenceMessage[];
-  readonly tools: readonly [];
+  readonly messages: readonly ReturnType<typeof wireMessage>[];
+  readonly tools: readonly GrokBotAdvertisedTool[];
   readonly providerDefinedTools: readonly [];
   readonly acceptedUnadvertisedToolNames: readonly [];
   readonly requestedModel: { readonly modelId: string; readonly maxMode: false; readonly parameters: readonly [] };
@@ -48,13 +86,14 @@ export interface GrokBotStreamRequest {
 
 export function grokBotStreamBody(input: {
   readonly messages: readonly GrokBotInferenceMessage[];
+  readonly tools?: readonly GrokBotAdvertisedTool[];
   readonly modelId: string;
   readonly conversationId: string;
   readonly invocationId: string;
 }): GrokBotStreamRequest {
   return {
-    messages: input.messages,
-    tools: [],
+    messages: input.messages.map(wireMessage),
+    tools: input.tools ?? [],
     providerDefinedTools: [],
     acceptedUnadvertisedToolNames: [],
     requestedModel: { modelId: input.modelId, maxMode: false, parameters: [] },
@@ -63,11 +102,61 @@ export function grokBotStreamBody(input: {
   };
 }
 
+function wireMessage(message: GrokBotInferenceMessage) {
+  if ("results" in message) {
+    return {
+      role: "TOOL" as const,
+      toolContent: {
+        parts: message.results.map((result) => ({
+          toolCallId: result.toolCallId,
+          toolName: result.toolName,
+          result: result.text,
+          ...(result.isError ? { isError: true } : {}),
+          ...(result.images.length > 0
+            ? {
+                experimentalContent: result.images.map((image) => ({
+                  image: { data: image.data, mimeType: image.mimeType },
+                })),
+              }
+            : {}),
+        })),
+      },
+    };
+  }
+  if ("toolCalls" in message) {
+    return {
+      role: "ASSISTANT" as const,
+      ...(message.text.length > 0 ? { text: message.text } : {}),
+      toolCalls: message.toolCalls.map((call) => ({
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        args: call.args,
+        rawToolCallArgs: call.rawArgs,
+      })),
+    };
+  }
+  if ("parts" in message) {
+    return {
+      role: "USER" as const,
+      parts: {
+        parts: message.parts.map((part) =>
+          part.type === "text"
+            ? { text: { text: part.text } }
+            : { image: { data: part.data, mimeType: part.mimeType } },
+        ),
+      },
+    };
+  }
+  return { role: message.role, text: message.text };
+}
+
 export async function readGrokBotInference(input: {
   readonly apiBaseUrl: string;
   readonly accessToken: string;
   readonly body: GrokBotStreamRequest;
   readonly signal: AbortSignal;
+  readonly machineId: string;
+  readonly checksumNow?: () => number;
   readonly fetchImpl?: typeof fetch;
   readonly onEvent: (event: GrokBotStreamEvent) => void;
 }): Promise<void> {
@@ -85,6 +174,7 @@ export async function readGrokBotInference(input: {
       "x-cursor-client-version": GROK_BOT_CURSOR_CLIENT_VERSION,
       "x-sand-box-namespace": "prod",
       "x-ghost-mode": "true",
+      "x-cursor-checksum": createCursorChecksum(input.machineId, input.checksumNow?.() ?? Date.now()),
     },
     body: JSON.stringify(input.body),
   });
@@ -111,8 +201,12 @@ function emitStreamMessage(message: unknown, onEvent: (event: GrokBotStreamEvent
     throw new Error(sourceText("error.provider.grokBotTurnFailed"));
   }
   if (isDynamicRecord(message.toolCallPart)) {
-    const name = typeof message.toolCallPart.toolName === "string" ? message.toolCallPart.toolName : "";
-    onEvent({ kind: "tool", name });
+    const part = message.toolCallPart;
+    const toolName = typeof part.toolName === "string" ? part.toolName : "";
+    const toolCallId = typeof part.toolCallId === "string" ? part.toolCallId : "";
+    const args = typeof part.args === "string" ? part.args : "";
+    if (toolCallId.length === 0) return;
+    onEvent({ kind: "tool", toolCallId, toolName, args, isComplete: part.isComplete === true });
     return;
   }
   const thinking = isDynamicRecord(message.thinkingPart) ? message.thinkingPart : null;

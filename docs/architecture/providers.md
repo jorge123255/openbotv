@@ -1006,9 +1006,12 @@ on the gateway, and stores that sand agent id as the provider thread. A later tu
 The same account's `GetSandUsageStatus` reading is the provider usage. Resume calls `listAgents` and
 keeps the id. It does not create a second sand agent.
 
-`Stream` can return a tool-call part. This build does not run that tool. The turn fails with
-`error.provider.grokBotToolUnsupported`. BotAI runs tools in its host runner. The checksum header
-`x-cursor-checksum` is not sent: BotAI builds it from a machine id this process does not have.
+A complete `toolCallPart` is `item/tool/call` on OpenBot's tool router. The tool result goes back
+in the next `Stream` request. User images from `localImage` are data URLs in the user message, up to
+1 MiB. A larger file is replaced by the omission line BotAI uses when resize fails. Pixel resize is
+not copied. `x-cursor-checksum` uses BotAI `createCursorChecksum` and a UUID in
+`openbot-grok-bot-machine-id`. Resume reads `POST /api/getAgentTranscriptTail`. A `message` entry
+with `role` `user` or `assistant`, and ids `t<n>u` / `t<turn>a<n>`, become the next prompt.
 
 ## Muse
 

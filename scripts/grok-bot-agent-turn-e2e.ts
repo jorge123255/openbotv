@@ -4,7 +4,7 @@
 // Writes .openbot-build/grok-bot-agent-turn-e2e/report.json.
 import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -12,12 +12,15 @@ import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { Effect } from "effect";
 import { GrokBotAccountStore } from "../src/backend/grok-bot/grok-bot-account";
 import { GrokBotAgentClient } from "../src/backend/grok-bot/grok-bot-agent-client";
+import { createCursorChecksum, readOrCreateMachineId } from "../src/backend/grok-bot/grok-bot-checksum";
 import { GROK_BOT_RUNTIME } from "../src/backend/grok-bot/grok-bot-runtime";
 import { decodeAccountReadResult, decodeThreadResponse, decodeTurnResponse } from "../src/backend/protocol";
 
 const OUT = resolve(import.meta.dirname, "../.openbot-build/grok-bot-agent-turn-e2e");
 const ACCESS = "grok-access-e2e";
 const REFRESH = "grok-refresh-e2e";
+const MACHINE = "11111111-1111-4111-8111-111111111111";
+const CHECKSUM_NOW = 1_700_000_000_000;
 const cipher = {
   encrypt: (value: string) => Buffer.from(value, "utf8"),
   decrypt: (value: Buffer) => value.toString("utf8"),
@@ -31,6 +34,10 @@ const report = {
   resumed: false,
   usage: false,
   signedOut: false,
+  checksum: false,
+  tool: false,
+  image: false,
+  transcript: false,
 };
 
 function readBody(request: IncomingMessage): Promise<string> {
@@ -55,6 +62,7 @@ const authFile = join(root, "grok-account.json");
 let createCalls = 0;
 const streamBodies: string[] = [];
 const streamAuth: string[] = [];
+const streamChecksums: string[] = [];
 
 const server = createServer((request, response: ServerResponse) => {
   void (async () => {
@@ -87,21 +95,54 @@ const server = createServer((request, response: ServerResponse) => {
       response.end(JSON.stringify({ agents: [{ id: "sand-agent-e2e", name: "OpenBot" }] }));
       return;
     }
+    if (url.pathname === "/api/getAgentTranscriptTail") {
+      const parsed = JSON.parse(body);
+      assert.equal(isDynamicRecord(parsed) && parsed.id, "sand-agent-e2e");
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(
+        JSON.stringify({
+          entries: [
+            { id: "t0u", kind: "message", role: "user", text: "Earlier question" },
+            { id: "t0a0", kind: "message", role: "assistant", text: "Earlier answer" },
+          ],
+        }),
+      );
+      return;
+    }
     if (url.pathname === "/aiserver.v1.InferenceService/Stream") {
       streamAuth.push(request.headers.authorization ?? "");
+      streamChecksums.push(String(request.headers["x-cursor-checksum"] ?? ""));
       streamBodies.push(body);
       assert.equal(request.headers.authorization, `Bearer ${ACCESS}`);
       assert.equal(request.headers["connect-protocol-version"], "1");
       assert.equal(request.headers["x-cursor-client-type"], "sand");
+      const toolFollowUp = body.includes("toolContent");
+      const toolRequest = body.includes("use-tool") && !toolFollowUp;
       response.writeHead(200, { "content-type": "application/connect+json" });
       response.end(
-        Buffer.concat([
-          connectFrame({ textPart: { text: "Hello", isFinal: false } }),
-          connectFrame({ textPart: { text: " from Grok Bot", isFinal: false } }),
-          connectFrame({ textPart: { text: "", isFinal: true } }),
-          connectFrame({ usage: { promptTokens: 4, completionTokens: 3, totalTokens: 7 } }),
-          connectFrame({}, 0x02),
-        ]),
+        Buffer.concat(
+          toolRequest
+            ? [
+                connectFrame({
+                  toolCallPart: {
+                    toolCallId: "call-1",
+                    toolName: "openbot.echo",
+                    args: '{"text":"hi"}',
+                    isComplete: true,
+                  },
+                }),
+                connectFrame({}, 0x02),
+              ]
+            : [
+                connectFrame({ textPart: { text: toolFollowUp ? "Tool done" : "Hello", isFinal: false } }),
+                connectFrame({
+                  textPart: { text: toolFollowUp ? "" : " from Grok Bot", isFinal: false },
+                }),
+                connectFrame({ textPart: { text: "", isFinal: true } }),
+                connectFrame({ usage: { promptTokens: 4, completionTokens: 3, totalTokens: 7 } }),
+                connectFrame({}, 0x02),
+              ],
+        ),
       );
       return;
     }
@@ -134,6 +175,8 @@ function clientFor(store: GrokBotAccountStore): GrokBotAgentClient {
     apiBaseUrl,
     allowLoopback: true,
     requestTimeoutMs: 5_000,
+    machineId: MACHINE,
+    checksumNow: () => CHECKSUM_NOW,
   });
 }
 
@@ -210,6 +253,8 @@ try {
   );
   assert.equal(streamAuth[0], `Bearer ${ACCESS}`);
   assert.equal(streamAuth[0]?.includes("gw-e2e"), false);
+  report.checksum = streamChecksums[0] === createCursorChecksum(MACHINE, CHECKSUM_NOW);
+  assert.equal(report.checksum, true);
 
   const again = clientFor(store);
   again.start();
@@ -235,6 +280,112 @@ try {
   const second = JSON.parse(await secondPosted);
   report.resumed = isDynamicRecord(second) && second.conversationId === "sand-agent-e2e" && createCalls === 1;
   assert.equal(report.resumed, true);
+  report.transcript =
+    JSON.stringify(second).includes("Earlier question") && JSON.stringify(second).includes("Earlier answer");
+  assert.equal(report.transcript, true);
+
+  const imagePath = join(root, "dot.png");
+  await writeFile(imagePath, Buffer.from("png-bytes"));
+  const imageNotes: Array<{ method: string; params: unknown }> = [];
+  client.on("notification", (notification) => imageNotes.push(notification));
+  const imagePosted = new Promise<string>((ready, reject) => {
+    const timer = setTimeout(() => reject(new Error("the image turn did not reach InferenceService")), 2_000);
+    const previous = streamBodies.length;
+    const timerId = setInterval(() => {
+      const posted = streamBodies[previous];
+      if (posted === undefined) return;
+      clearInterval(timerId);
+      clearTimeout(timer);
+      ready(posted);
+    }, 5);
+  });
+  await Effect.runPromise(
+    client.request(
+      "turn/start",
+      {
+        threadId: started.thread.id,
+        model: "default",
+        input: [
+          { type: "text", text: "See this" },
+          { type: "localImage", path: imagePath },
+        ],
+      },
+      decodeTurnResponse,
+    ),
+  );
+  const imageBody = await imagePosted;
+  report.image =
+    imageBody.includes("data:image/png;base64,") && imageBody.includes(Buffer.from("png-bytes").toString("base64"));
+  assert.equal(report.image, true);
+  await new Promise<void>((ready, reject) => {
+    const timer = setTimeout(() => reject(new Error("image turn did not finish")), 2_000);
+    const done = () => {
+      if (!imageNotes.some((note) => note.method === "turn/completed")) return;
+      clearTimeout(timer);
+      client.off("notification", done);
+      ready();
+    };
+    client.on("notification", done);
+    done();
+  });
+
+  client.on("request", (request) => {
+    if (request.method !== "item/tool/call") return;
+    const params = request.params;
+    assert.equal(isDynamicRecord(params) && params.namespace, "openbot");
+    assert.equal(isDynamicRecord(params) && params.tool, "echo");
+    client.respond(request.id, {
+      success: true,
+      contentItems: [{ type: "inputText", text: "echoed hi" }],
+    });
+  });
+  const toolNotes: Array<{ method: string; params: unknown }> = [];
+  client.on("notification", (notification) => toolNotes.push(notification));
+  await Effect.runPromise(
+    client.request(
+      "turn/start",
+      {
+        threadId: started.thread.id,
+        model: "default",
+        dynamicTools: [
+          {
+            type: "namespace",
+            name: "openbot",
+            tools: [{ type: "function", name: "echo", description: "Echo text", inputSchema: { type: "object" } }],
+          },
+        ],
+        input: [{ type: "text", text: "use-tool" }],
+      },
+      decodeTurnResponse,
+    ),
+  );
+  await new Promise<void>((ready, reject) => {
+    const timer = setTimeout(() => reject(new Error("tool turn did not finish")), 2_000);
+    const done = () => {
+      const completed = toolNotes.find((note) => note.method === "turn/completed");
+      if (!completed || !isDynamicRecord(completed.params)) return;
+      const turnRecord = completed.params.turn;
+      if (!isDynamicRecord(turnRecord) || turnRecord.status !== "completed") return;
+      clearTimeout(timer);
+      client.off("notification", done);
+      ready();
+    };
+    client.on("notification", done);
+    done();
+  });
+  const toolReply = toolNotes
+    .filter((note) => note.method === "item/agentMessage/delta")
+    .map((note) => (isDynamicRecord(note.params) && typeof note.params.delta === "string" ? note.params.delta : ""))
+    .join("");
+  report.tool = toolReply === "Tool done" && streamBodies.some((body) => body.includes("echoed hi"));
+  assert.equal(report.tool, true);
+
+  const machinePath = join(root, "machine-id");
+  const firstId = await readOrCreateMachineId(machinePath, () => MACHINE);
+  const secondId = await readOrCreateMachineId(machinePath, () => "22222222-2222-4222-8222-222222222222");
+  assert.equal(firstId, MACHINE);
+  assert.equal(secondId, MACHINE);
+  assert.equal((await readFile(machinePath, "utf8")).trim(), MACHINE);
   report.createdOnce = createCalls === 1;
 
   const limits = await Effect.runPromise(again.request("account/rateLimits/read", {}, (value) => value));

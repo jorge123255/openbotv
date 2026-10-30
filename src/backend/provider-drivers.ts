@@ -401,6 +401,8 @@ export interface ProviderClientContext {
    * the provider then reports signed out.
    */
   readonly grokBotAccount?: GrokBotAccountStore;
+  /** File that keeps the Grok Bot checksum machine id. Absent in tests that pass an id. */
+  readonly grokBotMachineIdPath?: string;
 }
 
 /** The agent environment with the account's home folder after it, so the account folder wins. */
@@ -986,11 +988,13 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
     createClient: (_cli, timeout, context) =>
       new GrokBotAgentClient({
         ...(context.grokBotAccount ? { store: context.grokBotAccount } : {}),
+        ...(context.grokBotMachineIdPath ? { machineIdPath: context.grokBotMachineIdPath } : {}),
         requestTimeoutMs: timeout,
       }),
     createProfileClient: (_cli, timeout, context) =>
       new GrokBotAgentClient({
         ...(context.grokBotAccount ? { store: context.grokBotAccount } : {}),
+        ...(context.grokBotMachineIdPath ? { machineIdPath: context.grokBotMachineIdPath } : {}),
         requestTimeoutMs: timeout,
       }),
     authState: (account) => ({ kind: "grok-bot", email: account?.email ?? null }),

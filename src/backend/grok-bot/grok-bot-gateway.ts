@@ -66,6 +66,15 @@ export const createGrokBotAgent = Effect.fn("GrokBotGateway.create")(function* (
   return created;
 });
 
+/** BotAI `getAgentTranscriptTail`: `POST /api/getAgentTranscriptTail` with `{ id, limit }`. */
+export const readGrokBotTranscript = Effect.fn("GrokBotGateway.transcript")(function* (
+  store: GrokBotAccountStore,
+  agentId: string,
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* gatewayJson(store, options, "/api/getAgentTranscriptTail", { id: agentId, limit: 200 });
+});
+
 const gatewayJson = Effect.fn("GrokBotGateway.call")(function* (
   store: GrokBotAccountStore,
   options: GrokBotGatewayCallOptions,
