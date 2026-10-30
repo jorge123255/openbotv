@@ -288,6 +288,12 @@ import type {
   ExternalLinkPreference,
 } from "./ipc-external-links";
 import type { GitHubConnectorRepositories, GitHubConnectorStatus } from "./ipc-github-connector";
+import type {
+  CreateGrokBotAgentInput,
+  GrokBotAccountEvent,
+  GrokBotAgentSummary,
+  GrokBotSignInStart,
+} from "./ipc-grok-bot";
 import type { ApplyHermesImportInput, HermesImportPreview } from "./ipc-hermes-import";
 import type { HiddenAgentsSnapshot, SetAgentHiddenInput } from "./ipc-hidden-agents";
 import type { HostAnalytics, HostAnalyticsInput } from "./ipc-host-analytics";
@@ -1761,6 +1767,15 @@ export const IPC_ENDPOINTS = {
     applyHermes: request<ApplyHermesImportInput, AgentImportResult>()("agent-import:apply-hermes"),
     discardHermes: request<string, void>()("agent-import:discard-hermes"),
   },
+  grokBot: {
+    getStatus: request<undefined, { signedIn: boolean }>()("grok-bot:get-status"),
+    startSignIn: request<undefined, GrokBotSignInStart>()("grok-bot:start-sign-in"),
+    cancelSignIn: request<undefined, void>()("grok-bot:cancel-sign-in"),
+    signOut: request<undefined, { signedIn: boolean }>()("grok-bot:sign-out"),
+    listAgents: request<undefined, readonly GrokBotAgentSummary[]>()("grok-bot:list-agents"),
+    createAgent: request<CreateGrokBotAgentInput, GrokBotAgentSummary>()("grok-bot:create-agent"),
+    account: event<GrokBotAccountEvent>()("grok-bot:account"),
+  },
   // Bound against the instance transfer service: a server's agents and server settings in one file for
   // another server. A remote server is reached with `instance-transfer-v1`; main opens both file
   // dialogs and moves the file. `showExport` reveals the file this computer saved last.
@@ -1896,6 +1911,7 @@ export const IPC_GROUP_PATHS = {
   mcpServers: "agent",
   storage: "storage",
   agentImport: "agentImport",
+  grokBot: "grokBot",
   instanceTransfer: "instanceTransfer",
   plugins: "plugins",
   host: "host",

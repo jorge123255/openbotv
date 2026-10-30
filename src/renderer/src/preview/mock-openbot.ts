@@ -1421,6 +1421,24 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
     billing: createMockBilling(billingPlans),
     license: createMockLicense(),
     routineFeed: createMockRoutineFeed(),
+    grokBot: {
+      getStatus: async () => ({ signedIn: false }),
+      startSignIn: async () => ({
+        verificationUrl: "https://cursor.com/loginDeepControl?mode=login&redirectTarget=cli",
+      }),
+      cancelSignIn: async () => undefined,
+      signOut: async () => ({ signedIn: false }),
+      listAgents: async () => [],
+      createAgent: async (input) => ({
+        id: "preview-agent",
+        name: input.name,
+        title: "",
+        description: input.description,
+        hidden: false,
+        room: false,
+      }),
+      onAccount: () => () => undefined,
+    },
     hostedServers: createMockHostedServers(billingPlans),
     customProviders: {
       list: async () => clone(customProviders),
