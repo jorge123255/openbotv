@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { attachmentMimeTypeForName } from "@openbot/contracts/attachment-files";
 import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
+import { createOpenBotLogger } from "@openbot/logging";
 import { Effect } from "effect";
 import type { AgentClient, DiagnosticOrigin } from "../agent-client";
 import { PendingServerRequests } from "../pending-server-requests";
@@ -37,6 +38,7 @@ import { transcriptToMessages } from "./grok-bot-transcript";
 import { readGrokBotUsageSummary } from "./grok-bot-usage";
 
 const DEFAULT_API = "https://api2.cursor.sh";
+const usageLogger = createOpenBotLogger("grok-bot-inference-usage");
 
 interface ClientEvents {
   notification: [AppServerNotification];
@@ -309,7 +311,7 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       for (let round = 0; round < 8; round += 1) {
         const calls: GrokBotStreamTool[] = [];
         const roundText = { value: "" };
-        const streamRound = (accessToken: string) =>
+        const streamRound = (accessToken: string, attempt: number) =>
           readGrokBotInference({
             apiBaseUrl: this.#apiBase(),
             accessToken,
@@ -324,6 +326,13 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
               conversationId: thread.id,
               invocationId: `${turn.id}:${round}`,
             }),
+            onUsage: (counts) => {
+              // Keep raw counters out of ACP analytics: this protocol does not establish whether
+              // input includes cache reads/writes. The default gateway provides no counters here.
+              const sample = { turnId: turn.id, round, attempt, counts };
+              usageLogger.info("Grok Bot direct inference token counts.", sample);
+              this.emit("diagnostic", `Grok Bot direct inference token counts: ${JSON.stringify(sample)}`);
+            },
             onEvent: (event) => {
               if (thread.turn?.id !== turn.id) return;
               if (event.kind === "tool") {
@@ -351,11 +360,11 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
             },
           });
         try {
-          await streamRound(record.accessToken);
+          await streamRound(record.accessToken, 1);
         } catch (error) {
           if (!isUnauthenticated(error) || roundText.value.length > 0 || calls.length > 0) throw error;
           await refresh(true);
-          await streamRound(record.accessToken);
+          await streamRound(record.accessToken, 2);
         }
         if (thread.turn?.id !== turn.id) return;
         lastText = roundText.value;
