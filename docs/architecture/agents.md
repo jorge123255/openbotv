@@ -738,3 +738,19 @@ like a plugin link, the link itself installs nothing. The page's fallback line a
 page links `/app` with the four invitation fields, and a plugin page links `/app?plugin=<slug>`. The
 browser client removes these fields after it reads them and opens the join dialog or the marketplace
 listing. It never joins or installs without a press.
+
+## Grok Bot account
+
+Server settings on this computer has a Grok Bot section. It signs in with the same
+`loginDeepControl` poll as the Cursor provider (`redirectTarget=cli`) and stores the tokens in
+`openbot-grok-bot-account-v1.json` under user data. It does not write the Cursor CLI auth file.
+
+The section lists and creates agents on the Grok Bot gateway (`EnsureSandBox`, then
+`listAgents` and `createAgent`). Those agents stay on the Grok Bot account. Import still reads a
+Grok Bot zip into local OpenBot agents. Connect on the Cursor provider still writes the CLI
+sign-in. The web client and a joined server do not show this section.
+
+The page rail shows a Grok Bot ring when that account is signed in on this computer.
+The ring uses GetSandUsageStatus and the on-demand fields of GetCurrentPeriodUsage
+with the Grok Bot account token. The Cursor provider ring still uses the CLI token
+and readCursorUsage. The two rows use different labels.

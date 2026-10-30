@@ -21,6 +21,7 @@ import {
   AppWindow,
   ArrowLeftRight,
   Blocks,
+  Bot,
   Button,
   CalendarClock,
   ChevronRight,
@@ -60,6 +61,8 @@ import { type ServerVaultOptions, ServerVaultPanel } from "../vault/ServerVaultP
 import type { McpServerConfig, McpTestResult } from "./mcp-servers";
 import { ServerDesktopPanel } from "./ServerDesktopPanel";
 import { createServerGeneralSection } from "./ServerGeneralSection";
+import type { ServerGrokBotOptions } from "./ServerGrokBotPanel";
+import { ServerGrokBotPanel } from "./ServerGrokBotPanel";
 import { type ServerImportDetail, type ServerImportOptions, ServerImportPanel } from "./ServerImportPanel";
 import { type McpPanelDetail, type McpPanelSignIn, ServerMcpPanel } from "./ServerMcpPanel";
 import { createServerMembersSection } from "./ServerMembersSection";
@@ -178,6 +181,11 @@ export interface ServerSettingsModalProps {
    */
   agentImport?: ServerImportOptions | undefined;
   /**
+   * The Grok Bot account on this computer. It is not the Cursor provider. A joined server and the
+   * web client pass nothing.
+   */
+  grokBot?: ServerGrokBotOptions | undefined;
+  /**
    * The Transfer section appears only when a caller supplies this: the local server, or a remote
    * host with `instance-transfer-v1` where the user is an owner or admin.
    */
@@ -251,6 +259,7 @@ export type ServerSettingsSection =
   | "providers"
   | "updates"
   | "import"
+  | "grok-bot"
   | "transfer"
   | "routines"
   | "browser-profiles";
@@ -268,6 +277,7 @@ const sections = {
   providers: { title: "server.settings.providersTitle", description: "server.settings.providersDescription" },
   updates: { title: "server.settings.updatesTitle", description: "server.settings.updatesDescription" },
   import: { title: "server.settings.importTitle", description: "server.settings.importDescription" },
+  "grok-bot": { title: "server.settings.grokBotTitle", description: "server.settings.grokBotDescription" },
   transfer: { title: "server.settings.transferTitle", description: "server.settings.transferDescription" },
   routines: { title: "server.settings.routinesTitle", description: "server.settings.routinesDescription" },
   "browser-profiles": { title: "browser.profiles.title", description: "browser.profiles.subtitle" },
@@ -484,6 +494,7 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
         value === "providers" ||
         value === "updates" ||
         value === "import" ||
+        value === "grok-bot" ||
         value === "transfer" ||
         value === "routines" ||
         value === "browser-profiles"
@@ -694,6 +705,12 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
                 <span>{t(sections.import.title)}</span>
               </Tabs.Trigger>
             </Show>
+            <Show when={props.grokBot}>
+              <Tabs.Trigger class="settings-modal-nav-item" value="grok-bot">
+                <Bot aria-hidden="true" />
+                <span>{t(sections["grok-bot"].title)}</span>
+              </Tabs.Trigger>
+            </Show>
             <Show when={props.instanceTransfer}>
               <Tabs.Trigger class="settings-modal-nav-item" value="transfer">
                 <ArrowLeftRight aria-hidden="true" />
@@ -845,6 +862,15 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
                     onDetailChange={setImportDetail}
                   />
                 )}
+              </Show>
+            </Tabs.Content>
+          )}
+        </Show>
+        <Show when={props.grokBot}>
+          {(grokBot) => (
+            <Tabs.Content value="grok-bot" class="settings-modal-tab-panel server-settings-panel" data-tab="grok-bot">
+              <Show when={props.server.id} keyed>
+                {(_serverId) => <ServerGrokBotPanel api={grokBot().api} openUrl={grokBot().openUrl} />}
               </Show>
             </Tabs.Content>
           )}

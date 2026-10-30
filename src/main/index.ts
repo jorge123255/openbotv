@@ -71,6 +71,7 @@ import { registerIpcGroups } from "./ipc/define-ipc-group";
 import { dynamicIslandIpcHandlers } from "./ipc/dynamic-island-handlers";
 import { eventsIpcHandlers } from "./ipc/events-handlers";
 import { githubConnectorIpcHandlers } from "./ipc/github-connector-handlers";
+import { grokBotIpcHandlers } from "./ipc/grok-bot-handlers";
 import { hostAdminIpcHandlers } from "./ipc/host-admin-handlers";
 import { hostedServerIpcHandlers } from "./ipc/hosted-server-handlers";
 import { hostedSiteIpcHandlers } from "./ipc/hosted-site-handlers";
@@ -622,6 +623,7 @@ function registerIpcHandlers({
   marketplaceAgents,
   agentTemplates,
   agentImport,
+  grokBotAccount,
   hermesImport,
   instanceTransfer,
   voice,
@@ -727,6 +729,7 @@ function registerIpcHandlers({
       agentTemplates,
       takePendingLink: () => takePendingDeepLink("agent-template"),
     }),
+    ...grokBotIpcHandlers({ grokBotAccount }),
     ...agentImportIpcHandlers({
       agentImport,
       hermesImport,

@@ -388,4 +388,9 @@ export const messages = defineMessages("error.provider", {
   "error.provider.registryInstallFailed": "The agent installation failed. The previous installation is unchanged.",
   "error.provider.registryRemoveBusy":
     "Wait for the agent installation and active ACP work to finish before you remove it.",
+  "error.provider.grokBotSignInEnded": "The Grok Bot sign-in ended. Sign in again.",
+  "error.provider.grokBotNotSignedIn": "Sign in to Grok Bot first.",
+  "error.provider.grokBotSessionEnded": "The Grok Bot session ended. Sign in again.",
+  "error.provider.grokBotAgentRejected": "Grok Bot did not accept this agent.",
+  "error.provider.grokBotNameRequired": "Enter a name.",
 });

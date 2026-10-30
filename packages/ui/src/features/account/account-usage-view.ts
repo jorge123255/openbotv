@@ -53,7 +53,11 @@ export interface AccountUsageProviderRow {
   reportsUsage: boolean;
   /** The provider whose plan quota this reading also counts, such as Grok for a merged Cursor plan. */
   sharedQuotaWith: AgentProviderId | null;
+  /** The Grok Bot account can raise its on-demand limit. Provider rows leave this unset. */
+  changeLimit?: boolean;
 }
+
+export { GROK_BOT_USAGE_ACCOUNT_ID, grokBotUsageRow } from "./grok-bot-usage-row";
 
 /**
  * One row per connected provider account. A limit the provider reported fills the remaining amount;

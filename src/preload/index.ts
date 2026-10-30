@@ -232,6 +232,14 @@ import {
   decodeDynamicIslandPreference,
   decodeDynamicIslandPresentation,
 } from "./dynamic-island-decoding";
+import {
+  decodeGrokBotAccountEvent,
+  decodeGrokBotAgent,
+  decodeGrokBotAgents,
+  decodeGrokBotSignInStart,
+  decodeGrokBotStatus,
+  decodeGrokBotUsageSummary,
+} from "./grok-bot-decoding";
 import { decodeHostReleaseStatusFromMain } from "./host-release-decoding";
 import { decodeMacAutomationResults } from "./mac-automation-decoding";
 import {
@@ -1055,6 +1063,16 @@ const openbotApi: OpenBotDesktopApi = {
     chooseHermes: decodeHermesImportPreview,
     applyHermes: decodeHermesImportResult,
     discardHermes: decodeVoid,
+  }),
+  grokBot: bridgeGroup(IPC_ENDPOINTS.grokBot, {
+    getStatus: decodeGrokBotStatus,
+    startSignIn: decodeGrokBotSignInStart,
+    cancelSignIn: decodeVoid,
+    signOut: decodeGrokBotStatus,
+    listAgents: decodeGrokBotAgents,
+    createAgent: decodeGrokBotAgent,
+    getUsage: decodeGrokBotUsageSummary,
+    account: decodeGrokBotAccountEvent,
   }),
   instanceTransfer: bridgeGroup(IPC_ENDPOINTS.instanceTransfer, {
     summary: decodeInstanceTransferSummary,

@@ -191,6 +191,7 @@ import {
 import { githubAppConfig } from "./github-connector-config";
 import { GitHubConnectorService } from "./github-connector-service";
 import { GitHubConnectorStore } from "./github-connector-store";
+import { GrokBotAccountService } from "./grok-bot-account-service";
 import { HermesImportService } from "./hermes-import-service";
 import { HostEventsRuntime } from "./host-events-runtime";
 import { agentWebhookRoutineWriter, HostEventsService } from "./host-events-service";
@@ -420,6 +421,7 @@ const TEARDOWN_ORDER = {
   dynamicIsland: 20,
   machineAlerts: 21,
   // Before the browser, so no sign-in opens a tab while it stops.
+  grokBotAccount: 26,
   providerAccountsHost: 27,
   providerHostSignIns: 28,
   mcpHostSignIns: 29,
@@ -604,6 +606,7 @@ export interface ApplicationServices {
   marketplaceAgents: AgentMarketplaceService;
   agentTemplates: AgentTemplateService;
   agentImport: AgentImportService;
+  grokBotAccount: GrokBotAccountService;
   hermesImport: HermesImportService;
   instanceTransfer: InstanceTransferService;
   voice: VoiceTranscriptionService;
@@ -1297,6 +1300,12 @@ export async function createApplicationServices({
   // Before `new AgentService`, which reads every `executablePath` eagerly.
   await runCauseEffect(providerRuntimes.initialize());
   const secretCipher = safeStorageCipher("error.app.secretStorageUnavailable");
+  const grokBotAccount = new GrokBotAccountService({
+    path: join(app.getPath("userData"), "openbot-grok-bot-account-v1.json"),
+    cipher: secretCipher,
+    getMainWindow: () => windows.getMainWindow(),
+  });
+  teardown.push(TEARDOWN_ORDER.grokBotAccount, "the Grok Bot account poll", () => grokBotAccount.dispose());
   const customProviders = new CustomProviderStore({
     path: join(app.getPath("userData"), CUSTOM_PROVIDERS_FILE),
     cipher: secretCipher,
@@ -3211,6 +3220,7 @@ export async function createApplicationServices({
     marketplaceAgents,
     agentTemplates,
     agentImport,
+    grokBotAccount,
     hermesImport,
     instanceTransfer,
     voice,

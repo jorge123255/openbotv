@@ -70,6 +70,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       pinned={layout.railPinned()}
       onPinChange={layout.setRailPinned}
       usageRows={usageRows()}
+      openUrl={(url) => void appPort().openUrl(url)}
       customAgentUsage={localAgentUsage()}
       onAgents={() => showSidebarView("agents")}
       onRoutines={() => showSidebarView("routines")}
