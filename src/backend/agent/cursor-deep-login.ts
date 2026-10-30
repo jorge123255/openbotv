@@ -52,9 +52,9 @@ export const startCursorDeepLogin = Effect.fn("CursorDeepLogin.start")(function*
     verifier: login.verifier,
     signal: controller.signal,
     deadline,
-    fetchImpl: options.fetchImpl,
-    now: options.now,
-    delay: options.delay,
+    ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}),
+    ...(options.now !== undefined ? { now: options.now } : {}),
+    ...(options.delay !== undefined ? { delay: options.delay } : {}),
   }).pipe(
     Effect.tap((tokens) =>
       Effect.try({

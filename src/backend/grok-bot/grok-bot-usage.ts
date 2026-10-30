@@ -27,7 +27,11 @@ export const readGrokBotUsageSummary = Effect.fn("GrokBotUsage.read")(function* 
   if (!record) return null;
   const now = options.now ?? Date.now;
   if (accessTokenNeedsRefresh(record.accessToken, now())) {
-    const refreshed = yield* store.refreshAccess({ apiBaseUrl, fetchImpl: options.fetchImpl, now });
+    const refreshed = yield* store.refreshAccess({
+      apiBaseUrl,
+      ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}),
+      now,
+    });
     if (!refreshed) return null;
     record = refreshed;
   }
