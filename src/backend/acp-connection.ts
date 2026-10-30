@@ -172,11 +172,20 @@ export class AcpConnection {
     this.#stopping = true;
     const child = this.#process;
     if (child && child.exitCode === null) this.#stoppedProcesses.add(child);
+    // Break the stdio session before cleanup. A pending `session/prompt` then fails without waiting
+    // for the process to notice a closed MCP socket.
+    if (child) {
+      child.stdin?.destroy();
+      child.stdout?.destroy();
+      child.stderr?.destroy();
+    }
     this.#process = null;
     this.#connection = null;
     yield* cleanup.pipe(
       Effect.ensuring(
-        Effect.suspend(() => (!child || child.exitCode !== null ? Effect.void : endProcess(child))).pipe(Effect.orDie),
+        Effect.suspend(() =>
+          !child || child.exitCode !== null || child.signalCode !== null ? Effect.void : endProcess(child),
+        ).pipe(Effect.orDie),
       ),
     );
   }, Effect.uninterruptible);

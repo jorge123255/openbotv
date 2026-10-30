@@ -4,17 +4,13 @@ import { EventEmitter } from "node:events";
 import { StringDecoder } from "node:string_decoder";
 import type { KeyOnlyProviderId } from "@openbot/contracts/agent-providers";
 import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
-import { Effect } from "effect";
+import { Deferred, Effect } from "effect";
 import { RequestTimeoutError } from "./agent-client";
 import type { SpawnTarget } from "./process-confinement";
-import {
-  type ProviderClientOperationError,
-  providerFailure,
-  toProviderClientOperationError,
-} from "./provider-client-effects";
+import { type ProviderClientOperationError, providerFailure } from "./provider-client-effects";
 import { registerProviderProcess } from "./provider-processes";
 import { createDiagnosticStream } from "./stderr-diagnostics";
-import { stopWindowsProcessTree } from "./windows-process-tree";
+import { stopProviderChild } from "./windows-process-tree";
 
 const PI_RECORD_LIMIT_BYTES = 256 * 1024 * 1024;
 
@@ -23,6 +19,8 @@ export class PiRpc extends EventEmitter<{ record: [DynamicRecord]; diagnostic: [
   readonly #pending = new Map<string, (result: Effect.Effect<DynamicRecord, ProviderClientOperationError>) => void>();
   #child: ChildProcessWithoutNullStreams | null = null;
   #stopping = false;
+  /** The stop already running, so a second caller waits for the same end. */
+  #stopGate: Deferred.Deferred<void> | null = null;
   constructor(
     private readonly redact: (text: string) => string,
     private readonly provider: "pi" | KeyOnlyProviderId = "pi",
@@ -134,40 +132,14 @@ export class PiRpc extends EventEmitter<{ record: [DynamicRecord]; diagnostic: [
   }
 
   readonly stop = Effect.fn("PiRpc.stop")(function* (this: PiRpc) {
+    if (this.#stopGate) return yield* Deferred.await(this.#stopGate);
+    const gate = Deferred.makeUnsafe<void>();
+    this.#stopGate = gate;
     this.#stopping = true;
     const child = this.#child;
-    if (!child) return;
-    if (process.platform === "win32") {
-      yield* stopWindowsProcessTree(child).pipe(toProviderClientOperationError);
-      return;
-    }
-    yield* Effect.callback<void, ProviderClientOperationError>((resume) => {
-      if (child.exitCode !== null || child.signalCode !== null) {
-        resume(Effect.void);
-        return;
-      }
-      const signal = (value: NodeJS.Signals) => {
-        try {
-          if (child.pid) process.kill(-child.pid, value);
-        } catch {
-          /* The process group already exited. */
-        }
-      };
-      const terminate = setTimeout(() => signal("SIGTERM"), 1_000);
-      const kill = setTimeout(() => signal("SIGKILL"), 3_000);
-      const closed = () => {
-        clearTimeout(terminate);
-        clearTimeout(kill);
-        signal("SIGKILL");
-        resume(Effect.void);
-      };
-      child.once("close", closed);
-      child.stdin.end();
-      return Effect.sync(() => {
-        clearTimeout(terminate);
-        clearTimeout(kill);
-        child.off("close", closed);
-      });
-    });
+    this.#child = null;
+    yield* (child ? stopProviderChild(child).pipe(Effect.orDie) : Effect.void).pipe(
+      Effect.ensuring(Effect.sync(() => Deferred.doneUnsafe(gate, Effect.void))),
+    );
   }, Effect.uninterruptible);
 }

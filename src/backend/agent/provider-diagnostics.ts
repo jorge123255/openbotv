@@ -217,6 +217,43 @@ export function isUsageReadDiagnostic(message: string): boolean {
   return /\bERROR\s+billing:\s+(?:upstream request failed|upstream error|failed to parse response)\b/.test(message);
 }
 
+const LOG_LEVEL =
+  /(?:^|\s)(TRACE|DEBUG|INFO|WARN|WARNING|ERROR|FATAL|CRITICAL)(?:\s|:)|"level"\s*:\s*"(trace|debug|info|warn|warning|error|fatal|critical)"/i;
+
+function diagnosticLevel(message: string): string | null {
+  const match = LOG_LEVEL.exec(message);
+  return (match?.[1] ?? match?.[2])?.toUpperCase() ?? null;
+}
+
+/**
+ * Whether a Grok CLI line is a hook-load notice, not a failed turn.
+ *
+ * Grok reads Cursor hook files and logs `CursorHookNotRun` or `async unsupported fields` at WARN
+ * when it skips a hook it cannot run. The turn continues. The line also contains "error", "failed",
+ * or "warning", so it used to become "A provider failed." An ERROR or FATAL line stays a failure.
+ */
+export function isGrokHookLoadDiagnostic(message: string): boolean {
+  if (!/\bCursorHookNotRun\b/u.test(message) && !/\basync unsupported fields\b/iu.test(message)) return false;
+  const level = diagnosticLevel(message);
+  return level !== "ERROR" && level !== "FATAL" && level !== "CRITICAL";
+}
+
+/**
+ * Whether a provider line is the stderr copy of a missing ACP session that OpenBot already recovered.
+ *
+ * `session/load` `-32016` ("Session not found") opens a new session. `session/set_config_option`
+ * `-32002` for a session that is gone does the same, and the config is sent to the new session.
+ * The CLI also writes the JSON-RPC error. That copy is not a second failure.
+ */
+export function isRecoveredAcpSessionDiagnostic(message: string): boolean {
+  if (/\bsession\/load\b/u.test(message) && (/-32016\b/u.test(message) || /\bSession not found\b/u.test(message)))
+    return true;
+  return (
+    /\bsession\/set_config_option\b/u.test(message) &&
+    (/-32002\b/u.test(message) || /\bSession not found\b/u.test(message) || /\bResource not found\b/u.test(message))
+  );
+}
+
 /**
  * Whether a provider diagnostic is Codex's notice that it uses its bundled bubblewrap.
  *

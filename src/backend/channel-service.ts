@@ -2950,14 +2950,22 @@ export class ChannelService {
     this: ChannelService,
   ): Effect.fn.Return<void, ChannelOperationError> {
     this.#stopped = true;
-    yield* Fiber.awaitAll([
+    const fibers = [
       ...this.#events,
       ...this.#pumps.values(),
       ...this.#interrupts.values(),
       ...this.#commandFibers.values(),
-    ]);
-    yield* Scope.close(this.#scope, Exit.void);
-  }, Effect.uninterruptible).bind(this);
+    ];
+    // A channel turn waits on a provider. Interrupt it, and do not wait past the quit step when the
+    // provider is already gone.
+    yield* Effect.forEach(fibers, (fiber) => Fiber.interrupt(fiber), {
+      concurrency: "unbounded",
+      discard: true,
+    }).pipe(Effect.timeoutOrElse({ duration: 2_000, orElse: () => Effect.void }));
+    yield* Scope.close(this.#scope, Exit.void).pipe(
+      Effect.timeoutOrElse({ duration: 1_000, orElse: () => Effect.void }),
+    );
+  }).bind(this);
 }
 
 /** The start of the request that fits in its routing bytes. Only whole characters are kept. */

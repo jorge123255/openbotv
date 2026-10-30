@@ -638,6 +638,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:mcp-bridge-shutdown
 
+      - name: Run the provider shutdown E2E test
+        if: ${{ !cancelled() }}
+        run: bun run test:provider-shutdown
+
+      - name: Run the stale ACP session E2E test
+        if: ${{ !cancelled() }}
+        run: bun run test:stale-config-session
+
       - name: Run the ACP turn stall E2E test
         if: ${{ !cancelled() }}
         run: bun run test:acp-turn-stall
@@ -717,6 +725,8 @@ jobs:
             .openbot-build/acp-flavor-e2e/
             .openbot-build/acp-mcp-server-names-e2e/
             .openbot-build/mcp-bridge-shutdown-e2e/
+            .openbot-build/provider-shutdown-e2e/
+            .openbot-build/stale-config-session-e2e/
             .openbot-build/acp-turn-stall-e2e/
             .openbot-build/stream-stall-retry-e2e/
             .openbot-build/acp-instructions-once-e2e/

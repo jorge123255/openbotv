@@ -29,10 +29,12 @@ export type AvatarHue = (typeof AVATAR_HUES)[number];
 // id and a bricked server -- so an id is a single opaque token here rather than a list of the models
 // this build happens to know: no whitespace, quotes, control characters or path separators beyond
 // the `/` a provider prefix uses, and nothing downstream builds a filesystem path or a URL out of
-// one -- `/v1/agents/models` takes no model parameter.
+// one -- `/v1/agents/models` takes no model parameter. `~` is in the set because OpenRouter lists
+// alias ids such as `~anthropic/claude-sonnet-latest`. A released Team protocol keeps its own charset
+// and does not receive an id that charset rejects.
 export function isAgentModel(value: unknown): value is AgentModelId {
   return (
-    isString(value) && value.length > 0 && value.length <= 160 && /^[A-Za-z0-9][A-Za-z0-9._:/[\],=-]*$/.test(value)
+    isString(value) && value.length > 0 && value.length <= 160 && /^[A-Za-z0-9~][~A-Za-z0-9._:/[\],=-]*$/.test(value)
   );
 }
 
