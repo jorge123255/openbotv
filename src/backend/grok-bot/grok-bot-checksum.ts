@@ -2,16 +2,14 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-/** BotAI secret-store key for the checksum machine id. The value is a UUID, not an access token. */
-export const GROK_BOT_MACHINE_ID_KEY = "cursor-machine-id";
-
+/** BotAI stores this id under the secret key `cursor-machine-id`. The value is a UUID, not an access token. */
 const MACHINE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
 
 /**
  * BotAI `enhancedObfuscate` in `source/shared/node/cursor-backend/cursor-inference.ts`.
  * It mutates `bytes`.
  */
-export function enhancedObfuscate(bytes: Uint8Array): Uint8Array {
+function enhancedObfuscate(bytes: Uint8Array): Uint8Array {
   let lastByte = 165;
   for (let index = 0; index < bytes.length; index += 1) {
     const current = bytes[index] ?? 0;

@@ -59,7 +59,7 @@ export interface GrokBotAdvertisedTool {
   readonly parameters: DynamicRecord;
 }
 
-export interface GrokBotStreamText {
+interface GrokBotStreamText {
   readonly kind: "text" | "thinking";
   readonly text: string;
 }
