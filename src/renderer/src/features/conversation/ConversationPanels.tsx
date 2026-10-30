@@ -7,6 +7,7 @@ import { SidePanelHeader, SidePanelLauncher, type SidePanelPane } from "@openbot
 import { SideQuestionPanel } from "@openbot/ui/features/conversation/SideQuestionPanel";
 import { SubagentPanel } from "@openbot/ui/features/conversation/Subagents";
 import { VoicePanel } from "@openbot/ui/features/conversation/VoicePanel";
+import { GrokBotFilesPane } from "@openbot/ui/features/grok-bot/GrokBotFilesPane";
 import { McpSignInRelayDialog } from "@openbot/ui/features/settings/McpSignInPage";
 import { useText } from "@openbot/ui/text";
 import { actionToast } from "../../action-toast";
@@ -34,6 +35,8 @@ import { Portal } from "@solidjs/web";
 import { createEffect, createMemo, Loading, lazy, onSettled, Show, untrack } from "solid-js";
 import { agentFolderCalls } from "./agent-folders-port";
 import { conversationPort } from "./conversation-port";
+import { GrokBotSideComputer } from "./GrokBotSideComputer";
+import { grokBotDesktopChat } from "./grok-bot-side";
 
 /** The voice conversation with the agent that is open when the pane opens. */
 function VoiceConversationPane() {
@@ -158,13 +161,19 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
   });
   let browserPreviewTrigger: HTMLButtonElement | undefined;
   /** The panes this chat can open. The web client has no Files pane, and a chat without a thread has no files. */
-  const sidePanelPanes = createMemo((): SidePanelPane[] => [
-    // A channel turn's takeover still shows as a card; the pane belongs to one agent's browser.
-    ...(props.browserEnabled !== false && !channel ? (["browser"] as const) : []),
-    ...(!props.runtime && props.agent?.threadId && serverHasStorage(props.server) ? (["files"] as const) : []),
-    ...(props.agent || channel ? (["settings"] as const) : []),
-    ...(props.agent && voiceConversationAvailable() ? (["voice"] as const) : []),
-  ]);
+  const sidePanelPanes = createMemo((): SidePanelPane[] => {
+    // A Grok Bot chat on this computer: Browser is the sand computer, Files is the placeholder.
+    if (grokBotDesktopChat(props)) {
+      return ["browser", "files", "settings", ...(voiceConversationAvailable() ? (["voice"] as const) : [])];
+    }
+    return [
+      // A channel turn's takeover still shows as a card; the pane belongs to one agent's browser.
+      ...(props.browserEnabled !== false && !channel ? (["browser"] as const) : []),
+      ...(!props.runtime && props.agent?.threadId && serverHasStorage(props.server) ? (["files"] as const) : []),
+      ...(props.agent || channel ? (["settings"] as const) : []),
+      ...(props.agent && voiceConversationAvailable() ? (["voice"] as const) : []),
+    ];
+  });
   /** The subagent in the Subagent pane, from the newest turn that has it. */
   const panelSubagent = createMemo(() => {
     const subagentId = panelSubagentId();
@@ -319,7 +328,19 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
         }}
       </Show>
 
-      <Show when={filesOpen() && !props.runtime && serverHasStorage(props.server) && props.server}>
+      <Show when={activeRightPanel() === "grok-computer"}>
+        <GrokBotSideComputer />
+      </Show>
+
+      <Show when={filesOpen() && grokBotDesktopChat(props)}>
+        <GrokBotFilesPane />
+      </Show>
+
+      <Show
+        when={
+          filesOpen() && !grokBotDesktopChat(props) && !props.runtime && serverHasStorage(props.server) && props.server
+        }
+      >
         {(server) => (
           <Show when={props.agent?.threadId}>
             {(threadId) => (

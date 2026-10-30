@@ -62,6 +62,10 @@ export const messages = {
   "conversation.sidePanel.launcher": "Abrir um painel",
   "conversation.sidePanel.pane.browser": "Navegador",
   "conversation.sidePanel.pane.files": "Arquivos",
+  "conversation.sidePanel.grokFiles.body":
+    "O Grok Bot guarda os arquivos no computador dele. Este painel não tem uma lista.",
+  "conversation.sidePanel.grokComputer.failed": "Não foi possível abrir o computador do Grok Bot.",
+  "conversation.sidePanel.grokComputer.window": "A tela está aberta na própria janela.",
   "conversation.threads.new": "Novo tópico",
   "conversation.threads.all": "Todos os tópicos",
   "conversation.threads.open": "Tópicos abertos",

@@ -62,6 +62,10 @@ export const messages = {
   "conversation.sidePanel.launcher": "ペインを開く",
   "conversation.sidePanel.pane.browser": "ブラウザ",
   "conversation.sidePanel.pane.files": "ファイル",
+  "conversation.sidePanel.grokFiles.body":
+    "Grok Bot はファイルを自分のコンピュータに置きます。このパネルに一覧はありません。",
+  "conversation.sidePanel.grokComputer.failed": "Grok Bot のコンピュータを開けませんでした。",
+  "conversation.sidePanel.grokComputer.window": "画面は専用のウィンドウで開いています。",
   "conversation.threads.new": "新しいスレッド",
   "conversation.threads.all": "すべてのスレッド",
   "conversation.threads.open": "開いているスレッド",

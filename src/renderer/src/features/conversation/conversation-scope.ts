@@ -43,6 +43,7 @@ import type {
   ConversationTarget,
   SidePanelPane,
 } from "./conversation-types";
+import { grokBotDesktopChat } from "./grok-bot-side";
 import {
   clearQuotedTextHighlight,
   highlightQuotedText,
@@ -449,7 +450,13 @@ export function createConversationViewScope(props: ConversationProps) {
     setActiveRightPanel("browser");
     if (browserTabs().length === 0) void openBrowserAddress();
   }
+  const [grokComputerOpenRequest, setGrokComputerOpenRequest] = createSignal(0);
   function openSidePanelPane(pane: SidePanelPane) {
+    if (pane === "browser" && grokBotDesktopChat(props)) {
+      setActiveRightPanel("grok-computer");
+      setGrokComputerOpenRequest((value) => value + 1);
+      return;
+    }
     if (pane === "browser") showBrowserPanel();
     else setActiveRightPanel(SIDE_PANEL_MODES[pane]);
   }
@@ -1997,6 +2004,7 @@ export function createConversationViewScope(props: ConversationProps) {
     sidePanelOpen,
     setSidePanelMaximized,
     openSidePanelPane,
+    grokComputerOpenRequest,
     toggleSidePanel,
     closeSidePanelPane,
     filePreviewOpen,

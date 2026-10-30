@@ -67,6 +67,8 @@ function isSidePanelPane(value: string): value is SidePanelPane {
 
 /** The pane that shows a panel mode, or null for a mode outside the side panel. */
 function paneOfMode(mode: RightPanelMode): SidePanelPane | null {
+  // The sand computer uses the Browser tab. It is not the OpenBot browser.
+  if (mode === "grok-computer") return "browser";
   for (const [pane, paneMode] of Object.entries(SIDE_PANEL_MODES)) {
     if (paneMode === mode && isSidePanelPane(pane)) return pane;
   }

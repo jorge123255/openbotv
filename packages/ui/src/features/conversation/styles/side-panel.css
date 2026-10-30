@@ -264,6 +264,48 @@
   gap: var(--openbot-space-3);
 }
 
+/* The Grok Bot computer and files panes. They sit in the same dock as the pane list. */
+.grok-bot-side-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--openbot-space-3);
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: var(--openbot-space-6);
+}
+
+.grok-bot-side-title {
+  margin: 0;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-medium);
+  line-height: var(--openbot-leading-lg);
+}
+
+.grok-bot-side-copy,
+.grok-bot-side-error {
+  margin: 0;
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+}
+
+.grok-bot-side-copy {
+  color: var(--openbot-text-secondary);
+}
+
+.grok-bot-side-error {
+  color: var(--openbot-danger-text);
+}
+
+.grok-bot-side-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-1-5);
+}
+
 /* A maximized dock covers the chat and its header. */
 .side-panel-maximized > :is(.browser-panel, .settings-panel, .side-panel-header) {
   width: 100%;

@@ -389,6 +389,8 @@ export type RightPanelMode =
   /** The side panel with no open pane. It lists the panes it can open. */
   | "side-panel"
   | "browser"
+  /** The Grok Bot sand computer, in the Browser tab of a grok-bot chat. The screen stays in main. */
+  | "grok-computer"
   | "browser-expanded"
   | "browser-pip"
   | "settings"
