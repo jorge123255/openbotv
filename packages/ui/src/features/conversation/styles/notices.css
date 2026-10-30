@@ -10,7 +10,7 @@
   --notice-inset: 6px;
   /* The warning tone is the default because a notice the user can clear themselves is the common
      one. `data-tone="danger"` below is for a state only time or another model ends. */
-  --notice-accent: var(--openbot-warning);
+  --notice-accent: var(--openbot-warning-text);
   --notice-surface: var(--openbot-warning-soft);
 
   position: relative;
@@ -57,17 +57,17 @@
   color: var(--notice-accent);
 }
 
-/* The button set has no warning variant, so the notice tints the outline button it already uses. */
+/* Keep action text readable over the extra tint; the fill carries the notice's status color. */
 .composer-notice .ui-button {
   border-color: transparent;
   background: color-mix(in srgb, var(--notice-accent) 14%, transparent);
-  color: var(--notice-accent);
+  color: var(--openbot-text-primary);
 }
 
 @media (hover: hover) {
   .composer-notice .ui-button:hover:not(:disabled):not([data-disabled]) {
     background: color-mix(in srgb, var(--notice-accent) 24%, transparent);
-    color: var(--notice-accent);
+    color: var(--openbot-text-primary);
   }
 }
 

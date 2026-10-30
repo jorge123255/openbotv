@@ -393,6 +393,15 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The selected fill is darker than the light canvas, so muted text needs a stronger step. */
+.global-search-result[data-highlighted] :is(.global-search-result-detail, .global-search-result-time),
+.global-search-results
+  [role="listbox"]:not(:has(.global-search-result[data-highlighted]))
+  .global-search-result[data-first]
+  :is(.global-search-result-detail, .global-search-result-time) {
+  color: var(--openbot-text-secondary);
+}
+
 .global-search-match {
   background: transparent;
   color: var(--openbot-text-primary);

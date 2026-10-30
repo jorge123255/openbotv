@@ -24,7 +24,7 @@ type Story = StoryObj<typeof meta>;
 /** The composer column, so the notice is judged at the width it actually renders at. */
 function ComposerStack(props: { children: JSX.Element }) {
   return (
-    <div class="composer-wrap" style={{ width: "640px", padding: "16px" }}>
+    <div class="composer-wrap" style={{ width: "min(640px, 100%)", padding: "16px" }}>
       {props.children}
     </div>
   );
