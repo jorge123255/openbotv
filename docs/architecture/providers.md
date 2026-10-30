@@ -988,9 +988,10 @@ that header to the OpenBot key too (checked in Pi 1.4.0 with a local server). Pi
 `/api/models/user` request still uses a key from `auth.json` when the user saved one there; it reads
 the model list and sends no turn content. Model ids keep
 OpenRouter's `<lab>/<model>` form, such as `anthropic/claude-opus-5.5`, and the client passes them to
-Pi unchanged. The catalog drops the aliases that start with `~`, such as
-`~anthropic/claude-sonnet-latest`, because `isAgentModel` refuses that character, and the default is
-`anthropic/claude-sonnet-5.5`. The model picker groups the models by lab (`openRouterLab` in
+Pi unchanged. Alias ids that start with `~`, such as `~anthropic/claude-sonnet-latest`, stay in the
+local catalog: `isAgentModel` accepts that character. A released Team protocol keeps its own charset,
+so those aliases are left out of that peer's model list, and an agent that uses one is hidden from
+that peer. The default is `anthropic/claude-sonnet-5.5`. The model picker groups the models by lab (`openRouterLab` in
 `provider-model-options.ts`) and marks the `:free` models as free. A 402 means the account has no
 credits. Peers see OpenRouter from v8, as Inception.
 

@@ -761,7 +761,13 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
           yield* this.#bridge.close().pipe(toProviderClientOperationError);
         }),
       )
-      .pipe(Effect.ensuring(Scope.close(this.#scope, Exit.void)));
+      .pipe(
+        Effect.ensuring(
+          Effect.suspend(() =>
+            this.#scope.state._tag === "Closed" ? Effect.void : Scope.close(this.#scope, Exit.void),
+          ),
+        ),
+      );
   }, Effect.uninterruptible);
 
   readonly readSessionSettings = Effect.fn("AcpAgentClient.readSessionSettings")(function* (
@@ -3198,8 +3204,16 @@ function isSessionNotFound(error: unknown, sessionId: string, flavor: AcpFlavor)
   const flavored = flavor.sessionNotFound?.(error, sessionId) ?? null;
   if (flavored !== null) return flavored;
   if (error.code !== -32002) return false;
-  const uri = isRecord(error.data) ? error.data.uri : undefined;
-  return uri === sessionId || error.message.includes(sessionId);
+  if (isRecord(error.data)) {
+    const named = error.data.sessionId ?? error.data.uri;
+    if (typeof named === "string") return named === sessionId || named === `session ${sessionId}`;
+  }
+  const detail = failureDetail(error);
+  const text = detail && !error.message.includes(detail) ? `${error.message}\n${detail}` : error.message;
+  // `session/set_config_option` often names no id. The request was for this session, so "Session
+  // not found" and the protocol's "Resource not found" are this session. Another session in `data`
+  // was rejected above.
+  return text.includes(sessionId) || /\b(?:session|resource) not found\b/i.test(text);
 }
 
 /**

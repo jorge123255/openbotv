@@ -3973,7 +3973,6 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   readonly stop = Effect.fn("AgentService.stop")(function* (this: AgentService) {
     this.#stopping = true;
-    yield* this.#memoryReview.dispose();
     const channelStop = yield* Effect.forkChild(
       this.channels
         .stop()
@@ -3982,53 +3981,59 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
         ),
       { startImmediately: true },
     );
-    this.#initialized = false;
-    this.#routineTimer.dispose();
-    yield* this.#memoryHold.dispose();
-    this.#hostedSites.dispose();
-    this.#compaction.dispose();
-    this.#deltas.dispose();
-    this.#conversation.dispose();
-    this.#threads.dispose();
-    this.#memories.clearPending();
-    this.#tables?.dispose();
-    this.#attention.clearPrompts();
-    this.#attention.clearBrowserTakeovers();
-    this.#attention.clearApprovals();
+    // End provider processes before the scopes that wait on them. `dispose` stops its own clients.
+    // Profile clients are separate processes and stop here, together, not one after another.
     const clients = [...(yield* this.#providers.dispose()), ...this.#profileClients.release()];
-    for (const [agentId, snapshot] of this.#conversation.activeSnapshots()) {
-      if (!snapshot.activeTurnId) continue;
-      const agent = this.#store.list().find((item) => item.id === agentId);
-      const session = agent && snapshot.threadId ? this.#runningSession(agent, snapshot.threadId) : undefined;
-      if (session) this.#images.interrupt(agentId, session, snapshot.activeTurnId);
-    }
-    yield* this.#turn.dispose();
-    yield* this.#usageLimits.dispose();
-    this.#drain.dispose();
-    this.#planContinuation.dispose();
-    this.#browser.clearControls();
     yield* Effect.forEach(clients, (client) => client.stop().pipe(Effect.catch(() => Effect.void)), {
       concurrency: "unbounded",
       discard: true,
     });
-    yield* this.#warmGenerations.dispose();
-    yield* Fiber.join(channelStop);
-    // After the clients: a provider that still runs would see its MCP servers fail.
-    yield* this.#mcp.close();
-    yield* settleLifecycleTasks("finish drain", this.#drain.pendingTasks());
-    yield* settleLifecycleTasks("finish image requests", this.#images.pendingOperations());
-    yield* this.#images.dispose();
-    yield* settleLifecycleTasks("finish attachment commands", this.#attachments.pendingCommands());
-    this.#attachments.dispose();
-    yield* this.#browserUploads
-      .dispose()
-      .pipe(
-        Effect.mapError(
-          (failure) => new AgentLifecycleFailed({ operation: "stop browser uploads", cause: failure.cause }),
-        ),
-      );
-    yield* Scope.close(this.#scope, Exit.void);
-    this.#scope = Scope.makeUnsafe();
+    // The processes are gone. The rest must return inside the 10 s agent-service step.
+    yield* Effect.gen({ self: this }, function* () {
+      yield* this.#memoryReview.dispose();
+      this.#initialized = false;
+      this.#routineTimer.dispose();
+      yield* this.#memoryHold.dispose();
+      this.#hostedSites.dispose();
+      this.#compaction.dispose();
+      this.#deltas.dispose();
+      this.#conversation.dispose();
+      this.#threads.dispose();
+      this.#memories.clearPending();
+      this.#tables?.dispose();
+      this.#attention.clearPrompts();
+      this.#attention.clearBrowserTakeovers();
+      this.#attention.clearApprovals();
+      for (const [agentId, snapshot] of this.#conversation.activeSnapshots()) {
+        if (!snapshot.activeTurnId) continue;
+        const agent = this.#store.list().find((item) => item.id === agentId);
+        const session = agent && snapshot.threadId ? this.#runningSession(agent, snapshot.threadId) : undefined;
+        if (session) this.#images.interrupt(agentId, session, snapshot.activeTurnId);
+      }
+      yield* this.#turn.dispose();
+      yield* this.#usageLimits.dispose();
+      this.#drain.dispose();
+      this.#planContinuation.dispose();
+      this.#browser.clearControls();
+      yield* this.#warmGenerations.dispose();
+      yield* Fiber.join(channelStop);
+      // After the clients: a provider that still runs would see its MCP servers fail.
+      yield* this.#mcp.close();
+      yield* settleLifecycleTasks("finish drain", this.#drain.pendingTasks());
+      yield* settleLifecycleTasks("finish image requests", this.#images.pendingOperations());
+      yield* this.#images.dispose();
+      yield* settleLifecycleTasks("finish attachment commands", this.#attachments.pendingCommands());
+      this.#attachments.dispose();
+      yield* this.#browserUploads
+        .dispose()
+        .pipe(
+          Effect.mapError(
+            (failure) => new AgentLifecycleFailed({ operation: "stop browser uploads", cause: failure.cause }),
+          ),
+        );
+      yield* Scope.close(this.#scope, Exit.void);
+      this.#scope = Scope.makeUnsafe();
+    }).pipe(Effect.timeoutOrElse({ duration: 5_000, orElse: () => Effect.void }));
     this.#providers.markStopped();
   }).bind(this);
 

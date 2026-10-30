@@ -6,7 +6,7 @@ import { agentProviderName, type KeyOnlyProviderId } from "@openbot/contracts/ag
 import { type DynamicRecord, isBoolean, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { redactText } from "@openbot/logging";
-import { Effect, Exit, Schema, Scope, Semaphore } from "effect";
+import { Deferred, Effect, Exit, Schema, Scope, Semaphore } from "effect";
 import { secretElicitationField } from "./agent/prompts";
 import { type AgentClient, type DiagnosticOrigin, MissingPiSessionError, RequestTimeoutError } from "./agent-client";
 import { type AgentCliInfo, cliPathEnvironment, cliSpawnTarget } from "./cli";
@@ -137,6 +137,8 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
   readonly #opening = Semaphore.makeUnsafe(1);
   /** Processes of opens in flight. They are not in `#threads` until the open retains them. */
   readonly #starting = new Set<PiRpc>();
+  /** The stop already running, so a second caller waits for the same end. */
+  #stopGate: Deferred.Deferred<void> | null = null;
   #scope = Scope.makeUnsafe();
   #running = false;
   constructor(
@@ -152,6 +154,7 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
   start(): void {
     if (!this.#running) {
       this.#scope = Scope.makeUnsafe();
+      this.#stopGate = null;
       this.#running = true;
     }
   }
@@ -184,16 +187,40 @@ export class PiAgentClient extends EventEmitter<ClientEvents> implements AgentCl
   }
 
   readonly stop = Effect.fn("PiAgentClient.stop")(function* (this: PiAgentClient) {
-    this.#running = false;
-    this.#requests.rejectAll(sourceText("error.provider.piStopped"));
-    for (const rpc of this.#starting) yield* rpc.stop();
-    // Wait until each open in flight fails and cleans up, or retains a thread that the loop below closes.
-    yield* this.#opening.withPermit(Effect.void);
-    for (const thread of this.#threads.values()) yield* this.#close(thread);
-    this.#threads.clear();
-    this.#released.clear();
-    yield* Scope.close(this.#scope, Exit.void);
-    yield* this.#bridge.close().pipe(toProviderClientOperationError);
+    if (this.#stopGate) return yield* Deferred.await(this.#stopGate);
+    const gate = Deferred.makeUnsafe<void>();
+    this.#stopGate = gate;
+    yield* Effect.gen({ self: this }, function* () {
+      this.#running = false;
+      this.#requests.rejectAll(sourceText("error.provider.piStopped"));
+      this.#released.clear();
+      // Drop the MCP sockets before the processes are asked to exit. A process that still holds
+      // one ignores SIGTERM, and quit used to wait for each process in turn.
+      yield* this.#bridge.close().pipe(toProviderClientOperationError);
+      const stopThreads = () => {
+        const threads = [...this.#threads.values()];
+        this.#threads.clear();
+        const rpcs = [...this.#starting, ...threads.map((thread) => thread.rpc)];
+        return { threads, rpcs };
+      };
+      const first = stopThreads();
+      yield* Effect.forEach(first.rpcs, (rpc) => rpc.stop(), { concurrency: "unbounded", discard: true });
+      yield* Effect.forEach(first.threads, (thread) => this.#close(thread), {
+        concurrency: "unbounded",
+        discard: true,
+      });
+      // An open that still holds the gate fails once its process is gone. Do not wait out its request.
+      yield* this.#opening
+        .withPermit(Effect.void)
+        .pipe(Effect.timeoutOrElse({ duration: 1_000, orElse: () => Effect.void }));
+      const late = stopThreads();
+      yield* Effect.forEach(late.rpcs, (rpc) => rpc.stop(), { concurrency: "unbounded", discard: true });
+      yield* Effect.forEach(late.threads, (thread) => this.#close(thread), {
+        concurrency: "unbounded",
+        discard: true,
+      });
+      if (this.#scope.state._tag !== "Closed") yield* Scope.close(this.#scope, Exit.void);
+    }).pipe(Effect.ensuring(Effect.sync(() => Deferred.doneUnsafe(gate, Effect.void))));
   }, Effect.uninterruptible);
 
   readonly #close = Effect.fn("PiAgentClient.closeThread")(function* (this: PiAgentClient, thread: PiThread) {

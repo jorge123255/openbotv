@@ -91,8 +91,10 @@ import {
   isBundledSandboxFallbackDiagnostic,
   isCodexCredentialFallbackDiagnostic,
   isGlogBelowErrorDiagnostic,
+  isGrokHookLoadDiagnostic,
   isIgnoredConfigDiagnostic,
   isMcpSubsystemDiagnostic,
+  isRecoveredAcpSessionDiagnostic,
   isTelemetryExportDiagnostic,
   isToolCallDiagnostic,
   isUsageLimitDiagnostic,
@@ -482,6 +484,11 @@ export class ProviderRuntime implements ProviderPort {
    * not change the file it reads, so the user sees each one once per app run.
    */
   readonly #reportedConfigWarnings = new Set<string>();
+  /**
+   * Hook-load notices and recovered missing-session lines already written. The CLI repeats one of
+   * each for every session, and the log keeps the first.
+   */
+  readonly #quietProviderNotices = new Set<string>();
   /** Counts `dispose()` calls, so a start from before one cannot add its client after it. */
   #disposals = 0;
   readonly #modelCatalog: ModelCatalog;
@@ -2631,7 +2638,16 @@ export class ProviderRuntime implements ProviderPort {
     ];
     this.#clients.clear();
     this.#confined.clear();
-    yield* Scope.close(this.#scope, Exit.void);
+    // Stop the processes before the scope closes. A fiber in the scope is often waiting on one of
+    // these clients, and that wait is the agent-service step's 10 s timeout.
+    yield* Effect.forEach(clients, (client) => client.stop().pipe(Effect.catch(() => Effect.void)), {
+      concurrency: "unbounded",
+      discard: true,
+    });
+    yield* Scope.close(this.#scope, Exit.void).pipe(
+      Effect.timeoutOrElse({ duration: 1_000, orElse: () => Effect.void }),
+    );
+    this.#scope = Scope.makeUnsafe();
     return clients;
   }, Effect.uninterruptible).bind(this);
 
@@ -3622,6 +3638,13 @@ export class ProviderRuntime implements ProviderPort {
       }
       if (isGlogBelowErrorDiagnostic(message)) {
         stderrLogger.info("A provider logged an info or warning record.", { provider: client.provider, message });
+        return;
+      }
+      if (isGrokHookLoadDiagnostic(message) || isRecoveredAcpSessionDiagnostic(message)) {
+        const key = message.replace(LOG_TIMESTAMP_PREFIX, "");
+        if (this.#quietProviderNotices.has(key)) return;
+        this.#quietProviderNotices.add(key);
+        stderrLogger.warn("A provider logged a notice.", { provider: client.provider, message });
         return;
       }
       if (client.provider === "antigravity") {

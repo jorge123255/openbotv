@@ -98,6 +98,11 @@ serveFakeAcpAgent(
     "session/set_config_option": (request, peer) => {
       const { sessionId = "", configId, value = "" } = request.params;
       logEntry({ event: "set", sessionId, configId, value });
+      // The session is gone. The error names no id. OpenBot must not fail the turn for it.
+      if (process.env.FAKE_CONFIG_GONE === "1") {
+        peer.fail(request, { code: -32002, message: "Session not found" });
+        return;
+      }
       if (configId === "model") models.set(sessionId, value);
       peer.reply(request, { configOptions: setup(sessionId).configOptions });
     },

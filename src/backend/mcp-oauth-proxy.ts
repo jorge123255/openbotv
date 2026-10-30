@@ -5,6 +5,7 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { once } from "node:events";
 import { createServer, type Server as HttpServer, type IncomingMessage, type ServerResponse } from "node:http";
+import type { Socket } from "node:net";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger, registerSecretValue, toLogValue } from "@openbot/logging";
@@ -99,6 +100,8 @@ export class McpOAuthProxy {
   #server: HttpServer | null = null;
   #port: number | null = null;
   #secret: string | null = null;
+  /** Sockets the provider still holds. Close drops them so quit does not wait for that process. */
+  readonly #sockets = new Set<Socket>();
 
   constructor(options: McpOAuthProxyOptions) {
     this.#options = options;
@@ -140,7 +143,10 @@ export class McpOAuthProxy {
     yield* Effect.callback<void>((resume) => {
       server.close(() => resume(Effect.void));
       // An event stream stays open as long as the server sends nothing, so `close` alone never ends.
+      // Bun's closeAllConnections leaves a request that is still open. Destroy each socket.
       server.closeAllConnections();
+      for (const socket of this.#sockets) socket.destroy();
+      this.#sockets.clear();
     });
   });
 
@@ -185,6 +191,12 @@ export class McpOAuthProxy {
     return Effect.callback((resume) => {
       const server = createServer((request, response) => {
         void runCauseEffect(this.#handle(request, response));
+      });
+      server.on("connection", (socket) => {
+        this.#sockets.add(socket);
+        socket.on("close", () => {
+          this.#sockets.delete(socket);
+        });
       });
       let transferred = false;
       const failed = (cause: Error) => resume(Effect.fail(new McpOperationError({ cause })));
