@@ -202,6 +202,8 @@ export const messages = {
   "server.rail.restart": "Server neu starten",
   "server.rail.leave": "Server verlassen",
   "server.rail.delete": "Server löschen",
+  "server.rail.hide": "Server ausblenden",
+  "server.rail.showLocal": "{name} anzeigen",
   "server.select.failedTitle": "Server konnte nicht ausgewählt werden",
   "server.select.failedDescription": "Der Server konnte nicht gewechselt werden. Versuche es erneut.",
   "server.select.openAgentFailed": "{name} konnte nicht geöffnet werden. Suche ihn in der Seitenleiste.",
@@ -305,13 +307,6 @@ export const messages = {
   "server.settings.setUpDesktopDescription": "Sieh und steuere diesen Mac von einem anderen Computer aus.",
   "server.settings.later": "Später",
   "server.settings.setUp": "Einrichten",
-  "server.settings.notifications": "Benachrichtigungen",
-  "server.settings.muteNotifications": "Benachrichtigungen stummschalten",
-  "server.settings.muteDescription":
-    "Deaktiviere Desktop-Benachrichtigungen, Töne und MacBook-Notch-Aktualisierungen von diesem Server.",
-  "server.settings.mutedUntilDescription": "{until}. Deaktiviere diese Option, um die Stummschaltung jetzt aufzuheben.",
-  "server.settings.notifyAbout": "Benachrichtige mich über",
-  "server.settings.notifyAboutDescription": "Welche Agentenereignisse eine Desktop-Benachrichtigung anzeigen.",
   "server.settings.agents": "Agenten",
   "server.settings.timezone": "Zeitzone",
   "server.settings.timezoneDescription":

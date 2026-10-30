@@ -26,7 +26,8 @@ import { attachmentMimeTypeForName } from "@openbot/contracts/attachment-files";
 import type { AgentSessionSettingsSnapshot, AgentSessionSettingValue } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isBoolean, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
-import { redactText } from "@openbot/logging";
+import { createOpenBotLogger, redactText } from "@openbot/logging";
+import { classifyUserError } from "@openbot/user-errors";
 import { Deferred, Effect, Exit, Fiber, Scope, Semaphore } from "effect";
 import {
   AcpConfiguration,
@@ -97,6 +98,8 @@ import {
   shouldRetryTurnAttempt,
 } from "./transient-stream-error";
 import { TimeoutError } from "./with-timeout";
+
+const logger = createOpenBotLogger("acp-client");
 
 /** How long the second `session/load` waits after a failure that lists the sessions (OpenCode). */
 const RESTORE_LIST_RETRY_MS = 500;
@@ -1258,6 +1261,11 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       if (isAuthenticationError(error)) {
         const keyRefused = this.options.savedKeyRefusedMessage?.();
         if (keyRefused) return yield* providerFailure(new ProviderSignInError({ message: keyRefused }));
+        // The agent's own words, which the row does not show (#3796).
+        logger.warn("An ACP agent reported no sign-in.", {
+          provider: this.provider,
+          message: this.#redact(failureText(error)),
+        });
         this.#signedIn = false;
         return;
       }
@@ -1521,6 +1529,21 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
             );
             this.options.reportMcpDrops?.(this.provider, handoff.dropped);
             const mcpServers = [...handoff.servers, ...mcp.servers];
+            const enableMcpServers = this.#flavor.enableMcpServers;
+            if (enableMcpServers) {
+              const names = mcp.servers.map((server) => server.name);
+              // A failed change only goes to the log: the check after the session request reports its effect.
+              yield* Effect.try({ try: () => enableMcpServers(cwd, names), catch: String }).pipe(
+                Effect.catch((error) =>
+                  Effect.sync(() =>
+                    this.emit(
+                      "diagnostic",
+                      this.#redact(`OpenBot could not turn on its ${this.#label} MCP servers: ${error}`),
+                    ),
+                  ),
+                ),
+              );
+            }
             if (resume && requestedThreadId) {
               const response = providerResult(
                 yield* Effect.result(
@@ -1542,6 +1565,9 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
               configOptions = response.configOptions ?? [];
               currentModelId = currentModelFromSessionSetup(response);
             }
+            // The turn would run with no OpenBot tools, and the model would make up their errors (#3058).
+            if (this.#flavor.mcpServersLoadWithSession && !mcp.reached())
+              throw new Error(sourceText("error.provider.acpMcpNotLoaded", { provider: this.#label }));
             mcp.setThreadId(id);
             const thread: AcpThread = {
               id,
@@ -3250,8 +3276,14 @@ function turnProducedStreamOutput(turn: AcpTurn): boolean {
   );
 }
 
+/**
+ * A sign-out: ACP's `authRequired` code, or a failure that names the account, such as `401
+ * Unauthorized`. Text that only mentions a token or a login, such as a failed token refresh on a
+ * busy network, is not one: Cursor stayed signed in and OpenBot asked for a sign-in (#3796).
+ * Google's refusal of a saved key is one, so the row says that the key was refused (#1913).
+ */
 function isAuthenticationError(error: unknown): boolean {
-  return /auth|login|credential|token|unauthori[sz]ed|api key/i.test(
-    error instanceof Error ? error.message : String(error),
-  );
+  if (error instanceof RequestError && error.code === -32000) return true;
+  const text = failureText(error);
+  return classifyUserError(text) === "auth" || /\bAPI key not valid\b|\bAPI_KEY_INVALID\b/u.test(text);
 }

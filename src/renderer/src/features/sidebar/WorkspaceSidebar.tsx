@@ -188,12 +188,23 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
     },
   );
 
+  /* The turn events of a side thread reach only its thread list, so an agent that works in a side
+   * thread is found there. */
+  const workingTurns = createMemo(() => {
+    const turns = { ...activeTurns() };
+    for (const agent of agentList()) {
+      const running = agentTasks.snapshot(agent.id)?.tasks.find((task) => task.state === "running");
+      if (running && !turns[agent.id]) turns[agent.id] = running.activeTurnId ?? running.id;
+    }
+    return turns;
+  });
+
   /* The agent conversation shows only the waits of the agent's own thread. A wait in a channel
    * thread stays out of "Needs you", because selecting the row cannot answer it. */
   const sidebarAgentStates = createMemo(() =>
     computeSidebarAgentStates({
       agentIds: agentList().map((agent) => agent.id),
-      activeTurns: activeTurns(),
+      activeTurns: workingTurns(),
       queues: queues(),
       unreadReplies: unreadReplies(),
       recentReplies: recentReplies(),
@@ -220,7 +231,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
   const agentMoods = createMemo(() =>
     computeAgentAvatarMoods({
       agentIds: agentList().map((agent) => agent.id),
-      activeTurns: activeTurns(),
+      activeTurns: workingTurns(),
       queues: queues(),
       failedTurns: failedTurns(),
       pendingPrompts: attentionByAgent(pendingPrompts(), agentList()),
@@ -283,6 +294,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
               onAdd: serverActions.add,
               onCreateLocal: serverActions.addMenuCreateLocal(),
               addCreatesServer: serverActions.addCreatesServer(),
+              hiddenLocal: serverActions.hiddenLocal(),
               ...serverActions.callbacks,
             }
           : undefined

@@ -188,6 +188,8 @@ export interface ConversationProps {
    * a member, and for a host without `browser-profiles-v1`.
    */
   onManageBrowserProfiles?: ((trigger: HTMLElement) => void) | undefined;
+  /** Opens the notification settings at a server, where the user changes the level of its agents. */
+  onOpenNotificationSettings?: ((serverId: string, trigger: HTMLElement) => void) | undefined;
   agent: AgentProfile | undefined;
   agents: AgentProfile[];
   /**
@@ -293,6 +295,8 @@ export interface ConversationProps {
     voiceRecordingDraftId?: string,
   ) => Promise<SendMessageResult>;
   onMarkRead: () => Promise<void>;
+  /** Marks an agent message and the messages after it unread. Without it, the message menu has no such item. */
+  onMarkUnread?: ((messageId: string) => Promise<void>) | undefined;
   onLoadOlder?: (() => void) | undefined;
   onLoadLatest?: (() => Promise<void>) | undefined;
   onSearchMessages?: ((query: string) => Promise<{ messageIds: string[]; total: number }>) | undefined;

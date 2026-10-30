@@ -706,7 +706,7 @@ const serverMenu = {
   onSelect: fn(),
   onAdd: fn(),
   onSetMuted: fn(),
-  onSetNotificationLevel: fn(),
+  onOpenNotificationSettings: fn(),
   onOpenSettings: fn(),
 };
 

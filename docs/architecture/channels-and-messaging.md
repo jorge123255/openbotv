@@ -33,12 +33,15 @@ message or a routine run (`error` with the code `delivery_start_failed`), or wai
 approval, or a step in the browser (`browser-takeover-requested`, also for a password or a code).
 The desktop and the web client notify about the same events (`agentEventCanNotify`), and all three
 decide as one: `notificationForAgentEvent` in `@openbot/team-client` applies the level of the server
-(`all`, or `needs-me` for the events that wait for the user), the switch of the agent, and the quiet
+(`all`, or `needs-me` for the events that wait for the user), or the member's own level of the agent
+(`agent-notification-levels-v1`, see [servers](servers.md)), the switch of the agent, and the quiet
 routine runs. The desktop and the web client close the notification of a request when an
 `agent-input-resolved` or `browser-takeover-resolved` event comes, also for an answer from another
 device. The title is the agent name. When the phone shows previews, the text is the
-preview of a desktop notification: the start of the answer of that turn, the question, or the action
-to approve, with secrets redacted. Otherwise it is the fixed desktop text, such as "Finished working.".
+preview of a desktop notification: the lead of the answer of that turn, the question, or the action
+to approve, with secrets redacted. The lead (`messageSummary` in `packages/team-client`) is the first
+sentences of the message, without code blocks, tables, headings or mail headers, with tool names as
+words and redaction marks as `•••`. The Live Activity shows the same lead. Otherwise it is the fixed desktop text, such as "Finished working.".
 
 Channels are an exception. The desktop and the web client notify an agent reply in a channel from
 the channel list (`channelReplyNotifications`), because the channel service consumes the
@@ -68,7 +71,13 @@ when nothing is left for that host or the user signs out. A level of
 "Nothing" and a mute with no end remove it too. `PushNotificationService` in `src/main` keeps the
 registrations in `openbot-push-notifications-v1.json` in the user data folder, readable only by the
 user, so a phone that does not connect after the host restarts still gets notifications. It sends
-only while the phone is away or its connection is closed. No event goes while the member uses a
+only while the phone is away or its connection is closed. iOS can suspend the app before it says
+that it goes away, and the host sees the lost path about 30 seconds later. So an event that comes
+while the phone looks on screen is kept in memory for 5 minutes (`HELD_EVENT_MS`). When the phone
+says that it is away, or its path fails, and does not come back within 3 seconds, the host sends
+each kept event that the member has not seen: a reply that is still unread in the agent's own chat,
+a failed turn that still shows as failed, or a request that nobody answered. A send that the
+account service, Apple or Google does not take goes again after 10 and 60 seconds. No event goes while the member uses a
 desktop app, which shows the event and asks for input, an approval, or a browser step itself: that
 computer had input in the last 30 seconds (`powerMonitor.getSystemIdleState`), and
 the window of the host's own desktop app has focus or shows the event as a desktop notification, for
@@ -77,8 +86,10 @@ computer's server let the event through); or the member sent, answered, or typed
 seconds (`TeamApiServer.lastMemberUseElsewhere`, kept in memory). The time is short because a task
 can end at any time after the member leaves the computer. While the phone shows a Live Activity of
 this host that iOS still updates (8 hours from its start, which the phone gives because a host that
-restarted does not know it), the host sends no notification
-(`LiveActivityPushService.showsEvent`). With a sound (Settings > Notifications > Sound), the next
+restarted does not know it), and the next view of the activity shows the event, the host sends no
+notification (`LiveActivityPushService.showsEvent`). The view shows one item, so a reply while
+another agent works, or a failure while another agent waits, still notifies. An activity whose last
+update did not go out does not replace notifications. With a sound (Settings > Notifications > Sound), the next
 update of the activity alerts at once, so iOS lights up the screen, shows the activity, and plays
 that sound; with Play sound off, the activity updates silently. iOS does not tell the host when
 the user removes the activity, so until the app runs again such an event shows nowhere.
@@ -157,7 +168,11 @@ Routing selects each member whose role or area the request touches, and only tho
 request in the area of one member, or in the area of no member, goes to the one member best able to
 answer it. A request for opinions or feedback on shared work goes to each member whose area gives a
 different view, and a request to the whole group goes to all of them. Each selected member gets its own root task for the same request message, answers in its own reply, and
-gets the request's attachments; its packet names the other members that answer. A member that the
+gets the request's attachments; its packet names the other members that answer, but does not carry
+their replies to that request, so each member gives its own view. This stays true after a typed
+"continue" makes the follow-up the request of a task: the replies count from the first request. After
+the member wrote its own complete reply or result (not commentary), a follow-up gets the other replies, so it can ask about them. The packet cursor stops before the
+first reply it leaves out, so a later turn of that session gets it. A member that the
 model names but that cannot take work is left out. Invalid or stale routing cannot broadcast a
 request. Routing can select an existing task, ask a question, or indicate that a message needs no answer.
 A request that already names an MCP or agent-bridge reply, with from and to, is work for a member.
@@ -249,14 +264,23 @@ summary covers older messages, with a sequence and source IDs. Full messages rem
 The provider acceptance cursor records context delivery. Context packets remain self-contained so
 provider replacement or compaction does not remove shared decisions. Unrelated server conversations
 are available through paginated retrieval and are not inserted automatically. Agent memories keep
-their existing meaning.
+their existing meaning. A packet leaves out a member's thinking, and the commentary of a turn that
+posted a `channel_result`: the result is the answer of that turn.
+
+The channel copies the assistant rows of a member's execution thread. The first rows of a turn go
+to the running assignment before it knows the turn id; a row of another turn does not. A new row
+of an assignment that has ended is not copied: a turn sends its final rows before it completes, and
+after a restart the provider history import can write an old turn again with new row ids. An empty
+row is not copied until its first text arrives.
 
 Task revisions prevent an old assignment from completing a corrected request. The stored request
 keeps its own text and files: only its first dispatch converts the attachment drafts, and a later
 dispatch of the same request sends the stored copies again. Stop pauses a task and its descendants,
 interrupts active work, and sets the reason `channelTaskStopped`. The clients show Continue and
 Reassign for a paused task that has a reason. A turn that ends interrupted gets the same reason. An
-archive pauses work with no reason; a restore gives those tasks the stop reason. Reassign waits for the old assignment to finish stopping. Restart
+archive pauses work with no reason; a restore gives those tasks the stop reason. Startup gives the
+stop reason to a paused task with no reason in a channel that is not archived: older versions stopped
+with no reason. Reassign waits for the old assignment to finish stopping. Restart
 recovery checks accepted provider work before retrying. Unknown outcomes require attention.
 Command, assignment, and result IDs prevent duplicate dispatch and visible results; external side
 effects do not have an exactly-once guarantee.

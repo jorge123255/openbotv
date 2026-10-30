@@ -78,6 +78,7 @@ import type {
   SetAgentMemoryInclusionInput,
   UpdateAgentMemoryInput,
 } from "./ipc-agent-memories";
+import type { AgentNotificationLevelsSnapshot, SetAgentNotificationLevelInput } from "./ipc-agent-notification-levels";
 import type {
   AgentProfileDraft,
   GenerateAgentProfileInput,
@@ -233,6 +234,7 @@ import type {
   ConversationSnapshot,
   ConversationWithReadState,
   MarkConversationReadInput,
+  MarkConversationUnreadInput,
   OpenMessageLinkInput,
   PasteMessageLinkInput,
   ReadConversationPageInput,
@@ -458,10 +460,10 @@ import type {
   ClearStorageInput,
   DeleteStoredFileInput,
   GetStorageUsageInput,
-  OldRuntimeVersions,
   OpenStorageLocationInput,
   OpenStoredFileInput,
   ProviderRuntimeDownload,
+  RemovableRuntimes,
   StorageDisk,
   StorageUsage,
 } from "./ipc-storage";
@@ -643,6 +645,10 @@ export const IPC_ENDPOINTS = {
     // so main tells the window.
     setupState: event<AppSetupState>()("app:setup-state"),
     getAnalyticsPreference: request<undefined, AnalyticsPreference>()("app:get-analytics-preference"),
+    // The first value of the first-run analytics box, from the region of this computer.
+    getAnalyticsDefault: request<undefined, AnalyticsPreference>()("app:get-analytics-default"),
+    // Main follows the account's answer from another device, so it tells the window.
+    analyticsPreference: event<AnalyticsPreference>()("app:analytics-preference"),
     setAnalyticsPreference: request<SetAnalyticsPreferenceInput, AnalyticsPreference>()("app:set-analytics-preference"),
     getApprovalAutomation: request<undefined, ApprovalAutomationPreference>()("app:get-approval-automation"),
     // A remote owner or admin can change a grant from a phone or the web client, so main tells the
@@ -1374,6 +1380,11 @@ export const IPC_ENDPOINTS = {
     // A joined server answers through `agent-hidden-v1`. A server without it has no hidden agents.
     listHiddenAgents: scopedQuery<HiddenAgentsSnapshot>()("agent:hidden:list"),
     setAgentHidden: scopedRequest<SetAgentHiddenInput, HiddenAgentsSnapshot>()("agent:hidden:set"),
+    // The user's own level for each agent. A joined server answers through `agent-notification-levels-v1`.
+    listAgentNotificationLevels: scopedQuery<AgentNotificationLevelsSnapshot>()("agent:notification-levels:list"),
+    setAgentNotificationLevel: scopedRequest<SetAgentNotificationLevelInput, AgentNotificationLevelsSnapshot>()(
+      "agent:notification-levels:set",
+    ),
     generateProfile: scopedRequest<GenerateAgentProfileInput, AgentProfileDraft>()("agent:generate-profile"),
     saveProfile: scopedRequest<SaveAgentProfileInput, SaveAgentProfileResult>()("agent:save-profile"),
     // Only the computer that runs the agent answers. A joined server has no route for it.
@@ -1401,6 +1412,10 @@ export const IPC_ENDPOINTS = {
     listConversationReads: scopedQuery<Record<string, ConversationReadState>>()("agent:list-conversation-reads"),
     markConversationRead: scopedRequest<MarkConversationReadInput, ConversationReadState>()(
       "agent:mark-conversation-read",
+    ),
+    // Local only: the Team API unread route marks the whole chat, not from one message.
+    markConversationUnread: scopedRequest<MarkConversationUnreadInput, ConversationReadState>()(
+      "agent:mark-conversation-unread",
     ),
     sendMessage: scopedRequest<SendMessageInput, QueuedMessageReceipt>()("agent:send-message"),
     setMessageReaction: scopedRequest<SetMessageReactionInput, void>()("agent:set-message-reaction"),
@@ -1749,9 +1764,9 @@ export const IPC_ENDPOINTS = {
     openFile: scopedRequest<OpenStoredFileInput, void, "required">()("storage:open-file"),
     openLocation: request<OpenStorageLocationInput, void>()("storage:open-location"),
     // Local only, like `openLocation`: a server removes its own old provider CLI versions.
-    getOldRuntimeVersions: request<undefined, OldRuntimeVersions>()("storage:get-old-runtime-versions"),
-    /** Removes the old versions no instance uses now, and answers what is left. */
-    removeOldRuntimeVersions: request<undefined, OldRuntimeVersions>()("storage:remove-old-runtime-versions"),
+    getRemovableRuntimes: request<undefined, RemovableRuntimes>()("storage:get-removable-runtimes"),
+    /** Removes the old versions no instance uses now and the downloads it named, and answers what is left. */
+    removeRemovableRuntimes: request<undefined, RemovableRuntimes>()("storage:remove-removable-runtimes"),
   },
   // Bound against the agent import service, which holds the staged archives. A remote server is
   // reached with `agent-import-v1`; main still opens the file dialog and sends the file.

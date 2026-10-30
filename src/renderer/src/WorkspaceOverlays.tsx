@@ -375,7 +375,7 @@ function ServerSettings() {
   const windowPage = useWindowPage();
   const usageRows = usePlanLimitRows();
   const platform = usePlatform();
-  const { hostStatus, setServerMuted, setServerNotificationLevel, hostedServerIds, hostedServersLoaded } = useServers();
+  const { hostStatus, hostedServerIds, hostedServersAvailable, hostedServersLoaded, setAddServerOpen } = useServers();
   const { selectAgent, selectGlobalSearchMessage } = useNavigation();
   const { selectServer } = useServerSelection();
   const { setPendingAgentSelection } = useServerSwitch();
@@ -673,6 +673,21 @@ function ServerSettings() {
     );
   };
 
+  /** A server at its site limit offers the server plans, which have more sites, to its owner. */
+  function canOfferServerPlans(server: ServerSummary): boolean {
+    return (
+      !platform.landingPreview &&
+      hostedServersAvailable() &&
+      hostedServersLoaded() &&
+      (server.kind === "local" || server.role === "owner") &&
+      server.hosted !== true
+    );
+  }
+  function openServerPlans(): void {
+    setServerSettingsOpen(false);
+    setAddServerOpen(true, "upsell");
+  }
+
   const storageOptions = (server: ServerSummary): Omit<ServerStorageOptions, "canManage"> => ({
     hostName:
       server.kind === "local"
@@ -704,8 +719,6 @@ function ServerSettings() {
           onSaveIdentity={saveServerIdentity}
           onSetPublished={setServerPublished}
           onRotateHostKey={server().kind === "local" ? rotateHostKey : undefined}
-          onSetMuted={(muted) => setServerMuted(server().id, muted)}
-          onSetNotificationLevel={(level) => setServerNotificationLevel(server().id, level)}
           onCreateInvite={createServerInvite}
           license={appPort().license}
           onContactUs={() => void appPort().openExternal("hosted-server-contact")}
@@ -778,6 +791,7 @@ function ServerSettings() {
                   api: appPort().hostedSites,
                   onOpenSite: (url) => void appPort().openUrl(url),
                   trackDelete: trackHostedSiteDelete,
+                  onSeePlans: canOfferServerPlans(server()) ? openServerPlans : undefined,
                 }
               : undefined
           }
@@ -848,9 +862,10 @@ function AppSettings(props: AccountProps) {
   const auth = useAuth();
   const updates = useUpdates();
   const whatsNew = useWhatsNew();
-  const { servers, setAddServerOpen } = useServers();
+  const { servers, setAddServerOpen, setServerMuted, setServerNotificationLevel } = useServers();
   const {
     appSettingsOpen,
+    notificationFocusRequest,
     setAppSettingsOpen,
     appSettingsTab,
     hostedServerDeleteRequest,
@@ -915,6 +930,9 @@ function AppSettings(props: AccountProps) {
         }}
         onTestNotification={sendTestNotification}
         onOpenNotificationSettings={openNotificationSettings}
+        onSetServerNotificationLevel={setServerNotificationLevel}
+        onSetServerMuted={setServerMuted}
+        notificationFocusRequest={notificationFocusRequest()}
         restoreFocusTarget={appSettingsRestoreTarget()}
         openTab={appSettingsTab()}
         hostedServerDeleteRequest={hostedServerDeleteRequest()}

@@ -103,6 +103,7 @@ import {
   screen,
   shell,
   systemPreferences,
+  webContents,
 } from "electron";
 import { pasteCodeLoginSupported } from "../backend/agent/cli-code-login";
 import { toMcpGatewayFailed } from "../backend/agent/mcp-gateway";
@@ -137,11 +138,13 @@ import {
   type AgentMemoryLimitSetting,
   reloadingAgentMemoryLimit,
 } from "./agent-memory-limit-preference-store";
+import { AgentNotificationLevelStore, OWNER_NOTIFICATION_KEY } from "./agent-notification-level-store";
 import { AgentTemplateService } from "./agent-template-service";
 import { HostAnalytics } from "./analytics";
 import { analyticsInventoryDayStore, collectAnalyticsInventory } from "./analytics-inventory";
 import { catalogPluginSlug, isReportedMcpServerName, loadCatalogPluginServers } from "./analytics-plugin-catalog";
-import { readAnalyticsPreference } from "./analytics-preference-store";
+import { AnalyticsPreferenceService } from "./analytics-preference-service";
+import { readAnalyticsPreference, saveAnalyticsDefault } from "./analytics-preference-store";
 import { providerAuthKind } from "./analytics-provider-auth";
 import { AppBehaviorService } from "./app-behavior-service";
 import { AppearanceService } from "./appearance-service";
@@ -354,6 +357,7 @@ const PROVIDER_CLI_APP_VERSION_FILE = "openbot-provider-cli-app-version-v1.json"
 const AGENT_DEFAULTS_PREFERENCE_FILE = "openbot-agent-defaults-v1.json";
 const AGENT_MEMORY_LIMIT_PREFERENCE_FILE = "openbot-agent-memory-limit-v1.json";
 const MEMORY_REVIEW_PREFERENCE_FILE = "openbot-memory-review-v1.json";
+const AGENT_NOTIFICATION_LEVELS_FILE = "openbot-agent-notification-levels-v1.json";
 const SERVER_TIMEZONE_PREFERENCE_FILE = "openbot-server-timezone-v1.json";
 const PROMPT_CACHE_TTL_PREFERENCE_FILE = "openbot-prompt-cache-ttl-v1.json";
 const REMOTE_SESSION_REUSE_PREFERENCE_FILE = "openbot-remote-session-reuse-preference-v1.json";
@@ -505,7 +509,7 @@ export interface ApplicationServiceContext {
   macHapticFeedback: MacHapticFeedback;
   teardown: TeardownRegistry;
   forwardCentralAuth: (state: CentralAuthState) => void;
-  forwardBrowserDisplayState: (state: BrowserDisplayState) => void;
+  forwardBrowserDisplayState: (serverId: string, state: BrowserDisplayState) => void;
   forwardProviderRuntimeStatus: (snapshot: ProviderRuntimeSnapshot) => void;
   forwardVoiceModelStatus: (status: VoiceModelStatus) => void;
   forwardVoiceStreamTranscript: (transcript: VoiceStreamTranscript) => void;
@@ -553,7 +557,8 @@ export interface ApplicationServices {
   /** The restart that the user of this computer asked for, when no work runs. */
   idleRestart: IdleRestart;
   setupFile: string;
-  analyticsPreferenceFile: string;
+  /** The analytics answer of this computer, kept the same as the account's latest answer. */
+  analyticsPreferences: AnalyticsPreferenceService;
   updatePreferenceFile: string;
   approvalAutomation: ApprovalAutomation;
   agentAdminSettings: AgentAdminSettingsService;
@@ -568,6 +573,7 @@ export interface ApplicationServices {
   agentDefaults: AgentDefaultsPreferenceStore;
   agentMemoryLimit: AgentMemoryLimitSetting;
   memoryReview: MemoryReviewPreferenceStore;
+  agentNotificationLevels: AgentNotificationLevelStore;
   agentAccess: AgentAccessStore;
   serverTimezone: ServerTimezonePreferenceStore;
   promptCacheTtl: PromptCacheTtlPreferenceStore;
@@ -1144,13 +1150,15 @@ export async function createApplicationServices({
     browser.setMainPageListener(null);
     browserDock.destroy();
   });
-  browser.onChanged((tabs, activeTabId) => forwardBrowserDisplayState({ tabs, activeTabId }));
+  browser.onChanged((tabs, activeTabId) => forwardBrowserDisplayState(LOCAL_SERVER_ID, { tabs, activeTabId }));
   const setupFile = join(app.getPath("userData"), SETUP_FILE);
   const analyticsPreferenceFile = join(app.getPath("userData"), ANALYTICS_PREFERENCE_FILE);
   const updatePreferenceFile = join(app.getPath("userData"), UPDATE_PREFERENCE_FILE);
   const routineHoldFile = join(app.getPath("userData"), ROUTINE_HOLD_FILE);
   const setupState = await runCauseEffect(readSetupState(setupFile));
-  const analyticsPreference = await Effect.runPromise(readAnalyticsPreference(analyticsPreferenceFile));
+  const analyticsPreference = await Effect.runPromise(
+    readAnalyticsPreference(analyticsPreferenceFile, setupState.completed),
+  );
   // Loaded before the first window and before the application menu is built, so every native
   // surface draws in the saved language on the first frame rather than switching after startup.
   const language = new LanguageService({
@@ -1184,6 +1192,10 @@ export async function createApplicationServices({
   );
   await runCauseEffect(agentMemoryLimit.load());
   const memoryReview = new MemoryReviewPreferenceStore(join(app.getPath("userData"), MEMORY_REVIEW_PREFERENCE_FILE));
+  const agentNotificationLevels = new AgentNotificationLevelStore(
+    join(app.getPath("userData"), AGENT_NOTIFICATION_LEVELS_FILE),
+  );
+  await runCauseEffect(agentNotificationLevels.load());
   await runCauseEffect(memoryReview.load());
   const agentAccess = new AgentAccessStore(join(app.getPath("userData"), AGENT_ACCESS_FILE));
   if (!(await runCauseEffect(agentAccess.load())))
@@ -2011,10 +2023,13 @@ export async function createApplicationServices({
    * a managed copy and leaves the system installation untouched.
    */
   const trackSystemCliVersions = (status: AgentStatus): void => {
+    let copyInUse = false;
     for (const provider of status.providers ?? []) {
       const version = provider.cliSource === "system" ? (provider.version ?? null) : null;
-      if (isManagedRuntimeProvider(provider.id)) providerRuntimes.setSystemVersion(provider.id, version);
+      if (isManagedRuntimeProvider(provider.id) && providerRuntimes.setSystemVersion(provider.id, version))
+        copyInUse = true;
     }
+    if (copyInUse) Effect.runFork(providerRuntimes.providerUseChanged());
   };
   trackSystemCliVersions(service.getStatus());
   service.on("event", (event) => {
@@ -2364,6 +2379,8 @@ export async function createApplicationServices({
     workflows: { ...workflowRuntime, rotateWorkflowSecret: (input) => events.rotateWorkflowSecret(input) },
     // Present, so the host advertises `agent-hidden-v1`. Any member can hide or restore an agent that they can see.
     hiddenAgents: service,
+    // Present, so the host advertises `agent-notification-levels-v1`. Each member sets their own levels.
+    agentNotificationLevels,
     // Present, so the host advertises `agent-access-v1`. Only owners and admins change the roles.
     agentAccess,
     // Present, so the host advertises `agent-tasks-v1`. Any member who can send a message to the agent.
@@ -2414,7 +2431,10 @@ export async function createApplicationServices({
             })),
           ),
         set: (input) =>
-          writeSetupState(setupFile, input).pipe(
+          readSetupState(setupFile).pipe(
+            // As `saveSetup`: the analytics default is saved before the setup can complete.
+            Effect.flatMap((before) => saveAnalyticsDefault(analyticsPreferenceFile, before.completed)),
+            Effect.flatMap(() => writeSetupState(setupFile, input)),
             Effect.tap(() => service.setPreferredProvider(input.preferredProvider, input.preferredModel)),
             // The window read the setup once at start, so it gets the new choice.
             Effect.tap((state) =>
@@ -2458,7 +2478,12 @@ export async function createApplicationServices({
       if (!Notification.isSupported()) return false;
       // Read when an event arrives, after the manager below exists.
       const local = remoteServers.list().find((server) => server.id === LOCAL_SERVER_ID);
-      return desktopShowsAgentEvent(event, local, notificationPreference.get().desktopNotifications);
+      return desktopShowsAgentEvent(
+        event,
+        local,
+        notificationPreference.get().desktopNotifications,
+        agentNotificationLevels.levels(OWNER_NOTIFICATION_KEY),
+      );
     },
     verifyRemoteSessionTicket: (ticket) => centralAuth.verifyRemoteSessionTicket(ticket).pipe(toRemoteWorkflowError),
     endRemoteSession: (sessionId) => centralAuth.endRemoteSession(sessionId).pipe(toRemoteWorkflowError),
@@ -2655,6 +2680,15 @@ export async function createApplicationServices({
     resources: resourceMonitor,
   });
   teardown.push(TEARDOWN_ORDER.analytics, "host analytics", () => Effect.runPromise(analytics.close()));
+  const analyticsPreferences = new AnalyticsPreferenceService({
+    path: analyticsPreferenceFile,
+    account: centralAuth,
+    setTrackingEnabled: (enabled) => analytics.setTrackingEnabled(enabled),
+    followed: (enabled) => {
+      for (const window of BrowserWindow.getAllWindows())
+        sendToRenderer(window, IPC_ENDPOINTS.app.analyticsPreference, { enabled });
+    },
+  });
   // Immediately after construction: this attributes buffered events to the current owner rather
   // than flushing a queue, so a later call would attribute them to nobody.
   analytics.flushPending();
@@ -2674,6 +2708,16 @@ export async function createApplicationServices({
       selfHostedApiOrigin: selfHostedApiOrigin(centralAuthApiUrl),
       appVersion: app.getVersion(),
       connectTrace,
+      // The owner's levels on this computer's server, which the host also reads for the owner's phones.
+      localNotificationLevels: {
+        snapshot: () => agentNotificationLevels.snapshot(OWNER_NOTIFICATION_KEY),
+        setServer: (level) => agentNotificationLevels.setServer(OWNER_NOTIFICATION_KEY, level),
+        setAgent: (input) => agentNotificationLevels.set(OWNER_NOTIFICATION_KEY, input),
+        subscribe: (listener) =>
+          agentNotificationLevels.subscribe((key) => {
+            if (key === OWNER_NOTIFICATION_KEY) listener();
+          }),
+      },
       accountReady: centralAuthInitialization,
       getLocalHostId: () => teamStore.getIdentity()?.serverId ?? null,
       hostedServers: {
@@ -2773,10 +2817,9 @@ export async function createApplicationServices({
   // After the servers: the view it opens belongs to one of them, and it has to stop before they do.
   const browserView = new BrowserViewClient({
     servers: remoteServers,
-    onEvent: (event) => {
-      const window = windows.getMainWindow();
-      if (!window || window.isDestroyed()) return;
-      sendToRenderer(window, IPC_ENDPOINTS.browser.liveViewEvent, event);
+    onEvent: (event, owner) => {
+      const contents = webContents.fromId(owner);
+      sendToRenderer(contents && BrowserWindow.fromWebContents(contents), IPC_ENDPOINTS.browser.liveViewEvent, event);
     },
   });
   teardown.push(TEARDOWN_ORDER.browserView, "the live browser view", () => runCauseEffect(browserView.stop()));
@@ -3169,7 +3212,7 @@ export async function createApplicationServices({
     browserView,
     updater,
     setupFile,
-    analyticsPreferenceFile,
+    analyticsPreferences,
     updatePreferenceFile,
     approvalAutomation,
     agentAdminSettings,
@@ -3184,6 +3227,7 @@ export async function createApplicationServices({
     agentDefaults,
     agentMemoryLimit: agentMemoryLimitSetting,
     memoryReview,
+    agentNotificationLevels,
     agentAccess,
     serverTimezone,
     promptCacheTtl,

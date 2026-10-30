@@ -28,6 +28,7 @@ import {
   shell,
 } from "electron";
 import { runCauseEffect } from "../backend/effect-boundary";
+import { OWNER_NOTIFICATION_KEY } from "./agent-notification-level-store";
 import { readAppVariant, resolveAppIconPath, resolveLogoColorIconPath } from "./app-icon";
 import { type ApplicationServices, createApplicationServices } from "./application-services";
 import { type BackgroundTray, createBackgroundTray } from "./background-tray";
@@ -422,6 +423,7 @@ const {
   desktopNotificationsEnabled: () =>
     !localServerChild && (services?.notificationPreference.get().desktopNotifications ?? true),
   notificationPreviewEnabled: () => services?.notificationPreference.get().messagePreview ?? true,
+  ownAgentNotificationLevels: () => services?.agentNotificationLevels.levels(OWNER_NOTIFICATION_KEY) ?? new Map(),
 });
 
 // Resolved once, safely: every `app.setPath("userData", ...)` above has already run.
@@ -569,7 +571,7 @@ function registerIpcHandlers({
   browserView,
   updater,
   setupFile,
-  analyticsPreferenceFile,
+  analyticsPreferences,
   updatePreferenceFile,
   requestedUpdate,
   idleRestart,
@@ -633,7 +635,6 @@ function registerIpcHandlers({
   dynamicIsland,
   cuaDriver,
   computerUsePermissionHelp,
-  analytics,
   storageUsage,
   machineAlerts,
   trace,
@@ -658,7 +659,7 @@ function registerIpcHandlers({
       browser,
       updater,
       setupFile,
-      analyticsPreferenceFile,
+      analyticsPreferences,
       approvalAutomation,
       busyMessageMode,
       agentDefaults,
@@ -681,7 +682,6 @@ function registerIpcHandlers({
       getMainWindow: getDialogParent,
       openChatWindow: windows.openChatWindow,
       chatWindowTargets: windows.chatWindowTargets,
-      setAnalyticsTrackingEnabled: (enabled) => analytics.setTrackingEnabled(enabled),
       trace,
       resources: resourceMonitor,
     }),
@@ -904,6 +904,8 @@ function forwardCentralAuth(state: CentralAuthState): void {
   if (state.status === "signed_in") {
     if (activeAnalyticsPrincipalId && activeAnalyticsPrincipalId !== state.user.id) services?.analytics.clear();
     activeAnalyticsPrincipalId = state.user.id;
+    // Started before the renderer is told, so its next read of the answer waits for this one.
+    services?.analyticsPreferences.followAccount(state.user);
   } else if (state.status === "signed_out") {
     if (activeAnalyticsPrincipalId) services?.analytics.clear();
     activeAnalyticsPrincipalId = null;
@@ -1194,6 +1196,8 @@ if (!hasSingleInstanceLock) {
         centralAuthPrincipalId(currentAccount) !== centralAuthPrincipalId(appliedAccount)
       ) {
         forwardCentralAuth(currentAccount);
+      } else if (currentAccount.status === "signed_in") {
+        built.analyticsPreferences.followAccount(currentAccount.user);
       }
       const {
         service,

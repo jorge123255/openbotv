@@ -8,6 +8,8 @@ export const messages = defineMessages("error.provider", {
     "OpenBot could not register Computer Use in the Codex configuration. Check that your Codex config.toml is valid and writable, then restart OpenBot. You can turn off Computer Use in the teammate settings to continue without it.",
   "error.provider.codexUnresponsive": "Codex stopped answering, so OpenBot ended its process.",
   "error.provider.acpUnresponsive": "{provider} did not answer in time, so OpenBot ended its process.",
+  "error.provider.acpMcpNotLoaded":
+    "{provider} did not load OpenBot's tools, so this agent cannot use them or reach its teammates. A {provider} team policy can block local MCP servers. Ask your team admin to allow them, then try again.",
   "error.provider.endpointsReadOnly":
     "The saved endpoints were written by a newer version of OpenBot, or the file cannot be read. Update OpenBot to change them.",
   "error.provider.endpointNoSecureStorage":
@@ -61,6 +63,7 @@ export const messages = defineMessages("error.provider", {
   "error.provider.removeWhileOn": "Turn the provider off before you remove its download.",
   "error.provider.removeWhileDownloading": "Wait for the download to end, then remove it.",
   "error.provider.removeIncomplete": "A program uses some files of this CLI. Close it, then try again.",
+  "error.provider.removeDownloadsFailed": "Could not remove the CLI downloads of {providers}.",
   "error.provider.cliOverride": "Remove the explicit CLI path override before updating in OpenBot.",
   "error.provider.runtimeUpdateIncomplete": "The runtime update did not complete.",
   "error.provider.downloadHttp": "Runtime download failed with HTTP {status}.",
