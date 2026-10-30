@@ -199,7 +199,16 @@ export class LocalMcpBridge {
     const server = this.#server;
     this.#server = null;
     this.#port = null;
-    if (server) yield* mcpCall(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    if (server)
+      yield* mcpCall(
+        () =>
+          new Promise<void>((resolve) => {
+            server.close(() => resolve());
+            // The provider keeps this connection until its process ends, and that process ends
+            // only after this close returns. Drop the sockets, or quit waits past the 10 s step.
+            server.closeAllConnections();
+          }),
+      );
     this.#listening = null;
   });
 

@@ -8,10 +8,17 @@ import {
 } from "./routine-tool-schema";
 
 const handoff = {
-  recipientAgentId: z.string(),
-  task: z.string().min(1).max(INPUT_LIMITS.messageText),
-  expectedResult: z.string().min(1).max(INPUT_LIMITS.messageText),
-  sourceMessageIds: z.array(z.string()).min(1),
+  recipientAgentId: z
+    .string()
+    .describe("The id of another member of this channel. Read it from the channel packet or from openbot.list_agents."),
+  task: z.string().min(1).max(INPUT_LIMITS.messageText).describe("What that member should do."),
+  expectedResult: z.string().min(1).max(INPUT_LIMITS.messageText).describe("What a finished result contains."),
+  sourceMessageIds: z
+    .array(z.string())
+    .min(1)
+    .describe(
+      "One or more id values of the channel messages this work uses. Read them from the channel packet or from channel_history.",
+    ),
   resources: z
     .array(z.string())
     .describe(
