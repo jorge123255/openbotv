@@ -1,4 +1,6 @@
 import {
+  isElevenLabsSpeechVoice,
+  isSpeechEngine,
   isSpeechLanguage,
   isSpeechVoice,
   isVoiceLanguage,
@@ -116,7 +118,16 @@ export function parseSpeechSettings(input: unknown): SpeechSettings {
   if (!isObject(input) || typeof input.readReplies !== "boolean" || !isSpeechVoice(input.voice)) {
     throw new Error("Speech settings need a known voice.");
   }
-  return { readReplies: input.readReplies, voice: input.voice };
+  if (!isSpeechEngine(input.engine)) throw new Error("Speech settings need a known engine.");
+  if (input.elevenLabsVoice !== null && !isElevenLabsSpeechVoice(input.elevenLabsVoice))
+    throw new Error("Speech settings need a known ElevenLabs voice.");
+  return {
+    readReplies: input.readReplies,
+    voice: input.voice,
+    engine: input.engine,
+    elevenLabsVoice:
+      input.elevenLabsVoice === null ? null : { id: input.elevenLabsVoice.id, name: input.elevenLabsVoice.name },
+  };
 }
 
 export function parseSpeechInput(input: unknown): SpeechInput {

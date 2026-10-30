@@ -545,6 +545,17 @@ export const messages = defineMessages("settings", {
   "settings.voice.apiKey.saveFailed": "Could not save the API key. Try again.",
   "settings.voice.apiKey.removeFailed": "Could not remove the API key. Try again.",
   "settings.voice.speech.section": "Spoken replies",
+  "settings.voice.speech.engine.title": "Reply voice",
+  "settings.voice.speech.engine.description":
+    "Supertonic 3 reads on this computer. ElevenLabs reads with your API key and bills each use.",
+  "settings.voice.speech.engine.supertonic": "Supertonic 3",
+  "settings.voice.speech.engine.elevenlabs": "ElevenLabs",
+  "settings.voice.speech.elevenlabs.description": "ElevenLabs reads the reply with the voice you choose.",
+  "settings.voice.speech.elevenlabs.keyMissing": "Add your ElevenLabs API key under Dictation model.",
+  "settings.voice.speech.elevenlabs.loading": "Loading voices…",
+  "settings.voice.speech.elevenlabs.chooseVoice": "Choose a voice",
+  "settings.voice.speech.elevenlabs.retry": "Try again",
+  "settings.voice.speech.voicesFailed": "Could not load your ElevenLabs voices.",
   "settings.voice.speech.model.description": "Reads replies aloud on this computer, in 31 languages.",
   "settings.voice.speech.readReplies.title": "Read replies aloud",
   "settings.voice.speech.readReplies.description":

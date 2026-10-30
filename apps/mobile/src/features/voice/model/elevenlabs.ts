@@ -1,5 +1,8 @@
+import { ELEVENLABS_SPEECH_LIMITS, type ElevenLabsSpeechVoice, isElevenLabsSpeechVoice } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
 import type { ElevenLabsVoice } from "./voice-settings";
+
+export { elevenLabsVoiceParts } from "@openbot/contracts/ipc";
 
 const API = "https://api.elevenlabs.io";
 /** Low latency for a conversation, in the languages that ElevenLabs reads. */
@@ -54,16 +57,33 @@ async function request(
   return response;
 }
 
-/** The voices of the account: premade, cloned and saved. A key that lists none is still valid. */
+/** How many pages of 100 voices to follow. Desktop uses the same cap. */
+const VOICE_PAGE_CAP = 10;
+
+/**
+ * The voices of the account: premade, cloned and saved. A key that lists none is still valid.
+ * Pages follow `next_page_token` until the account is listed or the cap is reached.
+ */
 export async function listElevenLabsVoices(key: string): Promise<ElevenLabsVoice[]> {
-  const response = await request("/v2/voices?page_size=100", key, "voices_read");
-  const body = await response.json().catch(() => null);
-  if (!isDynamicRecord(body) || !Array.isArray(body.voices)) throw new ElevenLabsError("failed");
-  return body.voices.flatMap((voice) =>
-    isDynamicRecord(voice) && isString(voice.voice_id) && isString(voice.name)
-      ? [{ id: voice.voice_id, name: voice.name }]
-      : [],
-  );
+  const voices: ElevenLabsVoice[] = [];
+  const seen = new Set<string>();
+  let pageToken: string | null = null;
+  for (let page = 0; page < VOICE_PAGE_CAP && voices.length < ELEVENLABS_SPEECH_LIMITS.voices; page += 1) {
+    const query = new URLSearchParams({ page_size: "100" });
+    if (pageToken) query.set("next_page_token", pageToken);
+    const response = await request(`/v2/voices?${query}`, key, "voices_read");
+    const body = await response.json().catch(() => null);
+    const parsed = voicePage(body);
+    if (!parsed) throw new ElevenLabsError("failed");
+    for (const voice of parsed.voices) {
+      if (seen.has(voice.id) || voices.length >= ELEVENLABS_SPEECH_LIMITS.voices) continue;
+      seen.add(voice.id);
+      voices.push(voice);
+    }
+    if (!parsed.nextPageToken || parsed.nextPageToken === pageToken) break;
+    pageToken = parsed.nextPageToken;
+  }
+  return voices;
 }
 
 /** One part of a reply as little-endian 16-bit mono PCM at `ELEVENLABS_SAMPLE_RATE`. */
@@ -112,11 +132,17 @@ export async function testElevenLabsKey(key: string): Promise<ElevenLabsVoice[]>
   return voices;
 }
 
-/**
- * An ElevenLabs voice name such as "George - Warm, Captivating Storyteller": the name, and the
- * description after it, so a list can show the description on its own line.
- */
-export function elevenLabsVoiceParts(name: string): { title: string; description: string | null } {
-  const at = name.indexOf(" - ");
-  return at > 0 ? { title: name.slice(0, at), description: name.slice(at + 3) } : { title: name, description: null };
+/** One page of `/v2/voices`. Null when the body is not that page. Desktop reads the same shape. */
+function voicePage(body: unknown): { voices: ElevenLabsSpeechVoice[]; nextPageToken: string | null } | null {
+  if (!isDynamicRecord(body) || !Array.isArray(body.voices)) return null;
+  const voices: ElevenLabsSpeechVoice[] = [];
+  for (const entry of body.voices) {
+    if (!isDynamicRecord(entry) || !isString(entry.voice_id) || !isString(entry.name)) continue;
+    const voice = { id: entry.voice_id, name: entry.name };
+    if (isElevenLabsSpeechVoice(voice)) voices.push(voice);
+  }
+  const token = body.next_page_token;
+  const nextPageToken =
+    body.has_more === true && isString(token) && token.length > 0 && token.length <= 512 ? token : null;
+  return { voices, nextPageToken };
 }

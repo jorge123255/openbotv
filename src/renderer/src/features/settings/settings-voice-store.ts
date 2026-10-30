@@ -1,6 +1,8 @@
 import {
   ELEVENLABS_VOICE_MODEL_ID,
+  type ElevenLabsSpeechVoice,
   isSpeechLanguage,
+  type SpeechEngine,
   type SpeechModelStatus,
   type SpeechSettings,
   type SpeechVoice,
@@ -25,6 +27,8 @@ interface SettingsVoiceState {
   settings: VoiceSettings | null;
   /** The model that reads replies aloud, and its settings, or null before main answers. */
   speech: { status: SpeechModelStatus | null; settings: SpeechSettings | null; listening: boolean };
+  /** The ElevenLabs voices of the saved key, for the reply-voice picker. */
+  elevenLabs: { phase: "idle" | "loading" | "ready" | "failed"; voices: ElevenLabsSpeechVoice[] };
   /** The user's own voice server, or null when none is set up or before main answers. */
   server: VoiceServerSettings | null;
 }
@@ -45,6 +49,7 @@ type FailureKey =
   | "settings.voice.apiKey.saveFailed"
   | "settings.voice.apiKey.removeFailed"
   | "settings.voice.speech.listenFailed"
+  | "settings.voice.speech.voicesFailed"
   | "settings.voice.server.saveFailed"
   | "settings.voice.server.removeFailed";
 
@@ -57,6 +62,7 @@ export function createSettingsVoiceStore(active: () => boolean) {
     statuses: { ...EMPTY_STATUSES },
     settings: null,
     speech: { status: null, settings: null, listening: false },
+    elevenLabs: { phase: "idle", voices: [] },
     server: null,
   });
   const setServer = (server: VoiceServerSettings | null) =>
@@ -138,8 +144,15 @@ export function createSettingsVoiceStore(active: () => boolean) {
   function setApiKey(key: string | null): Promise<boolean> {
     return voicePort()
       .voice.setApiKey({ key })
-      .then((status) => {
+      .then(async (status) => {
         setStatus(status);
+        if (key === null) {
+          const settings = await voicePort().voice.getSpeechSettings();
+          setState((draft) => {
+            draft.speech.settings = settings;
+            draft.elevenLabs = { phase: "idle", voices: [] };
+          });
+        }
         return true;
       })
       .catch((error: unknown) => {
@@ -242,7 +255,14 @@ export function createSettingsVoiceStore(active: () => boolean) {
         // Replies go back to Supertonic: download it now, as Read replies aloud does.
         const phase = state.speech.status?.phase;
         const missing = phase === "missing" || phase === "error";
-        if (spoke && !server?.routes.speech && state.speech.settings?.readReplies && missing) downloadSpeech();
+        if (
+          spoke &&
+          !server?.routes.speech &&
+          state.speech.settings?.readReplies &&
+          state.speech.settings.engine !== "elevenlabs" &&
+          missing
+        )
+          downloadSpeech();
         return true;
       })
       .catch((error: unknown) => {
@@ -259,7 +279,7 @@ export function createSettingsVoiceStore(active: () => boolean) {
       void saveServer({ address: server.address, apiKey: null, routes: { ...server.routes, dictation: false } });
   }
 
-  /** Turning it on downloads the model, as the first dictation does, unless the server reads replies. */
+  /** Turning it on downloads Supertonic 3, unless a server or ElevenLabs reads the replies. */
   function setReadReplies(readReplies: boolean): void {
     void saveSpeech({ readReplies }).then((saved) => {
       desktopAnalytics.track("speech_settings_action", {
@@ -268,8 +288,48 @@ export function createSettingsVoiceStore(active: () => boolean) {
         ...(saved ? {} : { failure_code: "update_failed" }),
       });
       const phase = state.speech.status?.phase;
-      if (state.server?.routes.speech) return;
+      if (state.server?.routes.speech || state.speech.settings?.engine === "elevenlabs") return;
       if (saved && readReplies && (phase === "missing" || phase === "error")) downloadSpeech();
+    });
+  }
+
+  function setSpeechEngine(engine: SpeechEngine): void {
+    void saveSpeech({ engine }).then((saved) => {
+      if (!saved || engine !== "supertonic" || state.server?.routes.speech) return;
+      const phase = state.speech.status?.phase;
+      if (state.speech.settings?.readReplies && (phase === "missing" || phase === "error")) downloadSpeech();
+    });
+  }
+
+  function setElevenLabsVoice(voice: ElevenLabsSpeechVoice): void {
+    void saveSpeech({ elevenLabsVoice: voice });
+  }
+
+  /** Lists the voices of the saved key. A failure is shown on the Voice tab. */
+  function loadElevenLabsVoices(): void {
+    if (state.elevenLabs.phase === "loading") return;
+    setState((draft) => {
+      draft.elevenLabs.phase = "loading";
+    });
+    void voicePort()
+      .voice.listElevenLabsVoices()
+      .then((voices) =>
+        setState((draft) => {
+          draft.elevenLabs = { phase: "ready", voices };
+        }),
+      )
+      .catch((error: unknown) => {
+        setState((draft) => {
+          draft.elevenLabs = { phase: "failed", voices: [] };
+        });
+        fail(error, "settings.voice.speech.voicesFailed");
+      });
+  }
+
+  function clearElevenLabsVoices(): void {
+    if (state.elevenLabs.phase === "idle" && state.elevenLabs.voices.length === 0) return;
+    setState((draft) => {
+      draft.elevenLabs = { phase: "idle", voices: [] };
     });
   }
 
@@ -307,6 +367,10 @@ export function createSettingsVoiceStore(active: () => boolean) {
     cancelSpeech,
     removeSpeech,
     setReadReplies,
+    setSpeechEngine,
+    setElevenLabsVoice,
+    loadElevenLabsVoices,
+    clearElevenLabsVoices,
     setSpeechVoice: (voice: SpeechVoice) =>
       void saveSpeech({ voice }).then((saved) =>
         desktopAnalytics.track("speech_settings_action", {

@@ -626,6 +626,7 @@ function registerIpcHandlers({
   instanceTransfer,
   voice,
   speech,
+  elevenLabsSpeech,
   voiceServer,
   dynamicIsland,
   cuaDriver,
@@ -692,7 +693,7 @@ function registerIpcHandlers({
     ...macAutomationIpcHandlers({ platform: process.platform }),
     ...backgroundProcessIpcHandlers({ platform: process.platform, agents: () => service.listAgents() }),
     ...providerIpcHandlers({ service, providerRuntimes, credentials: providerCredentials, openLink }),
-    ...voiceIpcHandlers({ voice, speech, server: voiceServer, service }),
+    ...voiceIpcHandlers({ voice, speech, elevenLabs: elevenLabsSpeech, server: voiceServer, service }),
     ...accountIpcHandlers({ centralAuth, host }),
     ...skillIpcHandlers({ skills, getMainWindow: getDialogParent, translate: language.translate }),
     ...agentFolderIpcHandlers({

@@ -80,6 +80,7 @@ function registerVoice(transcribe: (input: VoiceTranscriptionInput) => VoiceTran
     cancelStream: payloadHandler(parseVoiceStream, () => undefined),
     getSpeechSettings: handler(() => DEFAULT_SPEECH_SETTINGS),
     setSpeechSettings: payloadHandler(parseSpeechSettings, (settings) => settings),
+    listElevenLabsVoices: handler(() => []),
     getSpeechModelStatus: handler(() => SPEECH_READY),
     downloadSpeechModel: handler(() => SPEECH_READY),
     cancelSpeechModelDownload: handler(() => SPEECH_READY),

@@ -1,8 +1,12 @@
 import {
   AUTOMATIC_VOICE_LANGUAGE,
   ELEVENLABS_VOICE_MODEL_ID,
+  type ElevenLabsSpeechVoice,
+  elevenLabsVoiceParts,
+  SPEECH_ENGINES,
   SPEECH_MODEL,
   SPEECH_VOICES,
+  type SpeechEngine,
   type SpeechModelStatus,
   type SpeechVoice,
   VOICE_MODELS,
@@ -37,7 +41,7 @@ import {
   SwitchField,
 } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
-import { createMemo, createSignal, createStore, For, Show } from "solid-js";
+import { createEffect, createMemo, createSignal, createStore, For, Show } from "solid-js";
 import type { SettingsVoiceStore } from "./settings-voice-store";
 import { shortModel, VoiceServerDialog, voiceServerHost } from "./VoiceServerDialog";
 
@@ -210,6 +214,41 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
 
   const speech = () => props.store.state.speech;
   const speechPhase = () => speech().status?.phase;
+  const speechEngine = () => speech().settings?.engine ?? "supertonic";
+  const elevenLabsKeyReady = () => props.store.state.statuses[ELEVENLABS_VOICE_MODEL_ID]?.phase === "ready";
+  const elevenLabsCatalog = () => props.store.state.elevenLabs;
+  createEffect(
+    () => ({
+      needed: speechEngine() === "elevenlabs" && elevenLabsKeyReady() && !serverSpeaks(),
+      phase: elevenLabsCatalog().phase,
+    }),
+    (snapshot) => {
+      if (!snapshot.needed) {
+        if (snapshot.phase !== "idle") props.store.clearElevenLabsVoices();
+        return;
+      }
+      if (snapshot.phase === "idle") props.store.loadElevenLabsVoices();
+    },
+  );
+  const elevenLabsOptions = createMemo((): ElevenLabsSpeechVoice[] => {
+    const saved = speech().settings?.elevenLabsVoice;
+    const listed = elevenLabsCatalog().voices;
+    if (saved && !listed.some((voice) => voice.id === saved.id)) return [saved, ...listed];
+    return listed;
+  });
+  const elevenLabsName = (voice: ElevenLabsSpeechVoice) => {
+    const parts = elevenLabsVoiceParts(voice.name);
+    return parts.description ? `${parts.title} — ${parts.description}` : parts.title;
+  };
+  const engineName = (engine: SpeechEngine) =>
+    t(engine === "elevenlabs" ? "settings.voice.speech.engine.elevenlabs" : "settings.voice.speech.engine.supertonic");
+  const elevenLabsStatusKey = (): AppTextKey => {
+    if (!elevenLabsKeyReady()) return "settings.voice.speech.elevenlabs.keyMissing";
+    if (elevenLabsCatalog().phase === "loading") return "settings.voice.speech.elevenlabs.loading";
+    if (elevenLabsCatalog().phase === "failed") return "settings.voice.speech.voicesFailed";
+    if (speech().settings?.elevenLabsVoice) return "settings.voice.speech.elevenlabs.description";
+    return "settings.voice.speech.elevenlabs.chooseVoice";
+  };
   const voiceName = (voice: SpeechVoice) =>
     t(voice.startsWith("F") ? "settings.voice.speech.voice.female" : "settings.voice.speech.voice.male", {
       number: voice.slice(1),
@@ -390,67 +429,102 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
 
       <SettingsSection title={t("settings.voice.speech.section")}>
         <ItemGroup class="settings-modal-card">
-          <Item class="settings-modal-row">
-            <ItemContent>
-              <ItemTitle>{SPEECH_MODEL.name}</ItemTitle>
-              <ItemDescription>{t("settings.voice.speech.model.description")}</ItemDescription>
-              <ItemDescription aria-live="polite">{downloadText(SPEECH_MODEL.bytes, speech().status)}</ItemDescription>
-              <Show when={speechPhase() === "downloading"}>
-                <Progress
-                  value={speech().status?.progress ?? 0}
-                  aria-label={t("settings.voice.model.progressLabel", { name: SPEECH_MODEL.name })}
-                />
-              </Show>
-            </ItemContent>
-            <ItemActions>
-              <Show when={speechPhase() === "missing"}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  aria-label={t("settings.voice.model.downloadLabel", { name: SPEECH_MODEL.name })}
-                  onClick={() => props.store.downloadSpeech()}
+          <Show when={!serverSpeaks()}>
+            <Item data-settings-row="settings.voice.speech.engine.title" class="settings-modal-row">
+              <ItemContent>
+                <ItemTitle>{t("settings.voice.speech.engine.title")}</ItemTitle>
+                <ItemDescription>{t("settings.voice.speech.engine.description")}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Select<SpeechEngine>
+                  class="settings-modal-select"
+                  options={[...SPEECH_ENGINES]}
+                  value={speech().settings?.engine ?? null}
+                  onChange={(next) => next && props.store.setSpeechEngine(next)}
+                  disabled={!speech().settings}
+                  placement="bottom-end"
+                  itemComponent={(selectProps) => (
+                    <SelectItem item={selectProps.item}>{engineName(selectProps.item.rawValue)}</SelectItem>
+                  )}
                 >
-                  <Download size={14} aria-hidden="true" />
-                  {t("common.download")}
-                </Button>
-              </Show>
-              <Show when={speechPhase() === "downloading"}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  aria-label={t("settings.voice.model.cancelLabel", { name: SPEECH_MODEL.name })}
-                  onClick={() => props.store.cancelSpeech()}
-                >
-                  {t("common.cancel")}
-                </Button>
-              </Show>
-              <Show when={speechPhase() === "error"}>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  type="button"
-                  aria-label={t("settings.voice.model.retryLabel", { name: SPEECH_MODEL.name })}
-                  onClick={() => props.store.downloadSpeech()}
-                >
-                  <RefreshCw size={14} aria-hidden="true" />
-                  {t("common.tryAgain")}
-                </Button>
-              </Show>
-              <Show when={speechPhase() === "ready"}>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  type="button"
-                  aria-label={t("settings.voice.model.removeLabel", { name: SPEECH_MODEL.name })}
-                  onClick={() => props.store.removeSpeech()}
-                >
-                  {t("common.remove")}
-                </Button>
-              </Show>
-            </ItemActions>
-          </Item>
+                  <SelectTrigger size="sm" aria-label={t("settings.voice.speech.engine.title")}>
+                    <SelectValue<SpeechEngine>>
+                      {(state) => {
+                        const engine = state.selectedOption();
+                        return engine && engineName(engine);
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent mount={props.selectMount} />
+                </Select>
+              </ItemActions>
+            </Item>
+          </Show>
+          <Show when={serverSpeaks() || speechEngine() !== "elevenlabs"}>
+            <Item class="settings-modal-row">
+              <ItemContent>
+                <ItemTitle>{SPEECH_MODEL.name}</ItemTitle>
+                <ItemDescription>{t("settings.voice.speech.model.description")}</ItemDescription>
+                <ItemDescription aria-live="polite">
+                  {downloadText(SPEECH_MODEL.bytes, speech().status)}
+                </ItemDescription>
+                <Show when={speechPhase() === "downloading"}>
+                  <Progress
+                    value={speech().status?.progress ?? 0}
+                    aria-label={t("settings.voice.model.progressLabel", { name: SPEECH_MODEL.name })}
+                  />
+                </Show>
+              </ItemContent>
+              <ItemActions>
+                <Show when={speechPhase() === "missing"}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    aria-label={t("settings.voice.model.downloadLabel", { name: SPEECH_MODEL.name })}
+                    onClick={() => props.store.downloadSpeech()}
+                  >
+                    <Download size={14} aria-hidden="true" />
+                    {t("common.download")}
+                  </Button>
+                </Show>
+                <Show when={speechPhase() === "downloading"}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    aria-label={t("settings.voice.model.cancelLabel", { name: SPEECH_MODEL.name })}
+                    onClick={() => props.store.cancelSpeech()}
+                  >
+                    {t("common.cancel")}
+                  </Button>
+                </Show>
+                <Show when={speechPhase() === "error"}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    aria-label={t("settings.voice.model.retryLabel", { name: SPEECH_MODEL.name })}
+                    onClick={() => props.store.downloadSpeech()}
+                  >
+                    <RefreshCw size={14} aria-hidden="true" />
+                    {t("common.tryAgain")}
+                  </Button>
+                </Show>
+                <Show when={speechPhase() === "ready"}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    type="button"
+                    aria-label={t("settings.voice.model.removeLabel", { name: SPEECH_MODEL.name })}
+                    onClick={() => props.store.removeSpeech()}
+                  >
+                    {t("common.remove")}
+                  </Button>
+                </Show>
+              </ItemActions>
+            </Item>
+          </Show>
           <SwitchField
             data-settings-row="settings.voice.speech.readReplies.title"
             checked={speech().settings?.readReplies ?? false}
@@ -459,7 +533,7 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
             label={t("settings.voice.speech.readReplies.title")}
             description={t("settings.voice.speech.readReplies.description")}
           />
-          <Show when={!serverSpeaks()}>
+          <Show when={!serverSpeaks() && speechEngine() !== "elevenlabs"}>
             <Item data-settings-row="settings.voice.speech.voice.title" class="settings-modal-row">
               <ItemContent>
                 <ItemTitle>{t("settings.voice.speech.voice.title")}</ItemTitle>
@@ -493,6 +567,64 @@ export function SettingsVoiceTab(props: SettingsVoiceTabProps) {
                       {(state) => {
                         const voice = state.selectedOption();
                         return voice && voiceName(voice);
+                      }}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent mount={props.selectMount} />
+                </Select>
+              </ItemActions>
+            </Item>
+          </Show>
+          <Show when={!serverSpeaks() && speechEngine() === "elevenlabs"}>
+            <Item data-settings-row="settings.voice.speech.voice.title" class="settings-modal-row">
+              <ItemContent>
+                <ItemTitle>{t("settings.voice.speech.voice.title")}</ItemTitle>
+                <ItemDescription>{t(elevenLabsStatusKey())}</ItemDescription>
+              </ItemContent>
+              <ItemActions>
+                <Show when={elevenLabsCatalog().phase === "failed"}>
+                  <Button variant="outline" size="sm" type="button" onClick={() => props.store.loadElevenLabsVoices()}>
+                    <RefreshCw size={14} aria-hidden="true" />
+                    {t("settings.voice.speech.elevenlabs.retry")}
+                  </Button>
+                </Show>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="button"
+                  disabled={!speech().settings?.elevenLabsVoice}
+                  onClick={() => void props.store.listen(t("settings.voice.speech.sample"))}
+                >
+                  <Show when={speech().listening} fallback={<Play size={14} aria-hidden="true" />}>
+                    <Square size={14} aria-hidden="true" />
+                  </Show>
+                  {speech().listening ? t("settings.voice.speech.voice.stop") : t("settings.voice.speech.voice.listen")}
+                </Button>
+                <Select<string>
+                  class="settings-modal-select"
+                  options={elevenLabsOptions().map((voice) => voice.id)}
+                  value={speech().settings?.elevenLabsVoice?.id ?? null}
+                  onChange={(next) => {
+                    const voice = elevenLabsOptions().find((item) => item.id === next);
+                    if (voice) props.store.setElevenLabsVoice(voice);
+                  }}
+                  disabled={!elevenLabsKeyReady() || elevenLabsOptions().length === 0}
+                  placement="bottom-end"
+                  itemComponent={(selectProps) => {
+                    const voice = elevenLabsOptions().find((item) => item.id === selectProps.item.rawValue);
+                    return (
+                      <SelectItem item={selectProps.item}>
+                        {voice ? elevenLabsName(voice) : selectProps.item.rawValue}
+                      </SelectItem>
+                    );
+                  }}
+                >
+                  <SelectTrigger size="sm" aria-label={t("settings.voice.speech.voice.title")}>
+                    <SelectValue<string>>
+                      {(state) => {
+                        const id = state.selectedOption();
+                        const voice = id ? elevenLabsOptions().find((item) => item.id === id) : undefined;
+                        return voice ? elevenLabsName(voice) : t("settings.voice.speech.elevenlabs.chooseVoice");
                       }}
                     </SelectValue>
                   </SelectTrigger>

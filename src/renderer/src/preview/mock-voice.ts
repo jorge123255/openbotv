@@ -181,6 +181,10 @@ export function createMockVoice(options: MockVoiceOptions, { emit, schedule }: M
       speechSettings = clone(next);
       return clone(speechSettings);
     },
+    listElevenLabsVoices: async () => [
+      { id: "mock-george", name: "George - Warm, Captivating Storyteller" },
+      { id: "mock-sarah", name: "Sarah" },
+    ],
     getSpeechModelStatus: async () => clone(speechStatus),
     downloadSpeechModel: downloadSpeech,
     cancelSpeechModelDownload: async () => {
