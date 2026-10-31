@@ -236,8 +236,9 @@ Server settings → **Migration preparation** saves a local plan for a local des
 
 ## Development
 
-Development requires stable [Bun](https://bun.sh/) 1.4.2, Node.js 24 (the version in `.nvmrc`, matching
-the Node that Electron bundles - run `nvm use`), and at least one supported agent CLI.
+Development requires stable [Bun](https://bun.sh/) 1.4.2, Node.js 24.15.0 or later in the 24.x line
+(the version in `.nvmrc`, matching the Node that Electron bundles - run `nvm use`), and at least one
+supported agent CLI.
 
 Install the exact Bun version on macOS or Linux:
 

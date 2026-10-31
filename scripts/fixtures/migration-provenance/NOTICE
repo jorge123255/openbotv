@@ -1,0 +1,18 @@
+Public Sigstore verification fixture data
+
+Derived from sigstore/sigstore-js at commit
+769a53d8713248a8bf49edfc2a5d1955b0dcc24d
+(tag @sigstore/verify@4.1.2).
+
+Copyright 2023 The Sigstore Authors.
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+Local changes: selected the public root literal and two version 0.3 certificate-signed
+verification bundles, converted literal data to JSON, omitted undefined object properties,
+and copied the exact public artifact bytes. The pinned protobuf bundle roundtrip removed
+two unsigned default log fields from the message bundle: integratedTime with value "0"
+and inclusionPromise with value null. The root and bundle files use canonical minified
+JSON with one terminal LF and the byte-oriented .sigstore extension. Signed fields were
+not changed.
+
+This is test data only. No production trust root or publisher approval is established.

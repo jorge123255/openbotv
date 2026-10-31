@@ -76,7 +76,7 @@
   "main": "./out/main/index.js",
   "packageManager": "bun@1.4.2",
   "engines": {
-    "node": ">=24.0.0"
+    "node": "^24.15.0 || >=26.0.0"
   },
   "scripts": {
     "prepare": "bun scripts/install-git-hooks.ts",
@@ -404,6 +404,10 @@
     "@openbot/user-errors": "workspace:*",
     "@openpanel/web": "catalog:",
     "@paper-design/shaders": "catalog:",
+    "@sigstore/bundle": "5.0.0",
+    "@sigstore/core": "4.0.1",
+    "@sigstore/protobuf-specs": "0.5.2",
+    "@sigstore/verify": "4.1.2",
     "@solidjs/web": "catalog:",
     "@speed-highlight/core": "catalog:",
     "@tanstack/virtual-core": "catalog:",
@@ -468,6 +472,11 @@
     "@react-native-masked-view/masked-view@0.3.2": "patches/@react-native-masked-view%2Fmasked-view@0.3.2.patch",
     "react-native-reserved-regions@0.2.0": "patches/react-native-reserved-regions@0.2.0.patch",
     "cuelume@0.2.8": "patches/cuelume@0.2.8.patch"
+  },
+  "overrides": {
+    "@sigstore/core": "4.0.1",
+    "@sigstore/protobuf-specs": "0.5.2",
+    "@sigstore/bundle": "5.0.0"
   },
   "trustedDependencies": [
     "electron-winstaller",
