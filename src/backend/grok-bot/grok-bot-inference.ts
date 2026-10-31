@@ -75,6 +75,17 @@ export interface GrokBotStreamTool {
 
 export type GrokBotStreamEvent = GrokBotStreamText | GrokBotStreamTool;
 
+/** Raw provider counters. Missing or invalid fields stay unknown; no cache arithmetic is inferred. */
+export interface GrokBotInferenceUsage {
+  readonly prompt: number | null;
+  readonly completion: number | null;
+  readonly total: number | null;
+  readonly input: number | null;
+  readonly output: number | null;
+  readonly cacheRead: number | null;
+  readonly cacheWrite: number | null;
+}
+
 export interface GrokBotStreamRequest {
   readonly messages: readonly ReturnType<typeof wireMessage>[];
   readonly tools: readonly GrokBotAdvertisedTool[];
@@ -160,6 +171,7 @@ export async function readGrokBotInference(input: {
   readonly checksumNow?: () => number;
   readonly fetchImpl?: typeof fetch;
   readonly onEvent: (event: GrokBotStreamEvent) => void;
+  readonly onUsage?: (usage: GrokBotInferenceUsage) => void;
 }): Promise<void> {
   registerSecretValue(input.accessToken);
   const call = input.fetchImpl ?? fetch;
@@ -188,6 +200,9 @@ export async function readGrokBotInference(input: {
   }
   const reader = response.body.getReader();
   let pending: Uint8Array<ArrayBufferLike> = new Uint8Array();
+  const usage: {
+    -readonly [K in keyof GrokBotInferenceUsage]: GrokBotInferenceUsage[K];
+  } = { prompt: null, completion: null, total: null, input: null, output: null, cacheRead: null, cacheWrite: null };
   try {
     for (;;) {
       const next = await reader.read();
@@ -195,7 +210,10 @@ export async function readGrokBotInference(input: {
       pending = concatBytes(pending, next.value);
       const parsed = takeConnectMessages(pending);
       pending = parsed.rest;
-      for (const message of parsed.messages) emitStreamMessage(message, input.onEvent);
+      for (const message of parsed.messages) {
+        readUsage(message, usage);
+        emitStreamMessage(message, input.onEvent);
+      }
       // The end-stream flag finishes the RPC. Waiting for the HTTP body to close left the turn
       // running after the assistant text had already arrived.
       if (parsed.ended) return;
@@ -203,7 +221,30 @@ export async function readGrokBotInference(input: {
   } finally {
     reader.releaseLock();
     await response.body.cancel().catch(() => undefined);
+    // A failed or interrupted request can still have reported usage. Duplicate frames are updates,
+    // not extra requests. Basic and extended counters have distinct names and are never added.
+    if (Object.values(usage).some((value) => value !== null)) input.onUsage?.(usage);
   }
+}
+
+function readUsage(
+  message: unknown,
+  usage: { -readonly [K in keyof GrokBotInferenceUsage]: GrokBotInferenceUsage[K] },
+): void {
+  if (!isDynamicRecord(message)) return;
+  const basic = isDynamicRecord(message.usage) ? message.usage : {};
+  const extended = isDynamicRecord(message.extendedUsage) ? message.extendedUsage : {};
+  usage.prompt = counter(basic.promptTokens) ?? usage.prompt;
+  usage.completion = counter(basic.completionTokens) ?? usage.completion;
+  usage.total = counter(basic.totalTokens) ?? usage.total;
+  usage.input = counter(extended.inputTokens) ?? usage.input;
+  usage.output = counter(extended.outputTokens) ?? usage.output;
+  usage.cacheRead = counter(extended.cacheReadTokens) ?? usage.cacheRead;
+  usage.cacheWrite = counter(extended.cacheWriteTokens) ?? usage.cacheWrite;
+}
+
+function counter(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
 function emitStreamMessage(message: unknown, onEvent: (event: GrokBotStreamEvent) => void): void {
@@ -248,7 +289,8 @@ function takeConnectMessages(bytes: Uint8Array<ArrayBufferLike>): {
     const json = text.length === 0 ? {} : JSON.parse(text);
     if ((flags & 0x02) !== 0) {
       if (isDynamicRecord(json) && json.error != null) {
-        throw new Error(`${sourceText("error.provider.grokBotTurnFailed")} (${connectErrorText(json.error)})`);
+        // Process earlier frames before surfacing the trailer error, including reported usage.
+        messages.push({ error: json.error });
       }
       return { messages, rest: new Uint8Array(0), ended: true };
     }

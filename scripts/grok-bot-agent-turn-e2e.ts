@@ -9,6 +9,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
+import { redactText } from "@openbot/logging";
 import { Effect } from "effect";
 import { GrokBotAccountStore } from "../src/backend/grok-bot/grok-bot-account";
 import { GrokBotAgentClient } from "../src/backend/grok-bot/grok-bot-agent-client";
@@ -42,6 +43,9 @@ const report = {
   failedHttp: false,
   failedAuth: false,
   stopped: false,
+  rawCounters: false,
+  toolRoundCounters: false,
+  retryCounters: false,
 };
 
 function readBody(request: IncomingMessage): Promise<string> {
@@ -68,11 +72,17 @@ const streamBodies: string[] = [];
 const streamAuth: string[] = [];
 const streamChecksums: string[] = [];
 const heldResponses: ServerResponse[] = [];
+let rejectedRetry = false;
 
 const server = createServer((request, response: ServerResponse) => {
   void (async () => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const body = await readBody(request);
+    if (url.pathname === "/oauth/token") {
+      response.writeHead(200, { "content-type": "application/json" });
+      response.end(JSON.stringify({ access_token: ACCESS, refresh_token: REFRESH }));
+      return;
+    }
     if (url.pathname === "/aiserver.v1.GrokBotService/EnsureSandBox") {
       assert.equal(request.headers.authorization, `Bearer ${ACCESS}`);
       assert.equal(request.headers["x-cursor-client-type"], "sand");
@@ -153,6 +163,16 @@ const server = createServer((request, response: ServerResponse) => {
       const toolFollowUp = body.includes("toolContent");
       const toolRequest = body.includes("use-tool") && !toolFollowUp;
       response.writeHead(200, { "content-type": "application/connect+json" });
+      if (body.includes("retry-auth") && !rejectedRetry) {
+        rejectedRetry = true;
+        response.end(
+          Buffer.concat([
+            connectFrame({ usage: { promptTokens: 6, completionTokens: 0 } }),
+            connectFrame({ error: { code: "unauthenticated" } }, 0x02),
+          ]),
+        );
+        return;
+      }
       response.end(
         Buffer.concat(
           toolRequest
@@ -165,6 +185,7 @@ const server = createServer((request, response: ServerResponse) => {
                     isComplete: true,
                   },
                 }),
+                connectFrame({ usage: { promptTokens: 10, completionTokens: 2 } }),
                 connectFrame({}, 0x02),
               ]
             : [
@@ -211,6 +232,7 @@ function clientFor(store: GrokBotAccountStore): GrokBotAgentClient {
     requestTimeoutMs: 5_000,
     machineId: MACHINE,
     checksumNow: () => CHECKSUM_NOW,
+    directInference: true,
   });
 }
 
@@ -231,7 +253,9 @@ try {
   await Effect.runPromise(store.save({ accessToken: ACCESS, refreshToken: REFRESH, gateway: null }));
   const client = clientFor(store);
   const notes: Array<{ method: string; params: unknown }> = [];
+  const diagnostics: string[] = [];
   client.on("notification", (notification) => notes.push(notification));
+  client.on("diagnostic", (line) => diagnostics.push(line));
   client.start();
   const account = await Effect.runPromise(client.request("account/read", {}, decodeAccountReadResult));
   assert.equal(account.account?.type, "grok-bot");
@@ -274,6 +298,17 @@ try {
     .join("");
   report.streamed = text === "Hello from Grok Bot";
   assert.equal(report.streamed, true);
+  const usagePrefix = "Grok Bot direct inference token counts: ";
+  const firstDiagnostic = diagnostics.find((line) => line.startsWith(usagePrefix));
+  assert.ok(firstDiagnostic);
+  assert.equal(redactText(firstDiagnostic), firstDiagnostic);
+  assert.deepEqual(JSON.parse(firstDiagnostic.slice(usagePrefix.length)), {
+    turnId: turn.turn.id,
+    round: 0,
+    attempt: 1,
+    counts: { prompt: 4, completion: 3, total: 7, input: null, output: null, cacheRead: null, cacheWrite: null },
+  });
+  report.rawCounters = true;
   const first = JSON.parse(streamBodies[0] ?? "{}");
   assert.equal(isDynamicRecord(first) && first.conversationId, "sand-agent-e2e");
   assert.equal(
@@ -375,7 +410,7 @@ try {
   });
   const toolNotes: Array<{ method: string; params: unknown }> = [];
   client.on("notification", (notification) => toolNotes.push(notification));
-  await Effect.runPromise(
+  const toolTurn = await Effect.runPromise(
     client.request(
       "turn/start",
       {
@@ -413,6 +448,58 @@ try {
     .join("");
   report.tool = toolReply === "Tool done" && streamBodies.some((body) => body.includes("echoed hi"));
   assert.equal(report.tool, true);
+  const toolCounters = diagnostics
+    .filter((line) => line.startsWith(usagePrefix))
+    .map((line) => JSON.parse(line.slice(usagePrefix.length)))
+    .filter((value) => value.turnId === toolTurn.turn.id);
+  assert.equal(toolCounters.length, 2);
+  assert.deepEqual(
+    toolCounters.map((value) => value.round),
+    [0, 1],
+  );
+  assert.deepEqual(
+    toolCounters.map((value) => value.counts.prompt),
+    [10, 4],
+  );
+  assert.deepEqual(
+    toolCounters.map((value) => value.counts.total),
+    [null, 7],
+  );
+  report.toolRoundCounters = true;
+
+  const retried = new Promise<void>((ready, reject) => {
+    const deadline = setTimeout(() => reject(new Error("retry turn did not finish")), 2000);
+    client.on("notification", (note) => {
+      if (note.method !== "turn/completed") return;
+      clearTimeout(deadline);
+      ready();
+    });
+  });
+  const retryTurn = await Effect.runPromise(
+    client.request(
+      "turn/start",
+      {
+        threadId: started.thread.id,
+        model: "default",
+        input: [{ type: "text", text: "retry-auth" }],
+      },
+      decodeTurnResponse,
+    ),
+  );
+  await retried;
+  const retryCounters = diagnostics
+    .filter((line) => line.startsWith(usagePrefix))
+    .map((line) => JSON.parse(line.slice(usagePrefix.length)))
+    .filter((value) => value.turnId === retryTurn.turn.id);
+  assert.deepEqual(
+    retryCounters.map((value) => value.attempt),
+    [1, 2],
+  );
+  assert.deepEqual(
+    retryCounters.map((value) => value.counts.prompt),
+    [6, 4],
+  );
+  report.retryCounters = true;
 
   const machinePath = join(root, "machine-id");
   const firstId = await readOrCreateMachineId(machinePath, () => MACHINE);
