@@ -62,11 +62,11 @@ interface OpenBotToolDefinition {
 
 /** The page rules for `html_render` and `html_preview`. The names match the variables that `ChatVisual` sends. */
 const VISUAL_PAGE_RULES = [
-  "Write one self-contained HTML document with inline <style> and <script>. Remote http(s) files, such as a chart library from a CDN, load as they are; local file paths do not load.",
+  "Write one self-contained HTML document with inline <style> and <script>. Remote http(s) files, including CDN libraries, load as they are; local file paths do not load.",
   "The page runs in a sandbox: it cannot use cookies, storage or pop-up windows. A click on an http(s) link opens the link in the user's browser.",
-  "The frame has no border and sits on the chat background, as wide as the reply column (about 360px on phones). Leave html and body with no background, use a fluid width and no outer card or banner title: the page is part of your reply.",
-  "Give charts fixed pixel heights. Let the content set the page height; do not use 100vh or height:100% on html or body. The frame cuts what is outside the page box, so highlight a box with its border, not an outline or an outer shadow.",
-  "OpenBot sets these CSS variables on :root from the app theme, which is dark on the desktop: --background (transparent), --foreground, --muted-foreground, --muted, --card, --card-foreground, --border, --accent, --destructive, --success, --chart-1 to --chart-6, --radius, --font-sans, --font-mono. The base style sets the body font and color from them.",
+  "The borderless frame sits on the chat background at reply-column width (about 360px on phones). Use transparent html/body backgrounds, fluid width, and no outer card or banner title.",
+  "Give charts fixed pixel heights. Let content set page height; do not use 100vh or height:100% on html/body. The frame clips outside the page box; highlight with borders, not outlines or outer shadows.",
+  "The app theme (dark on desktop) sets :root variables: --background (transparent), --foreground, --muted-foreground, --muted, --card, --card-foreground, --border, --accent, --destructive, --success, --chart-1 to --chart-6, --radius, --font-sans, --font-mono. The base body font and color use them.",
 ].join(" ");
 
 /** What an `html_render` page can ask of the app. The names match `window.openbotPage` in the frame bootstrap. */
@@ -327,23 +327,23 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "attach_files_to_response",
     description:
-      "Attach existing local files to the current response for the user. Use this after creating screenshots, charts, diagrams, reports, ZIP archives, or other files that the user should receive. OpenBot copies each file and shows image previews in the conversation. SVG files cannot be attached; write their absolute path in the answer, and the chat shows them.",
+      "Attach existing local screenshots, charts, diagrams, reports, ZIPs or other deliverables to this response. OpenBot copies files; images get conversation previews. SVGs cannot be attached; show them in chat with their absolute path in the answer.",
     shape: { paths: z.array(z.string().min(1).max(INPUT_LIMITS.path)).min(1).max(INPUT_LIMITS.attachments) },
   },
   {
     name: "html_preview",
-    description: `Draw an HTML page out of view and get a screenshot, the content height and the console output. The user does not see it. Use it to check a page before you call html_render, and correct what the screenshot or the console shows. ${VISUAL_PAGE_RULES}`,
+    description: `Preview an unseen HTML page; return screenshot, content height and console output. Check and fix findings before html_render. ${VISUAL_PAGE_RULES}`,
     shape: htmlPreviewToolSchema.shape,
   },
   {
     name: "html_render",
-    description: `Show a finished HTML page (chart, table, diagram, collage, mockup) in this conversation, above your final text reply; call it before you write that reply. The user already sees the page, so the reply must not announce it or restate it: add only what the page does not say. In a channel, each member who reads the channel sees it. OpenBot fits the frame to the page height. A height lower than the page caps the frame, and the rest scrolls in it. ${VISUAL_PAGE_RULES} ${VISUAL_PAGE_ACTIONS}`,
+    description: `Show a finished HTML page (chart, table, diagram, collage, mockup) above your final text reply; call before that reply. Do not announce or repeat the page: add only missing information. In a channel, each member who reads the channel sees it. The frame fits the page; a smaller height caps it and scrolls the rest. ${VISUAL_PAGE_RULES} ${VISUAL_PAGE_ACTIONS}`,
     shape: htmlRenderToolSchema.shape,
   },
   {
     name: "list_capture_sources",
     description:
-      "List the displays and windows of this computer that capture_screen can capture: display ids, desktop bounds in points, scale factors, and window ids and titles.",
+      "List capture_screen displays (ids, desktop bounds in points, scale factors) and windows (ids, titles) on this computer.",
     shape: {},
   },
   {
@@ -438,13 +438,13 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "list_agents",
     description:
-      "List local OpenBot agents: name, title, description (first 300 characters; read_agent has all), progress: status (working, queued or ready), queuedMessages, turnStartedAt while working, lastActivityAt, and openWaits. To find the teammate for work outside your remit, match the work to titles and descriptions. OpenBot does not track which files an agent changed.",
+      "List local OpenBot agents: name, title, description (first 300 characters; read_agent has all), and progress (status: working, queued or ready; queuedMessages; turnStartedAt while working; lastActivityAt; openWaits). Match work outside your remit to titles and descriptions. OpenBot does not track which files an agent changed.",
     shape: {},
   },
   {
     name: "list_models",
     description:
-      "List the models each provider offers: id, name, reasoning efforts, and the default model that create_agent uses for a provider only. With no query, each provider lists its default, the models in use and its first models; omittedModels counts the rest. A provider with more than one account lists them: id, label and state, its own sign-in (id default) first. Read-only.",
+      "List provider models: id, name, reasoning efforts, and the default for create_agent when only provider is set. With no query, show each provider's default, models in use and first models; omittedModels counts the rest. Multiple accounts include id, label and state, with the provider's own sign-in (id default) first. Read-only.",
     shape: listModelsToolSchema.shape,
   },
   {
@@ -456,7 +456,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "read_agent",
     description:
-      "Read the setup of one local OpenBot agent, or your own when you omit agentId: profile, provider, model, reasoning effort, account, backup models, the model it returns to after a usage limit or a provider error, access, Computer Use, notifications, auto-approve, installed skills, routines, and the MCP servers it gets. Read-only. Call it before you change another agent.",
+      "Read one local agent's setup; omit agentId for your own: profile, provider, model, reasoning effort, account, backup models, the model it returns to after a usage limit or provider error, access, Computer Use, notifications, auto-approve, installed skills, routines and MCP servers. Read-only. Call it before you change another agent.",
     shape: readAgentToolSchema.shape,
   },
   {
@@ -480,7 +480,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "start_new_chat",
     description:
-      "Start a new chat for yourself when this chat is long and its earlier messages no longer matter, or when a routine asks for it. Each message then sends less context. Before you call it, keep what you need: use remember, or write notes to a file in your workspace. The user still sees the earlier messages; you do not. The new chat starts when this turn ends and your queue is empty. When a queued message runs in this chat first, the request ends; call it again if you still need it. It works only in your own chat, and only when the user allows it in your settings.",
+      "Start your new chat when this chat is long and earlier messages no longer matter, or a routine requests it. This reduces context per message. First save what you need with remember or workspace notes. The user still sees earlier messages; you do not. Starts after this turn ends and your queue is empty. If a queued message runs here first, the request ends; call again if needed. It works only in your own chat, and only when the user allows it in your settings.",
     shape: {},
   },
   {
@@ -492,7 +492,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "create_routine",
     description:
-      "Create a scheduled routine for this agent, or for another local agent when agentId is provided. It is active by default. Without a timezone, it uses the timezone of the person whose message this turn answers, or the server timezone when that is unknown. Interval, advanced-every, and custom schedules must not run more often than every 3 minutes. For a one-time reminder or task, use a once schedule: it runs one time and then pauses the routine. When watching a folder for new files and no interval was requested, use a 15 minute interval and keep the folder path plus handling instructions in the routine instruction.",
+      "Create a scheduled routine for this agent; supply agentId for another local agent. Active by default. Without timezone, use the timezone of the person this turn answers, or server timezone when unknown. Interval, advanced-every, and custom schedules must not run more often than every 3 minutes. For one-time work, use once: one run then pause. To watch a folder for new files with no requested interval, use 15 minutes; keep its path and handling instructions in the routine instruction.",
     shape: {
       agentId: z.string().min(1).max(INPUT_LIMITS.identifier).optional(),
       name: z.string().min(1).max(INPUT_LIMITS.routineName),
@@ -544,7 +544,7 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   {
     name: "update_routine",
     description:
-      "Update, pause, or resume an existing routine for this agent, or for another local agent when agentId is provided. Fields you leave out keep their saved values. Replacement schedules must not run more often than every 3 minutes. A one-time routine that already ran resumes only with a new once schedule in the future. The result is the saved routine. For a webhook routine, use update_webhook_routine.",
+      "Update, pause or resume this agent's routine; supply agentId for another local agent. Omitted fields keep saved values. Replacement schedules must not run more often than every 3 minutes. A completed one-time routine needs a new future once schedule to resume. Returns the saved routine. For webhooks, use update_webhook_routine.",
     shape: {
       agentId: z.string().min(1).max(INPUT_LIMITS.identifier).optional(),
       routineId: z.string().min(1).max(INPUT_LIMITS.identifier),

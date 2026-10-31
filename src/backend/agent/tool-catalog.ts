@@ -33,8 +33,15 @@ const DIRECT_NAMES = new Set([
 
 const BROWSER_SCRIPT_TOOL = requireTool(`${OPENBOT_BROWSER_NAMESPACE}.run_script`);
 
-// Names keep the complete, stable catalog below 4,000 characters without schema duplication.
-const INITIAL_TOOL_CATALOG = BUILTIN_TOOL_CATALOG.map((tool) => tool.name).join(", ");
+// List every name once, with the namespace shared by each group.
+const INITIAL_TOOL_CATALOG = [...new Set(BUILTIN_TOOL_CATALOG.map((tool) => tool.namespace))]
+  .map(
+    (namespace) =>
+      `${namespace}.{${BUILTIN_TOOL_CATALOG.filter((tool) => tool.namespace === namespace)
+        .map((tool) => tool.tool)
+        .join(", ")}}`,
+  )
+  .join("; ");
 const qualifiedName = z.string().trim().min(1).max(160);
 const searchQuery = z.string().trim().min(1).max(200);
 // Models often send one query string, so search accepts `query` as well as `queries`.
@@ -60,7 +67,7 @@ export const VISIBLE_TOOL_DEFINITIONS = [
   ...OPENBOT_TOOL_DEFINITIONS.filter((tool) => DIRECT_NAMES.has(tool.name)),
   {
     name: "tool_search",
-    description: `Find built-in tools by keywords or qualified name. Pass queries (an array) or query (one string). Returns names and short descriptions, default 5, maximum 10. The strongest matches also include inputSchema and guidance, ready for tool_call. Describe other results before first use. Catalog: ${INITIAL_TOOL_CATALOG}`,
+    description: `Find built-in tools by keywords or qualified name. Pass queries (an array) or query (one string). Returns names and short descriptions, default 5, maximum 10. The strongest matches also include inputSchema and guidance, ready for tool_call. Describe other results before first use. Catalog (expand namespace.{tool, ...} to namespace.tool): ${INITIAL_TOOL_CATALOG}`,
     shape: searchShape,
   },
   {
