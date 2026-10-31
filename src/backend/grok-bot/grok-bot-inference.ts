@@ -281,7 +281,7 @@ function connectErrorText(error: unknown): string {
 }
 
 /** Connect server-streaming requires an enveloped body: 1 flag byte + 4-byte BE length + JSON. */
-export function encodeConnectEnvelope(message: unknown): Uint8Array<ArrayBuffer> {
+function encodeConnectEnvelope(message: unknown): Uint8Array<ArrayBuffer> {
   const payload = new TextEncoder().encode(JSON.stringify(message));
   const out = new Uint8Array(5 + payload.length);
   new DataView(out.buffer).setUint32(1, payload.length);

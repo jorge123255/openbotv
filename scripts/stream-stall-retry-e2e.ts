@@ -174,6 +174,21 @@ try {
       },
     },
     {
+      text: "auth-code",
+      expect: (result, prompts) => {
+        assert.equal(prompts, 1, "ACP authRequired overrides a transient-looking message.");
+        assert.equal(result.status, "failed", "An auth-required code fails the turn.");
+        assert.equal(result.reply, "", "An auth-required code produces no answer.");
+      },
+    },
+    {
+      text: "auth-text",
+      expect: (result, prompts) => {
+        assert.equal(prompts, 1, "Authentication text in an internal error is not sent again.");
+        assert.equal(result.status, "failed", "Authentication text fails the turn.");
+      },
+    },
+    {
       text: "drop-after-text",
       expect: (result, prompts) => {
         assert.equal(prompts, 1, "A stream that already sent text is not sent again.");
