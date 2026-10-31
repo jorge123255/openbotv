@@ -1,0 +1,170 @@
+{
+  "format": "openbot-public-sigstore-fixture-source-v1",
+  "scope": "fixture-only",
+  "productionTrustedRoot": false,
+  "productionEvidenceAvailable": false,
+  "source": {
+    "repository": "sigstore/sigstore-js",
+    "tag": "@sigstore/verify@4.1.2",
+    "annotatedTagObject": "fdcb6974cd1a0addf9577b407ca0a8efee007126",
+    "commit": "769a53d8713248a8bf49edfc2a5d1955b0dcc24d",
+    "tagDate": "2026-08-04T21:31:37Z",
+    "tagSignatureVerification": {
+      "verified": false,
+      "reason": "unsigned",
+      "signature": null,
+      "payload": null,
+      "verified_at": null
+    },
+    "retrieval": "GitHub MCP fetch_file at immutable commit; Git blob SHA-1 recomputed locally",
+    "files": [
+      {
+        "path": "packages/verify/src/__tests__/__fixtures__/trust.ts",
+        "gitBlobSha1": "22d2efedb7073c87a3e0bcace0d79b1d5ee26893",
+        "url": "https://github.com/sigstore/sigstore-js/blob/769a53d8713248a8bf49edfc2a5d1955b0dcc24d/packages/verify/src/__tests__/__fixtures__/trust.ts",
+        "byteLength": 9919,
+        "sha256": "2d998343a2edb221b3f52b8239772aa25f85197a7e2d41105f92a5e657b1906d"
+      },
+      {
+        "path": "packages/verify/src/__tests__/__fixtures__/bundles.ts",
+        "gitBlobSha1": "ba1f968697ad136907a2c878d1d0cc62fdcc2db9",
+        "url": "https://github.com/sigstore/sigstore-js/blob/769a53d8713248a8bf49edfc2a5d1955b0dcc24d/packages/verify/src/__tests__/__fixtures__/bundles.ts",
+        "byteLength": 33991,
+        "sha256": "46730a904b1c12fb8397d37d125b9da353f4edb1dc29f0411b43603311a2d7e7"
+      },
+      {
+        "path": "LICENSE",
+        "gitBlobSha1": "e9e7c1679a09dfcb0793682d99f5129e206a8abd",
+        "url": "https://github.com/sigstore/sigstore-js/blob/769a53d8713248a8bf49edfc2a5d1955b0dcc24d/LICENSE",
+        "byteLength": 11351,
+        "sha256": "364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0"
+      },
+      {
+        "path": "packages/verify/src/__tests__/verifier.test.ts",
+        "gitBlobSha1": "cdb56948017362e2eff0e8903205fbdedbe8c286",
+        "url": "https://github.com/sigstore/sigstore-js/blob/769a53d8713248a8bf49edfc2a5d1955b0dcc24d/packages/verify/src/__tests__/verifier.test.ts",
+        "byteLength": 9518,
+        "sha256": "afef926bd4ec9c5cd8f2d40874ef5be93220c9d23abc0badca44089a26918335"
+      }
+    ]
+  },
+  "extraction": {
+    "method": "Restricted literal-only parser; objects, arrays, strings, numbers, booleans, null and undefined only. No eval, imports, functions or upstream code executed.",
+    "undefinedObjectProperties": "omitted, equivalent to JSON.stringify of the literal data",
+    "root": "trustedRootJSON from trust.ts; full upstream public fixture root retained",
+    "message": "V3.MESSAGE_SIGNATURE.TLOG_HASHEDREKORDV002 from bundles.ts",
+    "dsse": "V3.DSSE.WITH_SIGNING_CERT.TLOG_DSSEV002 from bundles.ts",
+    "artifact": "Exact UTF-8 bytes of public upstream ARTIFACT: hello, world!; no trailing newline",
+    "signedBytes": "Certificate, log-body, proof/checkpoint, signature, digest, timestamp and DSSE base64 payload fields copied without modification; outer JSON whitespace changed and listed unsigned protobuf default fields omitted.",
+    "outerEncoding": "Root and bundle JSON: canonical minified JSON.stringify encoding with one terminal LF; adapter accepts zero or one terminal LF only.",
+    "normalization": {
+      "packages": {
+        "@sigstore/bundle": "5.0.0",
+        "@sigstore/protobuf-specs": "0.5.2",
+        "@sigstore/verify": "4.1.2"
+      },
+      "method": "bundleToJSON(bundleFromJSON(extractedJSON)); JSON.stringify with one terminal LF",
+      "changes": [
+        {
+          "path": "message-signature.bundle.sigstore",
+          "omittedUnsignedDefaults": [
+            "verificationMaterial.tlogEntries[0].integratedTime: default string zero",
+            "verificationMaterial.tlogEntries[0].inclusionPromise: null"
+          ]
+        },
+        {
+          "path": "dsse.bundle.sigstore",
+          "omittedUnsignedDefaults": []
+        }
+      ],
+      "admission": "Logical JSON must deep-equal the pinned SDK protobuf roundtrip before cryptographic verification; ambiguous one-of and noncanonical base64 inputs refuse.",
+      "signedBytes": "All fields except the listed unsigned protobuf defaults remain deep-equal to the extracted source; certificate, payload, log-body, proof/checkpoint, timestamp and signature bytes are unchanged.",
+      "cryptographicProbe": "Both normalized fixture bundles accepted by installed pinned SDK with CT=1, tlog=1, timestamp=1; fixture-only trust."
+    },
+    "fixtureEncoding": "The .sigstore files contain pinned raw JSON bytes; the byte-oriented extension prevents general JSON formatting from changing canonical test evidence."
+  },
+  "artifacts": [
+    {
+      "path": "trusted-root.fixture.sigstore",
+      "byteLength": 7846,
+      "sha256": "ffedc2c317fedb9ea6ae8a054c7777f97042e362d745035918f9ba3b30d2038c"
+    },
+    {
+      "path": "message-signature.bundle.sigstore",
+      "byteLength": 4019,
+      "sha256": "b618039fb79226d357daef0fc95f0be06f9aa6fa1c6bc8e93c0e3b3a1d043e08"
+    },
+    {
+      "path": "dsse.bundle.sigstore",
+      "byteLength": 5054,
+      "sha256": "ece731a4721ac9b1f940afef4c503c4492e317f30cfed66e19c1e8adfd1e1568"
+    },
+    {
+      "path": "artifact.txt",
+      "byteLength": 13,
+      "sha256": "68e656b251e67e8358bef8483ab0d51c6619f3e7a1a9f0e75838d41ff368f728"
+    },
+    {
+      "path": "LICENSE",
+      "byteLength": 11351,
+      "sha256": "364a130d2ca340bd56eb1e6d045fc6929bb0f9d0aa018f2c1949b29517e1cdd0"
+    },
+    {
+      "path": "README.md",
+      "byteLength": 5188,
+      "sha256": "7c97a508dfdce47c833148e7ebe80e85ace170f1a8ee70d36d451b72dfbda2bb"
+    },
+    {
+      "path": "NOTICE",
+      "byteLength": 888,
+      "sha256": "7ddaeca8812cc995ff9ebed29a393cf3f4aa3325762a64d82c72fcc71bf7d283"
+    }
+  ],
+  "expected": {
+    "verifierThresholds": {
+      "ctlogThreshold": 1,
+      "tlogThreshold": 1,
+      "timestampThreshold": 1
+    },
+    "message": {
+      "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "signerSubjectAlternativeName": "brian@dehamer.com",
+      "certificateSha256": "3403b4762a73b900bcb31663bf8fc54f0cdc47e84433fb6d4a1dda9c94dff343",
+      "artifactSha256": "68e656b251e67e8358bef8483ab0d51c6619f3e7a1a9f0e75838d41ff368f728",
+      "expectedCryptographicResult": "accept under the fixture-only root; no approved-fork policy admission",
+      "logKind": {
+        "kind": "hashedrekord",
+        "version": "0.0.2"
+      },
+      "transparencyProof": "Rekor v2 Merkle inclusion proof and signed checkpoint",
+      "timestamp": "included RFC3161 timestamp; default threshold1 retained",
+      "certificateSubjectAlternativeNameType": "email",
+      "nodeX509SubjectAlternativeNameDiagnostic": "email:brian@dehamer.com"
+    },
+    "dsse": {
+      "mediaType": "application/vnd.dev.sigstore.bundle.v0.3+json",
+      "signerSubjectAlternativeName": "brian@dehamer.com",
+      "certificateSha256": "d2cf1446b14e8a22001f1479636f2a1f7a40726f60c6f80c70ef02e412918737",
+      "payloadType": "text/plain",
+      "payloadSha256": "68e656b251e67e8358bef8483ab0d51c6619f3e7a1a9f0e75838d41ff368f728",
+      "expectedCryptographicResult": "accept under the fixture-only root; text/plain payload is not an in-toto release statement",
+      "logKind": {
+        "kind": "dsse",
+        "version": "0.0.2"
+      },
+      "transparencyProof": "Rekor v2 Merkle inclusion proof and signed checkpoint",
+      "timestamp": "included RFC3161 timestamp; default threshold1 retained",
+      "certificateSubjectAlternativeNameType": "email",
+      "nodeX509SubjectAlternativeNameDiagnostic": "email:brian@dehamer.com"
+    },
+    "issuer": "https://github.com/login/oauth",
+    "approvedForkPolicy": "refuse: these fixtures do not establish jorge123255/openbotv release workflow, approved tag or immutable repository/owner identities"
+  },
+  "limits": [
+    "Public upstream fixture root inventory only; not a production TUF/root pin or update policy",
+    "Source tag is unsigned; MCP source/blob hashes record provenance, not publisher signature verification",
+    "No new signing keys, certificates, log records, grants, release runs, network destinations or credentials",
+    "No runtime, installed binary, container identity, pairing, source authentication or migration verification",
+    "Expected cryptographic acceptance is grounded in upstream tests and must be rerun with the approved installed SDK"
+  ]
+}

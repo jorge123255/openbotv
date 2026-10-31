@@ -39,6 +39,10 @@ second version source and add package-signing risk without adding a useful runti
 
 ## Dependency direction
 
+The isolated migration signature adapter is described in
+[offline provenance verification](migration-offline-provenance.md). It is not part of the running
+application service graph and cannot admit a release or destination.
+
 Dependencies point toward stable boundaries:
 
 ```text

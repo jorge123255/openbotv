@@ -39,6 +39,8 @@ asarUnpack:
   # The unpacked host resolves Effect without loading any application module from asar.
   - node_modules/effect/**/*
 extraResources:
+  - from: build/licenses/Sigstore-Apache-2.0.txt
+    to: licenses/Sigstore-Apache-2.0.txt
   - from: resources/managed-skills
     to: managed-skills
   - from: resources/plugin-catalog
