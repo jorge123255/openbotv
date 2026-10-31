@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import solidPlugin from "@solidjs/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { offlineEntryIntegrity } from "./scripts/offline-entry-integrity";
 
 const rendererPort = readRendererPort(process.env.OPENBOT_DEV_RENDERER_PORT);
 
@@ -9,6 +10,7 @@ export default defineConfig({
   main: {
     // Workspace sources ship as TypeScript and must be bundled for the packaged app.
     plugins: [
+      offlineEntryIntegrity(),
       externalizeDepsPlugin({
         exclude: [
           "@openbot/brand",
@@ -23,8 +25,15 @@ export default defineConfig({
     ],
     build: {
       rollupOptions: {
+        output: {
+          // Application and shared main chunks use main-root-relative worker/resource paths.
+          chunkFileNames: "[name]-[hash].js",
+          codeSplitting: true,
+        },
         input: {
-          index: resolve("src/main/index.ts"),
+          index: resolve("src/main/startup-entry.ts"),
+          // Keep application code at the main root: existing preload/worker/resource paths use it.
+          application: resolve("src/main/index.ts"),
           // The database host is its own process. Only node:* and the installed Effect package
           // are runtime imports; the unpacked host must not load the main process bundle.
           "agent-database-host": resolve("src/backend/agent-data/agent-database-host.ts"),

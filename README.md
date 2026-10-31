@@ -119,6 +119,11 @@ move credentials or provide complete migration.
 The fork's [credential portability lab](docs/architecture/credential-portability.md) tests
 authenticated encryption with generated records only. Real credential migration remains unavailable.
 
+Full offline migration rehearsal is not available. The reserved rehearsal request is a
+[startup refusal interlock](docs/architecture/offline-startup-interlock.md), with no offline app mode.
+Local hosting remains an option. [Executor eligibility](docs/architecture/migration-executor-eligibility.md)
+distinguishes process, container and VM boundaries; a VM-per-agent provisioner is not implemented.
+
 ### Nix
 
 The flake installs the desktop app from the latest release on x64 or arm64 Linux and on Apple silicon:
