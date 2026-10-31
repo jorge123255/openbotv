@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { MIGRATION_PREPARATION_BLOCKERS } from "@openbot/contracts/ipc-migration-preparation";
 import { remoteHostFingerprint } from "@openbot/team-client/host-key-handover";
-import { Deferred, Effect, Fiber, Result } from "effect";
+import { Deferred, Effect, Exit, Fiber, Result, Scheduler } from "effect";
 import { OpenBotDatabase } from "../src/backend/openbot-database";
 import { readMigrationAssessmentInventory } from "../src/main/migration-assessment-inventory";
 import { MigrationAssessmentService } from "../src/main/migration-assessment-service";
@@ -31,7 +31,13 @@ type Artifact = Context["sourceArtifact"];
 type Code = SyntheticMigrationVerificationFailure["code"];
 const output = resolve(import.meta.dirname, "../.openbot-build/synthetic-migration-destination-verification-e2e");
 const groups: Array<{ name: string; passed: boolean }> = [];
-const EXPECTED_GROUPS = 17;
+const EXPECTED_GROUPS = 18;
+const schedulerInterruption: {
+  budgets: number;
+  acquiredBeforePorts: number;
+  leakedBeforePorts: number;
+  leakedBudgets: number[];
+} = { budgets: 64, acquiredBeforePorts: 0, leakedBeforePorts: 0, leakedBudgets: [] };
 let refusalCount = 0;
 let successCount = 0;
 let base = "";
@@ -895,6 +901,94 @@ try {
   await check("external interruption aborts observation releases busy state and ignores late fulfillment", async () => {
     await interruptedObservation(false);
   });
+  await check(
+    "scheduler interruption after slot acquisition releases the slot before any context or endpoint access",
+    async () => {
+      for (let budget = 1; budget <= schedulerInterruption.budgets; budget++) {
+        const tasks: Array<() => void> = [];
+        let yielded = false;
+        const dispatcher: Scheduler.SchedulerDispatcher = {
+          scheduleTask: (task) => {
+            tasks.push(task);
+          },
+          flush: () => {
+            let drained = 0;
+            while (tasks.length > 0) {
+              assert.ok(++drained <= 1000);
+              tasks.shift()?.();
+            }
+          },
+        };
+        const scheduler: Scheduler.Scheduler = {
+          executionMode: "async",
+          shouldYield: (fiber) => {
+            if (yielded || fiber.currentOpCount < fiber.getRef(Scheduler.MaxOpsBeforeYield)) return false;
+            yielded = true;
+            return true;
+          },
+          makeDispatcher: () => dispatcher,
+        };
+        let reads = 0;
+        let observations = 0;
+        const service = verifier(context(), {
+          readContext: () => {
+            reads++;
+            return Effect.succeed(context());
+          },
+          observe: async (request) => {
+            observations++;
+            return response(request);
+          },
+        });
+        const controller = new AbortController();
+        const fiber = Effect.runFork(
+          service.verify().pipe(Effect.provideService(Scheduler.MaxOpsBeforeYield, budget)),
+          {
+            scheduler,
+            signal: controller.signal,
+          },
+        );
+        try {
+          const beforeReads = reads;
+          const beforeObservations = observations;
+          const probe = await Effect.runPromise(Effect.result(service.verify()));
+          const acquired =
+            yielded &&
+            beforeReads === 0 &&
+            beforeObservations === 0 &&
+            Result.isFailure(probe) &&
+            probe.failure.code === "busy";
+          if (acquired) {
+            schedulerInterruption.acquiredBeforePorts++;
+            assert.equal(reads, 0);
+            assert.equal(observations, 0);
+          }
+          controller.abort();
+          dispatcher.flush();
+          const interrupted = await Effect.runPromise(Fiber.await(fiber));
+          if (acquired) {
+            assert.ok(Exit.hasInterrupts(interrupted));
+            assert.equal(reads, 0);
+            assert.equal(observations, 0);
+          }
+          const fresh = await Effect.runPromise(Effect.result(service.verify()));
+          if (acquired && Result.isFailure(fresh) && fresh.failure.code === "busy") {
+            schedulerInterruption.leakedBeforePorts++;
+            schedulerInterruption.leakedBudgets.push(budget);
+          } else {
+            assert.ok(Result.isSuccess(fresh));
+            assert.equal(fresh.success.destinationVerified, false);
+          }
+        } finally {
+          controller.abort();
+          dispatcher.flush();
+          await Effect.runPromise(Fiber.interrupt(fiber));
+        }
+      }
+      assert.ok(schedulerInterruption.acquiredBeforePorts > 0);
+      assert.equal(schedulerInterruption.leakedBeforePorts, 0);
+    },
+  );
   await check("actual ten second deadline aborts a signal-ignoring observer and ignores its late result", async () => {
     await interruptedObservation(true);
   });
@@ -939,6 +1033,7 @@ try {
           realGeneratedProfileServices: true,
           successCount,
           refusalCount,
+          schedulerInterruption,
           groups,
           realDataAccessed: false,
           credentialsAccessed: false,

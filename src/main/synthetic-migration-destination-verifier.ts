@@ -248,165 +248,170 @@ export class SyntheticMigrationDestinationVerifier {
   );
 
   readonly verify = Effect.fn("SyntheticDestination.verify")(() =>
-    Effect.suspend(() => {
-      if (this.#active) return Effect.fail(new SyntheticMigrationVerificationFailure({ code: "busy" }));
-      if (this.#attempts >= 32)
-        return Effect.fail(new SyntheticMigrationVerificationFailure({ code: "attempt-limit" }));
-      const attempt = Symbol();
-      this.#active = attempt;
-      this.#attempts++;
-      return Effect.gen({ self: this }, function* () {
-        const started = this.#options.monotonicClock();
-        const wallStarted = this.#options.wallClock();
-        if (!Number.isFinite(started) || started < 0 || !Number.isSafeInteger(wallStarted) || wallStarted < 0)
-          return yield* new SyntheticMigrationVerificationFailure({ code: "expired" });
-        if (this.#options.scope !== "synthetic-only")
-          return yield* new SyntheticMigrationVerificationFailure({ code: "unapproved" });
-        const context = yield* this.#context();
-        const source = yield* Effect.try({
-          try: () => verifyArtifact(context.sourceArtifact, context.publisherPublicKey),
-          catch: failure,
-        });
-        if (
-          source.manifest.platform !== context.sourcePlatform ||
-          source.manifest.architecture !== context.sourceArchitecture
-        )
-          return yield* new SyntheticMigrationVerificationFailure({ code: "platform-incompatible" });
-        const request = yield* Effect.try({
-          try: () =>
-            Schema.decodeUnknownSync(Request)({
-              format: "openbot-synthetic-destination-request-v1",
-              requestId: randomUUID(),
-              challenge: randomBytes(32).toString("base64url"),
-              contextSha256: hash(JSON.stringify(context)),
-              sourceHostId: context.sourceHostId,
-              destinationHostId: context.pairing.destinationHostId,
-              destinationFingerprint: context.pairing.fingerprint,
-              destinationOrigin: context.pairing.origin,
-              installationId: context.pairing.installationId,
-              runtimeInstanceId: context.pairing.runtimeInstanceId,
-              publisherFingerprint: remoteHostFingerprint(context.publisherPublicKey),
-              sourceManifestSha256: source.identity,
-              planId: context.planId,
-              preparationRevision: context.preparationRevision,
-              assessmentId: context.assessmentId,
-              assessmentRevision: context.assessmentRevision,
-              assessmentSha256: context.assessmentSha256,
-              issuedAtMs: wallStarted,
-              expiresAtMs: wallStarted + LIFETIME_MS,
-            }),
-          catch: failure,
-        });
-        // Context/build work must not spend the local deadline and still call the endpoint.
-        const beforeSend = this.#options.monotonicClock() - started;
-        const beforeSendWall = this.#options.wallClock();
-        if (
-          !Number.isFinite(beforeSend) ||
-          beforeSend < 0 ||
-          beforeSend >= DEADLINE_MS ||
-          !Number.isSafeInteger(beforeSendWall) ||
-          beforeSendWall < wallStarted ||
-          beforeSendWall >= request.expiresAtMs
-        )
-          return yield* new SyntheticMigrationVerificationFailure({ code: "expired" });
-        const observation = yield* Effect.tryPromise({
-          try: (signal) => this.#options.observe(Object.freeze({ ...request }), signal),
-          catch: () => new SyntheticMigrationVerificationFailure({ code: "transport-rejected" }),
-        });
-        const envelope = yield* Effect.try({
-          try: () => {
-            if (
-              observation.origin !== request.destinationOrigin ||
-              observation.status !== 200 ||
-              observation.redirected !== false ||
-              observation.tls !== "fixture-trusted"
-            )
-              refuse("transport-rejected");
-            if (!(observation.body instanceof Uint8Array) || observation.body.byteLength > MAX_BODY)
-              refuse("invalid-response");
-            const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
-              Buffer.from(observation.body),
-            );
-            const value = Schema.decodeUnknownSync(Envelope, { onExcessProperty: "error" })(JSON.parse(text));
-            if (JSON.stringify(value) !== text || JSON.stringify(value.receipt.request) !== JSON.stringify(request))
-              refuse("invalid-response");
-            const signature = Buffer.from(value.signature, "base64url");
-            if (
-              signature.toString("base64url") !== value.signature ||
-              !verify(
-                null,
-                Buffer.from(syntheticMigrationReceiptStatement(value.receipt)),
-                context.pairing.publicKey,
-                signature,
+    Effect.acquireUseRelease(
+      Effect.try({
+        try: () => {
+          if (this.#active) refuse("busy");
+          if (this.#attempts >= 32) refuse("attempt-limit");
+          const attempt = Symbol();
+          this.#active = attempt;
+          this.#attempts++;
+          return attempt;
+        },
+        catch: failure,
+      }),
+      (attempt) =>
+        Effect.gen({ self: this }, function* () {
+          const started = this.#options.monotonicClock();
+          const wallStarted = this.#options.wallClock();
+          if (!Number.isFinite(started) || started < 0 || !Number.isSafeInteger(wallStarted) || wallStarted < 0)
+            return yield* new SyntheticMigrationVerificationFailure({ code: "expired" });
+          if (this.#options.scope !== "synthetic-only")
+            return yield* new SyntheticMigrationVerificationFailure({ code: "unapproved" });
+          const context = yield* this.#context();
+          const source = yield* Effect.try({
+            try: () => verifyArtifact(context.sourceArtifact, context.publisherPublicKey),
+            catch: failure,
+          });
+          if (
+            source.manifest.platform !== context.sourcePlatform ||
+            source.manifest.architecture !== context.sourceArchitecture
+          )
+            return yield* new SyntheticMigrationVerificationFailure({ code: "platform-incompatible" });
+          const request = yield* Effect.try({
+            try: () =>
+              Schema.decodeUnknownSync(Request)({
+                format: "openbot-synthetic-destination-request-v1",
+                requestId: randomUUID(),
+                challenge: randomBytes(32).toString("base64url"),
+                contextSha256: hash(JSON.stringify(context)),
+                sourceHostId: context.sourceHostId,
+                destinationHostId: context.pairing.destinationHostId,
+                destinationFingerprint: context.pairing.fingerprint,
+                destinationOrigin: context.pairing.origin,
+                installationId: context.pairing.installationId,
+                runtimeInstanceId: context.pairing.runtimeInstanceId,
+                publisherFingerprint: remoteHostFingerprint(context.publisherPublicKey),
+                sourceManifestSha256: source.identity,
+                planId: context.planId,
+                preparationRevision: context.preparationRevision,
+                assessmentId: context.assessmentId,
+                assessmentRevision: context.assessmentRevision,
+                assessmentSha256: context.assessmentSha256,
+                issuedAtMs: wallStarted,
+                expiresAtMs: wallStarted + LIFETIME_MS,
+              }),
+            catch: failure,
+          });
+          // Context/build work must not spend the local deadline and still call the endpoint.
+          const beforeSend = this.#options.monotonicClock() - started;
+          const beforeSendWall = this.#options.wallClock();
+          if (
+            !Number.isFinite(beforeSend) ||
+            beforeSend < 0 ||
+            beforeSend >= DEADLINE_MS ||
+            !Number.isSafeInteger(beforeSendWall) ||
+            beforeSendWall < wallStarted ||
+            beforeSendWall >= request.expiresAtMs
+          )
+            return yield* new SyntheticMigrationVerificationFailure({ code: "expired" });
+          const observation = yield* Effect.tryPromise({
+            try: (signal) => this.#options.observe(Object.freeze({ ...request }), signal),
+            catch: () => new SyntheticMigrationVerificationFailure({ code: "transport-rejected" }),
+          });
+          const envelope = yield* Effect.try({
+            try: () => {
+              if (
+                observation.origin !== request.destinationOrigin ||
+                observation.status !== 200 ||
+                observation.redirected !== false ||
+                observation.tls !== "fixture-trusted"
               )
-            )
-              refuse("signature-invalid");
-            const capabilities = value.receipt.capabilities;
-            if (
-              !capabilities.includes("migration-destination-synthetic-v1") ||
-              new Set(capabilities).size !== capabilities.length ||
-              [...capabilities].sort().join() !== capabilities.join()
-            )
-              refuse("capability-unavailable");
-            const destination = verifyArtifact(value.receipt.artifact, context.publisherPublicKey);
-            if (
-              source.manifest.platform !== destination.manifest.platform ||
-              source.manifest.architecture !== destination.manifest.architecture ||
-              source.manifest.runtime !== destination.manifest.runtime ||
-              source.manifest.artifactKind !== destination.manifest.artifactKind
-            )
-              refuse("platform-incompatible");
-            if (source.identity !== destination.identity) refuse("build-mismatch");
-            return value;
-          },
-          catch: (error) =>
-            error instanceof SyntheticMigrationVerificationFailure
-              ? error
-              : new SyntheticMigrationVerificationFailure({ code: "invalid-response" }),
-        });
-        const after = yield* this.#context();
-        if (JSON.stringify(after) !== JSON.stringify(context))
-          return yield* new SyntheticMigrationVerificationFailure({ code: "context-changed" });
-        const now = this.#options.wallClock();
-        const elapsed = this.#options.monotonicClock() - started;
-        if (
-          this.#active !== attempt ||
-          !Number.isFinite(elapsed) ||
-          elapsed < 0 ||
-          elapsed >= DEADLINE_MS ||
-          !Number.isSafeInteger(now) ||
-          now < wallStarted ||
-          now >= request.expiresAtMs ||
-          envelope.receipt.issuedAtMs < wallStarted ||
-          envelope.receipt.issuedAtMs > now ||
-          envelope.receipt.expiresAtMs !== request.expiresAtMs ||
-          envelope.receipt.issuedAtMs >= envelope.receipt.expiresAtMs
-        )
-          return yield* new SyntheticMigrationVerificationFailure({ code: "expired" });
-        return {
-          scope: "synthetic-only" as const,
-          authenticatedHostResponse: true as const,
-          artifactMatch: "exact-synthetic-artifact" as const,
-          artifactManifestSha256: source.identity,
-          expiresAtMs: request.expiresAtMs,
-          runtimeAttested: false as const,
-          destinationVerified: false as const,
-          blockers: [...MIGRATION_PREPARATION_BLOCKERS],
-          inventoryComplete: false as const,
-          operations: { export: false as const, restore: false as const, activate: false as const },
-        };
-      }).pipe(
-        Effect.timeoutOrElse({
-          duration: DEADLINE_MS,
-          orElse: () => Effect.fail(new SyntheticMigrationVerificationFailure({ code: "expired" })),
-        }),
-        Effect.catchDefect(() => Effect.fail(new SyntheticMigrationVerificationFailure({ code: "unavailable" }))),
-        Effect.ensuring(
-          Effect.sync(() => {
-            if (this.#active === attempt) this.#active = null;
+                refuse("transport-rejected");
+              if (!(observation.body instanceof Uint8Array) || observation.body.byteLength > MAX_BODY)
+                refuse("invalid-response");
+              const text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+                Buffer.from(observation.body),
+              );
+              const value = Schema.decodeUnknownSync(Envelope, { onExcessProperty: "error" })(JSON.parse(text));
+              if (JSON.stringify(value) !== text || JSON.stringify(value.receipt.request) !== JSON.stringify(request))
+                refuse("invalid-response");
+              const signature = Buffer.from(value.signature, "base64url");
+              if (
+                signature.toString("base64url") !== value.signature ||
+                !verify(
+                  null,
+                  Buffer.from(syntheticMigrationReceiptStatement(value.receipt)),
+                  context.pairing.publicKey,
+                  signature,
+                )
+              )
+                refuse("signature-invalid");
+              const capabilities = value.receipt.capabilities;
+              if (
+                !capabilities.includes("migration-destination-synthetic-v1") ||
+                new Set(capabilities).size !== capabilities.length ||
+                [...capabilities].sort().join() !== capabilities.join()
+              )
+                refuse("capability-unavailable");
+              const destination = verifyArtifact(value.receipt.artifact, context.publisherPublicKey);
+              if (
+                source.manifest.platform !== destination.manifest.platform ||
+                source.manifest.architecture !== destination.manifest.architecture ||
+                source.manifest.runtime !== destination.manifest.runtime ||
+                source.manifest.artifactKind !== destination.manifest.artifactKind
+              )
+                refuse("platform-incompatible");
+              if (source.identity !== destination.identity) refuse("build-mismatch");
+              return value;
+            },
+            catch: (error) =>
+              error instanceof SyntheticMigrationVerificationFailure
+                ? error
+                : new SyntheticMigrationVerificationFailure({ code: "invalid-response" }),
+          });
+          const after = yield* this.#context();
+          if (JSON.stringify(after) !== JSON.stringify(context))
+            return yield* new SyntheticMigrationVerificationFailure({ code: "context-changed" });
+          const now = this.#options.wallClock();
+          const elapsed = this.#options.monotonicClock() - started;
+          if (
+            this.#active !== attempt ||
+            !Number.isFinite(elapsed) ||
+            elapsed < 0 ||
+            elapsed >= DEADLINE_MS ||
+            !Number.isSafeInteger(now) ||
+            now < wallStarted ||
+            now >= request.expiresAtMs ||
+            envelope.receipt.issuedAtMs < wallStarted ||
+            envelope.receipt.issuedAtMs > now ||
+            envelope.receipt.expiresAtMs !== request.expiresAtMs ||
+            envelope.receipt.issuedAtMs >= envelope.receipt.expiresAtMs
+          )
+            return yield* new SyntheticMigrationVerificationFailure({ code: "expired" });
+          return {
+            scope: "synthetic-only" as const,
+            authenticatedHostResponse: true as const,
+            artifactMatch: "exact-synthetic-artifact" as const,
+            artifactManifestSha256: source.identity,
+            expiresAtMs: request.expiresAtMs,
+            runtimeAttested: false as const,
+            destinationVerified: false as const,
+            blockers: [...MIGRATION_PREPARATION_BLOCKERS],
+            inventoryComplete: false as const,
+            operations: { export: false as const, restore: false as const, activate: false as const },
+          };
+        }).pipe(
+          Effect.timeoutOrElse({
+            duration: DEADLINE_MS,
+            orElse: () => Effect.fail(new SyntheticMigrationVerificationFailure({ code: "expired" })),
           }),
+          Effect.catchDefect(() => Effect.fail(new SyntheticMigrationVerificationFailure({ code: "unavailable" }))),
         ),
-      );
-    }),
+      (attempt) =>
+        Effect.sync(() => {
+          if (this.#active === attempt) this.#active = null;
+        }),
+    ),
   );
 }

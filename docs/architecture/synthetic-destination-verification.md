@@ -75,6 +75,12 @@ One attempt can run per verifier instance. All exits release that slot; there ar
 per instance. Restart retains neither pending work nor receipts. Cancellation has no remote rollback
 meaning; the fixture operation has no mutation to undo.
 
+Slot acquisition and cleanup use `Effect.acquireUseRelease`. Acquisition and release registration
+are protected from interruption; the attempt body remains interruptible. A scheduler regression
+forces yields across 64 operation budgets, interrupts after acquisition before any context/endpoint
+access, then requires an interrupted exit, zero port calls and a successful fresh attempt. This
+guards the boundary before the body starts, in addition to cancellation during context/endpoint waits.
+
 Success is always `scope: synthetic-only`, `artifactMatch: exact-synthetic-artifact`, with
 `runtimeAttested:false`, `destinationVerified:false`, `inventoryComplete:false`, all six preparation
 blockers and disabled export/restore/activation. `authenticatedHostResponse:true` means only that the
