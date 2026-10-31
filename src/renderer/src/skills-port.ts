@@ -40,6 +40,8 @@ export interface SkillsPort {
     | "install"
     | "list"
     | "listInstalled"
+    | "localShareReview"
+    | "localShare"
     | "localGet"
     | "localInstall"
     | "localList"

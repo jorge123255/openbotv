@@ -26,6 +26,8 @@ import {
   isRoutineSchedule,
   isSkillCategory,
   isSkillNote,
+  type LocalSkillShareOutcome,
+  type LocalSkillShareReview,
   type MarketplaceAgentDetail,
   type MarketplaceAgentPage,
   type MarketplaceAgentSummary,
@@ -370,4 +372,33 @@ export function decodeAgentTemplateDetail(value: unknown): AgentTemplateDetail {
     creatorName: value.creatorName,
     updatedAt: value.updatedAt,
   };
+}
+
+export function decodeLocalSkillShareReview(value: unknown): LocalSkillShareReview {
+  const item = decodeRecord(value, "local skill share review");
+  if (!Array.isArray(item.recipients) || !Number.isSafeInteger(item.revision) || Number(item.revision) < 1)
+    throw new Error("Invalid local skill share review.");
+  const markdown = requiredString(item, "markdown");
+  const bundleSha256 = requiredString(item, "bundleSha256");
+  if (markdown.length > 64 * 1024 || !/^[a-f0-9]{64}$/u.test(bundleSha256))
+    throw new Error("Invalid local skill share content.");
+  return {
+    skillId: requiredString(item, "skillId"),
+    revision: requiredNumber(item, "revision"),
+    bundleSha256,
+    markdown,
+    recipients: item.recipients.map((value) => {
+      const recipient = decodeRecord(value, "skill recipient");
+      return { agentId: requiredString(recipient, "agentId"), name: requiredString(recipient, "name") };
+    }),
+  };
+}
+export function decodeLocalSkillShareOutcomes(value: unknown): LocalSkillShareOutcome[] {
+  if (!Array.isArray(value)) throw new Error("Invalid local skill share outcomes.");
+  return value.map((value) => {
+    const item = decodeRecord(value, "local skill share outcome");
+    if (!isOneOf(["installed", "unchanged", "blocked", "check-required"] as const, item.status))
+      throw new Error("Invalid local skill share status.");
+    return { agentId: requiredString(item, "agentId"), status: item.status };
+  });
 }

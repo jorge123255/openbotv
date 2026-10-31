@@ -17,6 +17,7 @@ import {
 import { clone, matchesQuery } from "./mock-support";
 
 export interface MockSkillsOptions {
+  skillShareRecipients?: { agentId: string; name: string }[];
   localSkills?: MarketplaceSkillDetail[];
   installedSkills?: Record<string, InstalledSkill[]>;
 }
@@ -91,6 +92,55 @@ export function createMockSkills(options: MockSkillsOptions, onChanged: (agentId
   }
 
   const skills: OpenBotDesktopApi["skills"] = {
+    localShareReview: async ({ skillId, revision }) => {
+      const skill = await skills.localGet({ skillId, revision });
+      if (skill.files.length !== 1 || skill.files[0] !== "SKILL.md")
+        throw new Error(
+          "Sharing currently requires a skill with only SKILL.md, up to 64 KB. Skills with other files need a separate review.",
+        );
+      return {
+        skillId,
+        revision,
+        bundleSha256: skill.bundleSha256,
+        markdown: `---\nname: ${skill.name}\ndescription: ${skill.description}\n---\n${skill.instructions}`,
+        recipients: clone(
+          options.skillShareRecipients ?? [
+            { agentId: "chief", name: "Chief" },
+            { agentId: "research", name: "Research" },
+          ],
+        ),
+      };
+    },
+    localShare: async (input) => {
+      const review = await skills.localShareReview(input);
+      if (!input.reviewed || input.bundleSha256 !== review.bundleSha256)
+        throw new Error("The skill content changed. Review it again before sharing.");
+      const outcomes = [];
+      for (const agentId of input.agentIds) {
+        const previous = readInstalledSkills(agentId).find((item) => item.skillId === input.skillId);
+        if (!review.recipients.some((item) => item.agentId === agentId)) {
+          outcomes.push({ agentId, status: "check-required" as const });
+        } else if (previous) {
+          outcomes.push({
+            agentId,
+            status:
+              previous.installedVersion === input.revision && previous.state === "installed"
+                ? ("unchanged" as const)
+                : ("blocked" as const),
+          });
+        } else if (
+          readInstalledSkills(agentId).some(
+            (item) => item.slug === localRevisions.get(`${input.skillId}:${input.revision}`)?.slug,
+          )
+        ) {
+          outcomes.push({ agentId, status: "check-required" as const });
+        } else {
+          await skills.localInstall({ agentId, skillId: input.skillId, revision: input.revision });
+          outcomes.push({ agentId, status: "installed" as const });
+        }
+      }
+      return outcomes;
+    },
     localList: async () => clone(localSkills),
     localGet: async ({ skillId, revision }) => {
       const skill = revision

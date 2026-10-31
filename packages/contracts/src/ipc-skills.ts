@@ -344,3 +344,24 @@ export interface LocalSkillRevisionInput {
 }
 /** Installs one exact revision, so the agent gets the copy the user read. */
 export type InstallLocalSkillInput = LocalSkillRevisionInput & { agentId: string; revision: number };
+
+/** First sharing slice: one reviewed SKILL.md, with no scripts or other assets. */
+export interface LocalSkillShareReview {
+  skillId: string;
+  revision: number;
+  bundleSha256: string;
+  markdown: string;
+  recipients: { agentId: string; name: string }[];
+}
+export interface ShareLocalSkillInput {
+  skillId: string;
+  revision: number;
+  bundleSha256: string;
+  agentIds: string[];
+  reviewed: true;
+}
+export interface LocalSkillShareOutcome {
+  agentId: string;
+  /** check-required can mean files were installed but runtime refresh failed. Do not retry blindly. */
+  status: "installed" | "unchanged" | "blocked" | "check-required";
+}

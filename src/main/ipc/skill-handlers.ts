@@ -2,8 +2,10 @@ import { localSkillTools } from "../local-skill-tools";
 import {
   parseCreateLocalSkill,
   parseInstallLocalSkill,
+  parseLocalSkillShareReview,
   parseReadLocalSkill,
   parseReviseLocalSkill,
+  parseShareLocalSkill,
 } from "./local-skill-inputs";
 // The skill marketplace, and the skills installed into a workspace.
 
@@ -34,6 +36,10 @@ export function skillIpcHandlers({
 }: SkillIpcDependencies): Pick<IpcGroupHandlers, "skills"> {
   return {
     skills: {
+      localShareReview: payloadHandler(parseLocalSkillShareReview, (input) =>
+        runCauseEffect(skills.reviewLocalShare(input)),
+      ),
+      localShare: payloadHandler(parseShareLocalSkill, (input) => runCauseEffect(skills.shareLocal(input))),
       localList: handler(() => runCauseEffect(localSkillTools(skills).list())),
       localGet: payloadHandler(parseReadLocalSkill, (input) => runCauseEffect(localSkillTools(skills).get(input))),
       localCreate: payloadHandler(parseCreateLocalSkill, (input) =>

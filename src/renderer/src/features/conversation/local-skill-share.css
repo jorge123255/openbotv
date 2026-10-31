@@ -1,0 +1,21 @@
+.local-skill-share {
+  display: grid;
+  gap: var(--openbot-space-3);
+  overflow-wrap: anywhere;
+}
+
+.local-skill-share-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 50vh;
+  overflow: auto;
+  padding: var(--openbot-space-3);
+  background: var(--openbot-bg-surface);
+}
+
+.local-skill-share-choice {
+  display: flex;
+  align-items: start;
+  gap: var(--openbot-space-2);
+  padding-block: var(--openbot-space-2);
+}
