@@ -1,0 +1,9 @@
+{
+  "channelId": "fixture-channel",
+  "taskId": "fixture-task",
+  "operationId": "fixture-recover",
+  "expectedRevision": 2,
+  "expectedChannelRevision": 4,
+  "action": "reassign",
+  "recipientAgentId": "fixture-agent"
+}

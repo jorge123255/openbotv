@@ -7,6 +7,8 @@ import {
   type AgentAccessLevel,
   type AgentEvent,
   type AgentSummary,
+  agentAccessRank,
+  type CancelChannelTaskInput,
   CHANNEL_ASSIGNMENT_LIMIT,
   CHANNEL_CHANGE_ITEM_TYPE,
   CHANNEL_PARALLEL_LIMIT,
@@ -21,6 +23,7 @@ import {
   channelRoutingConversationEventItemType,
   type DeleteChannelMemoryInput,
   type QueueHold,
+  type RecoverChannelTaskInput,
   type UpdateChannelMemoryInput,
 } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
@@ -257,6 +260,131 @@ export class ChannelService {
       ),
   );
 
+  /** Cancels confirmed stopped work and keeps its request, replies and ended assignments. */
+  readonly cancelTask = Effect.fn("ChannelService.cancelTask")(
+    (input: CancelChannelTaskInput, actor: { id: string; name: string }) =>
+      this.#serialize(
+        input.channelId,
+        Effect.gen({ self: this }, function* () {
+          const operation = `cancel-task:${JSON.stringify([actor.id, input.channelId, input.taskId, input.operationId])}`;
+          const receipt = yield* channelSync(() => this.store.database.commandResult(`channels:${operation}`));
+          const channel = yield* channelSync(() => this.store.get(input.channelId));
+          const tasks = yield* channelSync(() => this.store.tasks(channel.id));
+          // The receipt can outlive a lost response or a restart. Retry only the unfinished
+          // interruption; never add another note or change a task revision again.
+          if (receipt !== undefined) {
+            const branch = descendantIds(tasks, input.taskId);
+            yield* this.interruptTasks(
+              channel.id,
+              tasks.filter((task) => branch.has(task.id) && task.state === "cancelled"),
+            );
+            return this.store.get(channel.id);
+          }
+          if (channel.archived) return yield* channelFailure(new Error(sourceText("error.backend.channelArchived")));
+          if (channel.revision !== input.expectedChannelRevision)
+            return yield* channelFailure(new Error(sourceText("error.backend.channelTaskChanged")));
+          const selected = tasks.find((task) => task.id === input.taskId);
+          if (!selected) return yield* channelFailure(new Error(sourceText("error.backend.channelTaskNotFound")));
+          if (selected.revision !== input.expectedRevision)
+            return yield* channelFailure(new Error(sourceText("error.backend.channelTaskChanged")));
+          if (selected.state !== "paused" && selected.state !== "failed")
+            return yield* channelFailure(new Error(sourceText("error.backend.channelTaskNotStopped")));
+          const branch = descendants(tasks, selected.id);
+          const updated = branch.map(
+            (task): ChannelTask => ({
+              ...task,
+              state: "cancelled",
+              revision: task.revision + 1,
+              error: sourceText("error.backend.channelTaskCancelled"),
+            }),
+          );
+          // A parent outside the cancelled branch must not wait forever for its child. It needs
+          // review, while other branches keep their work and their history.
+          const ancestors = new Set<string>();
+          for (let parentId = selected.parentTaskId; parentId && !ancestors.has(parentId); ) {
+            ancestors.add(parentId);
+            const parent = tasks.find((task) => task.id === parentId);
+            if (!parent) break;
+            if (parent.state === "waiting")
+              updated.push({
+                ...parent,
+                state: "paused",
+                revision: parent.revision + 1,
+                error: sourceText("error.backend.channelTaskDependencyCancelled"),
+              });
+            parentId = parent.parentTaskId;
+          }
+          const note = this.message(
+            channel.id,
+            selected.id,
+            { kind: "member", ...actor },
+            sourceText("status.agent.channelTaskCancelled", { person: actor.name, task: selected.id }),
+            undefined,
+            CHANNEL_CHANGE_ITEM_TYPE,
+          );
+          note.message.source = "system";
+          note.message.author = "system";
+          const result = yield* channelSync(() =>
+            this.store.update(channel, { tasks: updated, messages: [note] }, operation),
+          );
+          this.publish(channel.id);
+          yield* this.interruptTasks(channel.id, branch);
+          yield* this.wake(channel.id);
+          return result;
+        }),
+      ),
+  );
+
+  /** A reviewed stopped task changes only while its whole reviewed channel snapshot is current. */
+  readonly recoverTask = Effect.fn("ChannelService.recoverTask")(
+    (input: RecoverChannelTaskInput, actor: { id: string; name: string }) =>
+      this.#serialize(
+        input.channelId,
+        Effect.gen({ self: this }, function* () {
+          const operationId = `recover-task:${JSON.stringify([input.channelId, input.taskId, input.operationId])}`;
+          const receipt = yield* channelSync(() =>
+            this.store.database.commandResult(`channels:${actor.id}:${operationId}`),
+          );
+          if (receipt === undefined) {
+            const channel = yield* channelSync(() => this.store.get(input.channelId));
+            const tasks = yield* channelSync(() => this.store.tasks(channel.id));
+            const task = tasks.find((item) => item.id === input.taskId);
+            if (!task) return yield* channelFailure(new Error(sourceText("error.backend.channelTaskNotFound")));
+            if (channel.revision !== input.expectedChannelRevision || task.revision !== input.expectedRevision)
+              return yield* channelFailure(new Error(sourceText("error.backend.channelTaskChanged")));
+            if (task.state !== "paused" && task.state !== "failed")
+              return yield* channelFailure(new Error(sourceText("error.backend.channelTaskNotStopped")));
+            const restarted = descendants(tasks, task.id).filter(
+              (item) =>
+                input.action === "resume" || item.id === task.id || item.state === "paused" || item.state === "failed",
+            );
+            for (const item of restarted) {
+              const owner =
+                (item.id === task.id && input.action === "reassign" ? input.recipientAgentId : item.ownerAgentId) ??
+                channel.leadAgentId;
+              if (
+                owner &&
+                agentAccessRank(this.hooks.personAgentLevel?.(actor.id, owner) ?? "manage") < agentAccessRank("chat")
+              )
+                return yield* channelFailure(new Error(sourceText("error.team.agentViewOnly")));
+            }
+          }
+          return yield* this.apply(
+            {
+              type: input.action,
+              operationId,
+              channelId: input.channelId,
+              taskId: input.taskId,
+              recipientAgentId: input.recipientAgentId,
+            },
+            actor,
+            [],
+            true,
+          );
+        }),
+      ),
+  );
+
   readonly deleteChannel = Effect.fn("ChannelService.deleteChannel")((channelId: string) =>
     this.#serialize(
       channelId,
@@ -311,6 +439,8 @@ export class ChannelService {
     actor: { id: string; name: string },
     /** Messages a save writes with the change, in the same commit. */
     notes: ChannelMessage[] = [],
+    /** Only the new guarded action reviewed this task tree, including cancelled dependencies. */
+    reviewedRecovery = false,
   ): Effect.fn.Return<Channel, ChannelOperationError> {
     const operationId = `${actor.id}:${command.operationId}`;
     const receipt = yield* channelSync(() => this.store.database.commandResult(`channels:${operationId}`));
@@ -675,6 +805,7 @@ export class ChannelService {
       command.type === "reassign"
         ? branch.filter((task) => task.id === selected.id || task.state === "paused" || task.state === "failed")
         : branch;
+    const reviewedBranch = reviewedRecovery ? descendantIds(tasks, selected.id) : null;
     const updated = affected.map(
       (task): ChannelTask => ({
         ...task,
@@ -682,6 +813,13 @@ export class ChannelService {
         // The reason is what offers Continue and Reassign; a task that an archive paused has none.
         error: command.type === "stop" ? sourceText("error.backend.channelTaskStopped") : null,
         revision: task.revision + 1,
+        // The reader explicitly reviewed the cancelled work. Continue the remaining parent work
+        // without reviving its cancelled children, in this same task write and receipt.
+        dependencies: reviewedBranch
+          ? task.dependencies.filter(
+              (id) => !reviewedBranch.has(id) || !tasks.some((item) => item.id === id && item.state === "cancelled"),
+            )
+          : task.dependencies,
         assignmentCount: command.type !== "stop" ? 0 : task.assignmentCount,
         ownerAgentId:
           command.type === "reassign" && task.id === selected.id ? command.recipientAgentId : task.ownerAgentId,
@@ -2292,7 +2430,7 @@ export class ChannelService {
                 : null,
         });
       }
-      if (task.parentTaskId) {
+      if (task.parentTaskId && task.state !== "cancelled") {
         const parent = tasks.find((item) => item.id === task.parentTaskId);
         if (
           parent?.state === "waiting" &&
@@ -3064,7 +3202,7 @@ const ACTIVE_ASSIGNMENT_STATES: readonly ChannelAssignment["state"][] = ["starti
 function activeAssignment(assignment: ChannelAssignment): boolean {
   return ACTIVE_ASSIGNMENT_STATES.includes(assignment.state);
 }
-function descendants(tasks: ChannelTask[], id: string): ChannelTask[] {
+function descendantIds(tasks: ChannelTask[], id: string): Set<string> {
   const selected = new Set([id]);
   for (let changed = true; changed; ) {
     changed = false;
@@ -3074,6 +3212,10 @@ function descendants(tasks: ChannelTask[], id: string): ChannelTask[] {
         changed = true;
       }
   }
+  return selected;
+}
+function descendants(tasks: ChannelTask[], id: string): ChannelTask[] {
+  const selected = descendantIds(tasks, id);
   return tasks.filter((task) => selected.has(task.id) && !terminal(task));
 }
 /**

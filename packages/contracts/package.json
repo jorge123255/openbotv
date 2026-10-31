@@ -108,6 +108,7 @@
     "./team-protocol/v6-base-adapter": "./src/team-protocol/v6-base-adapter.ts",
     "./team-protocol/v6-webrtc-adapter": "./src/team-protocol/v6-webrtc-adapter.ts",
     "./validation": "./src/validation.ts",
+    "./team-protocol/channel-task-actions-v1": "./src/team-protocol/channel-task-actions-v1.ts",
     "./team-protocol/channels-v1": "./src/team-protocol/channels-v1.ts",
     "./team-protocol/claude-api-key-v1": "./src/team-protocol/claude-api-key-v1.ts",
     "./team-protocol/optional-events": "./src/team-protocol/optional-events.ts",

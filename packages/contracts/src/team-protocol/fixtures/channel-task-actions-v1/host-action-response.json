@@ -1,0 +1,11 @@
+{
+  "id": "fixture-channel",
+  "name": "Fixture channel",
+  "title": "",
+  "instructions": "",
+  "members": [{ "agentId": "fixture-agent" }],
+  "leadAgentId": "fixture-agent",
+  "revision": 5,
+  "archived": false,
+  "createdAt": "2026-01-01T00:00:00.000Z"
+}

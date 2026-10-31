@@ -88,6 +88,11 @@ function channelRunStatusForTasks(
   // owner, the assignment limit, an unconfirmed turn, or an explicit Stop.
   const paused = tasks.find((task) => task.state === "paused");
   if (paused) return { status: "needs-attention", error: paused.error };
+  // A user cancellation is terminal but is not the lead's successful no-work decision.
+  if (
+    tasks.some((task) => task.state === "cancelled" && task.error === sourceText("error.backend.channelTaskCancelled"))
+  )
+    return { status: "cancelled", error: null };
   // Every task is completed or cancelled. This includes the lead judging that no work was needed.
   return { status: "succeeded", error: null };
 }
@@ -335,7 +340,11 @@ export class ChannelRoutineScheduler implements RoutineDueSource {
       const live = [
         ...new Set(
           tasks
-            .filter((task) => task.state !== "completed" && task.state !== "cancelled")
+            .filter(
+              (task) =>
+                (task.state !== "completed" && task.state !== "cancelled") ||
+                (task.state === "cancelled" && task.error === sourceText("error.backend.channelTaskCancelled")),
+            )
             .map((task) => task.requestMessageId),
         ),
       ];

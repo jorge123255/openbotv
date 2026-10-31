@@ -154,22 +154,15 @@ export function channelWorkers(
 }
 
 /**
- * The work that waits for the reader: one entry for each stopped run, not for each stopped task.
+ * The work that waits for the reader: each stopped task stays independently selectable.
  *
  * A task the service stopped carries the reason, and an archived channel stops every task without
  * one, so the reason tells the two apart. A failed task belongs here too: its parent waits for it,
- * and only the reader starts it again. The assignment limit stops a whole tree at once, and `resume`
- * starts a task with everything under it, so the entry is the root.
+ * and only the reader starts it again. A root action also affects its unfinished descendants.
  */
 export function stoppedChannelTasks(page: ChannelPage): ChannelTask[] {
   if (page.channel.archived) return [];
-  const roots = new Map<string, ChannelTask>();
-  for (const task of page.tasks) {
-    if (!((task.state === "paused" || task.state === "failed") && task.error)) continue;
-    const known = roots.get(task.rootTaskId);
-    if (!known || task.id === task.rootTaskId) roots.set(task.rootTaskId, task);
-  }
-  return [...roots.values()];
+  return page.tasks.filter((task) => (task.state === "paused" || task.state === "failed") && task.error);
 }
 
 /**

@@ -1,4 +1,11 @@
-import type { ChannelCommand, ChannelPage, ChannelSummary } from "@openbot/contracts/ipc";
+import type {
+  CancelChannelTaskInput,
+  Channel,
+  ChannelCommand,
+  ChannelPage,
+  ChannelSummary,
+  RecoverChannelTaskInput,
+} from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import type { AgentProfile } from "@openbot/ui/data";
 import { currentText } from "@openbot/ui/text";
@@ -51,6 +58,8 @@ export interface ChannelsEnvironment {
   supported: () => boolean;
   /** Whether this reader may delete a channel; `supported()` is checked as well. */
   deletionSupported: () => boolean;
+  /** Exact-revision stopped-task actions, independent of older channel chat support. */
+  taskActionsSupported: () => boolean;
   /** Clears whatever else covers the workspace, because a channel is about to cover it. */
   beforeOpen: () => void;
   /** Whether a message that arrives now is in front of the reader. */
@@ -230,6 +239,40 @@ export function createChannelsController(env: ChannelsEnvironment) {
           Object.assign(state, failure(error, "channel.error.action"));
         });
       return false;
+    }
+  }
+  /** Recovery is never retried as a legacy command. The reviewed revisions must still match. */
+  async function taskAction(action: () => Promise<Channel>): Promise<boolean> {
+    if (!supported() || !env.taskActionsSupported() || state.pending) return false;
+    const account = env.scopeKey();
+    pendingCommands += 1;
+    failedCommand = null;
+    flush(() =>
+      setState((state) => {
+        state.pending = true;
+        state.error = null;
+      }),
+    );
+    try {
+      await action();
+      if (disposed || account !== env.scopeKey()) return false;
+      await refreshAfter();
+      return !disposed && account === env.scopeKey();
+    } catch (error) {
+      if (!disposed && account === env.scopeKey()) {
+        await refreshAfter();
+        if (!disposed && account === env.scopeKey())
+          setState((state) => {
+            Object.assign(state, failure(error, "channel.error.action"));
+          });
+      }
+      return false;
+    } finally {
+      if (!disposed && account === env.scopeKey())
+        setState((state) => {
+          pendingCommands -= 1;
+          state.pending = pendingCommands > 0;
+        });
     }
   }
   /**
@@ -439,6 +482,15 @@ export function createChannelsController(env: ChannelsEnvironment) {
     agents: env.agents,
     supported,
     deletionSupported: () => supported() && env.deletionSupported(),
+    taskActionsSupported: () => supported() && env.taskActionsSupported(),
+    cancelTask: (input: CancelChannelTaskInput) => {
+      const port = env.port();
+      return taskAction(() => port.agent.cancelChannelTask(input));
+    },
+    recoverTask: (input: RecoverChannelTaskInput) => {
+      const port = env.port();
+      return taskAction(() => port.agent.recoverChannelTask(input));
+    },
     refresh,
     retry: async (onAccepted?: (accepted: ChannelCommand) => void) => {
       const previous = failedCommand;

@@ -1,6 +1,7 @@
 import { leadingAddress } from "@openbot/contracts/chat-tag-references";
 import type {
   AgentEvent,
+  CancelChannelTaskInput,
   Channel,
   ChannelCommand,
   ChannelMemory,
@@ -15,6 +16,7 @@ import type {
   DeleteChannelMemoryInput,
   DeleteChannelRoutineInput,
   ListChannelRoutineRunsInput,
+  RecoverChannelTaskInput,
   RoutineSchedule,
   RoutineTrigger,
   TestChannelRoutineInput,
@@ -23,11 +25,13 @@ import type {
 } from "@openbot/contracts/ipc";
 import { channelRoutingConversationEventItemType } from "@openbot/contracts/ipc";
 import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
+import { sourceText } from "@openbot/i18n/source";
 
 /** A channel that exists when the preview starts, with its history. */
 export interface MockChannelSeed {
   channel: Channel;
   messages: ChannelMessage[];
+  tasks?: ChannelTask[];
 }
 
 export function createMockChannels(
@@ -39,7 +43,9 @@ export function createMockChannels(
   const messages = new Map<string, ChannelMessage[]>(
     seeds.map((seed) => [seed.channel.id, structuredClone(seed.messages)]),
   );
-  const tasks = new Map<string, ChannelTask[]>();
+  const tasks = new Map<string, ChannelTask[]>(
+    seeds.map((seed) => [seed.channel.id, structuredClone(seed.tasks ?? [])]),
+  );
   const receipts = new Map<string, Channel>();
   const memories = new Map<string, ChannelMemory[]>();
   const routines = new Map<string, ChannelRoutine[]>();
@@ -50,7 +56,110 @@ export function createMockChannels(
     if (!channel) throw new Error("Channel not found.");
     return channel;
   };
+  const reviewed = (input: CancelChannelTaskInput) => {
+    const channel = requireChannel(input.channelId);
+    const work = tasks.get(channel.id) ?? [];
+    const selected = work.find((task) => task.id === input.taskId);
+    if (!selected) throw new Error(sourceText("error.backend.channelTaskNotFound"));
+    if (channel.archived) throw new Error(sourceText("error.backend.channelArchived"));
+    if (channel.revision !== input.expectedChannelRevision || selected.revision !== input.expectedRevision)
+      throw new Error(sourceText("error.backend.channelTaskChanged"));
+    if (selected.state !== "paused" && selected.state !== "failed")
+      throw new Error(sourceText("error.backend.channelTaskNotStopped"));
+    const ids = new Set([selected.id]);
+    for (let changed = true; changed; ) {
+      changed = false;
+      for (const task of work)
+        if (task.parentTaskId && ids.has(task.parentTaskId) && !ids.has(task.id)) {
+          ids.add(task.id);
+          changed = true;
+        }
+    }
+    return {
+      channel,
+      work,
+      selected,
+      ids,
+      branch: work.filter((task) => ids.has(task.id) && task.state !== "completed" && task.state !== "cancelled"),
+    };
+  };
   return {
+    cancelChannelTask: async (input: CancelChannelTaskInput): Promise<Channel> => {
+      const key = `cancel-task:${JSON.stringify([input.channelId, input.taskId, input.operationId])}`;
+      if (receipts.has(key)) return structuredClone(requireChannel(input.channelId));
+      const { channel, work, selected, branch } = reviewed(input);
+      for (const task of branch) {
+        task.state = "cancelled";
+        task.revision += 1;
+        task.error = sourceText("error.backend.channelTaskCancelled");
+      }
+      const ancestors = new Set<string>();
+      for (let id = selected.parentTaskId; id && !ancestors.has(id); ) {
+        ancestors.add(id);
+        const parent = work.find((task) => task.id === id);
+        if (!parent) break;
+        if (parent.state === "waiting") {
+          parent.state = "paused";
+          parent.revision += 1;
+          parent.error = sourceText("error.backend.channelTaskDependencyCancelled");
+        }
+        id = parent.parentTaskId;
+      }
+      const list = messages.get(channel.id) ?? [];
+      const id = crypto.randomUUID();
+      list.push({
+        id,
+        channelId: channel.id,
+        taskId: selected.id,
+        sequence: list.length + 1,
+        superseded: false,
+        author: { kind: "member", id: "preview", name: "You" },
+        message: {
+          id,
+          author: "system",
+          text: sourceText("status.agent.channelTaskCancelled", { person: "You", task: selected.id }),
+          createdAt: new Date().toISOString(),
+          status: "completed",
+          source: "system",
+          itemType: "channel-change",
+        },
+      });
+      messages.set(channel.id, list);
+      channel.revision += 1;
+      receipts.set(key, structuredClone(channel));
+      changed(channel.id, channel.revision);
+      return structuredClone(channel);
+    },
+    recoverChannelTask: async (input: RecoverChannelTaskInput): Promise<Channel> => {
+      const key = `recover-task:${JSON.stringify([input.channelId, input.taskId, input.operationId])}`;
+      if (receipts.has(key)) return structuredClone(requireChannel(input.channelId));
+      const { channel, work, selected, branch, ids } = reviewed(input);
+      if (input.action === "reassign") {
+        if (!input.recipientAgentId || !channel.members.some((member) => member.agentId === input.recipientAgentId))
+          throw new Error(sourceText("error.backend.channelSelectAgent"));
+        selected.ownerAgentId = input.recipientAgentId;
+      }
+      for (const task of branch) {
+        if (
+          input.action === "reassign" &&
+          task.id !== selected.id &&
+          task.state !== "paused" &&
+          task.state !== "failed"
+        )
+          continue;
+        task.state = "queued";
+        task.revision += 1;
+        task.assignmentCount = 0;
+        task.error = null;
+        task.dependencies = task.dependencies.filter(
+          (id) => !ids.has(id) || !work.some((item) => item.id === id && item.state === "cancelled"),
+        );
+      }
+      channel.revision += 1;
+      receipts.set(key, structuredClone(channel));
+      changed(channel.id, channel.revision);
+      return structuredClone(channel);
+    },
     listChannels: async (): Promise<ChannelSummary[]> =>
       [...channels.values()].map((channel) => {
         const latest = (messages.get(channel.id) ?? []).at(-1);

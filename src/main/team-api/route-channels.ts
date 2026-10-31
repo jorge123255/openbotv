@@ -1,13 +1,22 @@
 import {
   CHANNEL_CHATS_CAPABILITY,
   CHANNEL_DELETE_CAPABILITY,
+  CHANNEL_TASK_ACTIONS_CAPABILITY,
   type ChannelCommand,
   canAdministerServer,
   isReleasedRoutineSchedule,
+  parseCancelChannelTask,
   parseChannelCommand,
   parseChannelRead,
+  parseRecoverChannelTask,
 } from "@openbot/contracts/ipc";
 import type { DynamicRecord } from "@openbot/contracts/runtime-values";
+import {
+  CHANNEL_TASK_CANCEL_PATH,
+  CHANNEL_TASK_RECOVER_PATH,
+  channelTaskCancelRequest,
+  channelTaskRecoverRequest,
+} from "@openbot/contracts/team-protocol/channel-task-actions-v1";
 import { CHANNEL_ROUTES, channelRequest, isChannelSettingsRoute } from "@openbot/contracts/team-protocol/channels-v1";
 import { sourceText } from "@openbot/i18n/source";
 import type { ChannelService } from "../../backend/channel-service";
@@ -58,16 +67,36 @@ export async function routeChannels(
   const read = method === "POST" && url.pathname === CHANNEL_ROUTES.read;
   const command = method === "POST" && url.pathname === CHANNEL_ROUTES.command;
   const remove = method === "POST" && url.pathname === CHANNEL_ROUTES.delete;
+  const cancel = method === "POST" && url.pathname === CHANNEL_TASK_CANCEL_PATH;
+  const recover = method === "POST" && url.pathname === CHANNEL_TASK_RECOVER_PATH;
   // Every settings route is a POST that names its channel in the body, so one test covers all
   // eleven of them and an unknown method on a known path stays a 404 rather than a 400.
   const settings = method === "POST" && isChannelSettingsRoute(url.pathname);
-  if (!list && !read && !command && !remove && !settings) return "unmatched";
+  if (!list && !read && !command && !remove && !settings && !cancel && !recover) return "unmatched";
   if (!channels || !capabilities.has(CHANNEL_CHATS_CAPABILITY))
     throw new HttpError(400, sourceText("error.team.channelsUnsupported"));
   if (list) return json(200, channels.store.list(member.id));
   if (read) {
     const input = parseChannelRead(channelRequest(url.pathname, await readJson(request)));
     return json(200, channels.store.page(input.channelId, input.beforeSequence));
+  }
+  if (cancel) {
+    if (!capabilities.has(CHANNEL_TASK_ACTIONS_CAPABILITY))
+      throw new HttpError(400, sourceText("error.backend.channelTaskCancelUnsupported"));
+    const input = parseCancelChannelTask(channelTaskCancelRequest(await readJson(request)));
+    return json(
+      200,
+      await runCauseEffect(channels.cancelTask(input, { id: member.id, name: member.name ?? "Team member" })),
+    );
+  }
+  if (recover) {
+    if (!capabilities.has(CHANNEL_TASK_ACTIONS_CAPABILITY))
+      throw new HttpError(400, sourceText("error.backend.channelTaskActionsUnsupported"));
+    const input = parseRecoverChannelTask(channelTaskRecoverRequest(await readJson(request)));
+    return json(
+      200,
+      await runCauseEffect(channels.recoverTask(input, { id: member.id, name: member.name ?? "Team member" })),
+    );
   }
   if (remove) {
     if (!capabilities.has(CHANNEL_DELETE_CAPABILITY))
