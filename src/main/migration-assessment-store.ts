@@ -156,6 +156,14 @@ export class MigrationAssessmentStore {
     this.#root = join(userDataPath, ROOT);
   }
 
+  #requireSupported(): void {
+    if (process.platform === "win32") throw new MigrationAssessmentFailure({ code: "unsupported-platform" });
+  }
+
+  readonly ensureSupported = Effect.fn("MigrationAssessmentStore.ensureSupported")(() =>
+    Effect.try({ try: () => this.#requireSupported(), catch: failure }),
+  );
+
   readonly read = Effect.fn("MigrationAssessmentStore.read")((planId: string) =>
     Effect.try({ try: () => this.#read(planId), catch: failure }),
   );
@@ -206,6 +214,7 @@ export class MigrationAssessmentStore {
   }
 
   #read(planId: string): StoredMigrationAssessment {
+    this.#requireSupported();
     identifier(planId);
     if (!privateDirectory(this.#root)) return { revision: 0, assessment: null };
     const directory = join(this.#root, planId);
@@ -232,7 +241,7 @@ export class MigrationAssessmentStore {
   }
 
   #append(expectedRevision: number, report: MigrationAssessmentReport): StoredMigrationAssessment {
-    if (process.platform === "win32") throw new MigrationAssessmentFailure({ code: "unsupported-platform" });
+    this.#requireSupported();
     if (
       !Number.isInteger(expectedRevision) ||
       expectedRevision < 0 ||

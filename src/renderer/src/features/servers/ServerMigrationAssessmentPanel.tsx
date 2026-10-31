@@ -9,9 +9,9 @@ export function ServerMigrationAssessmentPanel(props: {
   platform: DesktopPlatform;
   calls?: MigrationAssessmentCalls | undefined;
 }) {
-  const canAssess = () => props.platform !== "win32";
+  const isAvailable = () => props.platform !== "win32";
   const calls = untrack(() => props.calls ?? migrationAssessmentPort());
-  const store = createMigrationAssessmentStore(calls, () => props.preparationState, canAssess);
+  const store = createMigrationAssessmentStore(calls, () => props.preparationState, isAvailable);
   const ready = createMemo(() => store.state.ready && store.preparationMatches());
   const preparationChanged = createMemo(() => store.state.ready && !store.preparationMatches());
   onSettled(() => {
@@ -24,7 +24,7 @@ export function ServerMigrationAssessmentPanel(props: {
       declaration={store.state.declaration}
       ready={ready()}
       preparationChanged={preparationChanged()}
-      canAssess={canAssess()}
+      available={isAvailable()}
       busy={store.state.busy}
       error={store.state.error}
       validationError={store.state.validationError}

@@ -69,6 +69,7 @@ export class MigrationAssessmentService {
 
   readonly getState = Effect.fn("MigrationAssessment.getState")(() =>
     Effect.gen({ self: this }, function* () {
+      yield* this.#store.ensureSupported();
       const before = yield* this.#readPreparation();
       if (!before.plan) return result(before, { revision: 0, assessment: null });
       const stored = yield* this.#store.read(before.plan.id);
@@ -79,6 +80,7 @@ export class MigrationAssessmentService {
 
   readonly assess = Effect.fn("MigrationAssessment.assess")((input: MigrationAssessmentAssessInput) =>
     Effect.gen({ self: this }, function* () {
+      yield* this.#store.ensureSupported();
       const before = yield* this.#readPreparation();
       if (before.plan?.status !== "prepared")
         return yield* new MigrationAssessmentFailure({ code: "preparation-unavailable" });

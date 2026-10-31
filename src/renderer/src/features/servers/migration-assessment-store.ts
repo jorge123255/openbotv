@@ -23,7 +23,7 @@ interface AssessmentViewState {
 export function createMigrationAssessmentStore(
   calls: MigrationAssessmentCalls,
   preparationState: () => MigrationPreparationState,
-  canAssess: () => boolean,
+  isAvailable: () => boolean,
 ) {
   const [state, setState] = createStore<AssessmentViewState>({
     value: null,
@@ -56,7 +56,7 @@ export function createMigrationAssessmentStore(
   }
 
   function apply(value: MigrationAssessmentState): void {
-    if (disposed) return;
+    if (disposed || !untrack(isAvailable)) return;
     const previous = untrack(() => snapshot(state));
     const declaration = value.applicability === "current" ? value.assessment?.destination : null;
     setState(
@@ -80,7 +80,7 @@ export function createMigrationAssessmentStore(
   }
 
   async function run(busy: "loading" | "assessing", action: () => Promise<MigrationAssessmentState>) {
-    if (inFlight || disposed) return;
+    if (inFlight || disposed || !untrack(isAvailable)) return;
     inFlight = true;
     setState((draft) => {
       draft.busy = busy;
@@ -89,17 +89,19 @@ export function createMigrationAssessmentStore(
       draft.validationError = null;
     });
     try {
+      if (!untrack(isAvailable)) return;
       apply(await action());
     } catch {
-      if (disposed) return;
+      if (disposed || !untrack(isAvailable)) return;
       if (busy === "assessing") {
         try {
+          if (!untrack(isAvailable)) return;
           apply(await calls.getState());
         } catch {
           // The user must reload before another mutation can use an authoritative revision.
         }
       }
-      if (!disposed) {
+      if (!disposed && untrack(isAvailable)) {
         setState((draft) => {
           draft.error = currentText().t("migrationAssessment.failed");
         });
@@ -115,12 +117,13 @@ export function createMigrationAssessmentStore(
   }
 
   function reload(): void {
+    if (disposed || !untrack(isAvailable)) return;
     void run("loading", () => calls.getState());
   }
 
   function assess(): void {
     if (
-      !canAssess() ||
+      !untrack(isAvailable) ||
       inFlight ||
       disposed ||
       !state.ready ||
@@ -157,7 +160,7 @@ export function createMigrationAssessmentStore(
     key: Key,
     value: MigrationAssessmentDeclarationDraft[Key],
   ): void {
-    if (!canAssess() || inFlight || disposed) return;
+    if (!untrack(isAvailable) || inFlight || disposed) return;
     setState((draft) => {
       draft.declaration[key] = value;
       draft.validationError = null;

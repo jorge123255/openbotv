@@ -195,7 +195,7 @@ export interface MigrationAssessmentViewProps {
   declaration: MigrationAssessmentDeclarationDraft;
   ready: boolean;
   preparationChanged: boolean;
-  canAssess: boolean;
+  available: boolean;
   busy: "loading" | "assessing" | null;
   error: string | null;
   validationError: string | null;
@@ -210,10 +210,12 @@ export interface MigrationAssessmentViewProps {
 /** Offline declarations and metadata. No host connection, credential operation or migration action. */
 export function MigrationAssessmentView(props: MigrationAssessmentViewProps) {
   const { t } = useText();
-  const disabled = () => !props.canAssess || !props.ready || Boolean(props.busy);
+  const disabled = () => !props.available || !props.ready || Boolean(props.busy);
   const limitReached = () => (props.state?.revision ?? 0) >= MIGRATION_ASSESSMENT_MAX_REVISION;
   const currentReport = () =>
-    !props.preparationChanged && props.state?.applicability === "current" ? props.state.assessment : null;
+    props.available && !props.preparationChanged && props.state?.applicability === "current"
+      ? props.state.assessment
+      : null;
   return (
     <SettingsSection
       title={t("migrationAssessment.title")}
@@ -221,7 +223,7 @@ export function MigrationAssessmentView(props: MigrationAssessmentViewProps) {
       aria-busy={props.busy ? "true" : undefined}
     >
       <Notice message={t("migrationAssessment.unverified")} />
-      <Show when={!props.canAssess}>
+      <Show when={!props.available}>
         <Notice message={t("migrationAssessment.windowsUnavailable")} />
       </Show>
       <Show when={limitReached()}>
@@ -324,7 +326,7 @@ export function MigrationAssessmentView(props: MigrationAssessmentViewProps) {
         <Button
           type="button"
           variant="outline"
-          disabled={Boolean(props.busy)}
+          disabled={!props.available || Boolean(props.busy)}
           loading={props.busy === "loading"}
           loadingLabel={t("migrationAssessment.loading")}
           onClick={props.onReload}

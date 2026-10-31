@@ -102,8 +102,10 @@ entries/formats, BOMs, malformed data, unsafe links or altered anchors refuse wi
 cleanup. Unpublished private anchors are ignored and retained. Too many entries require diagnosis;
 the service does not recursively delete anything. Old reports remain when a plan is cancelled or
 replaced. Failed post-link sync can mean publication completed; the renderer reloads state and never
-replays an uncertain assessment. Windows assessment saves refuse before creating storage because
-no verified directory-sync adapter exists. The UI explains this and keeps reload available.
+replays an uncertain assessment. All Windows assessment operations refuse before reading preparation
+or assessment storage. No verified native permissions and directory-sync adapter exists. The UI
+explains this, blocks automatic reads, and disables saving and reloading. POSIX ownership, permission,
+and file-identity checks remain unchanged.
 
 These checks assume the existing userData trust boundary. They do not defend against a hostile
 same-user filesystem racer, prove power-loss durability, authenticate a destination, fence another
@@ -126,7 +128,10 @@ All profiles, source records and credential canaries are generated. Tests use ac
 facade writes, preparation/assessment services, inventory policy, durable store, decoders and
 settings components. The browser uses story-only injected calls; actual IPC trust behavior is tested
 separately. Publication tests kill owned writer child processes before/after the final link, race a
-publisher and inject sync failures. Native/full Electron startup, packaged builds, Windows storage,
+publisher and inject sync failures. An isolated simulated-Windows process verifies rejection before
+filesystem, preparation, source or inventory access. Browser cases verify zero assessment calls for
+empty and existing report histories on a simulated Windows source. These do not prove native Windows
+storage support. Native/full Electron startup, packaged builds, Windows storage,
 live providers, real credentials, a remote target and a full restored application are not tested.
 The browser check asserts no immutable-store update diagnostics. Select popups still emit the pinned
 Kobalte dismissable-layer effect-callback read diagnostic in development; a one-select fixture

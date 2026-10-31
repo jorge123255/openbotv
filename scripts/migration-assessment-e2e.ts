@@ -1,8 +1,10 @@
 // Real preparation + assessment services and generated facade profiles only. No app/bootstrap/network.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import type {
   AgentSummary,
   ConversationSnapshot,
@@ -416,13 +418,62 @@ try {
       "source-unavailable",
     );
   });
+  await check("windows-reads-and-writes-refuse-before-filesystem-or-service-ports", async () => {
+    const storeUrl = pathToFileURL(resolve(import.meta.dirname, "../src/main/migration-assessment-store.ts")).href;
+    const serviceUrl = pathToFileURL(resolve(import.meta.dirname, "../src/main/migration-assessment-service.ts")).href;
+    const profile = join(base, "unopened-windows-profile");
+    const input = {
+      planId: randomUUID(),
+      expectedPreparationRevision: 1,
+      expectedAssessmentRevision: 0,
+      destination: declared(),
+    };
+    const child = `
+      import assert from 'node:assert/strict';
+      import fs from 'node:fs';
+      import { syncBuiltinESMExports } from 'node:module';
+      import { Effect, Result } from 'effect';
+      const { MigrationAssessmentStore } = await import(${JSON.stringify(storeUrl)});
+      const { MigrationAssessmentService } = await import(${JSON.stringify(serviceUrl)});
+      Object.defineProperty(process, 'platform', { value: 'win32' });
+      const calls = { filesystem: 0, preparation: 0, source: 0, inventory: 0 };
+      for (const name of ['lstatSync', 'openSync', 'mkdirSync', 'opendirSync']) {
+        fs[name] = () => { calls.filesystem++; throw new Error('Unexpected fixture access'); };
+      }
+      syncBuiltinESMExports();
+      const unexpected = (port) => () => { calls[port]++; throw new Error('Unexpected fixture port'); };
+      const store = new MigrationAssessmentStore(${JSON.stringify(profile)});
+      const service = new MigrationAssessmentService({
+        userDataPath: ${JSON.stringify(profile)},
+        preparation: { getState: unexpected('preparation') },
+        readSource: unexpected('source'), readInventory: unexpected('inventory')
+      });
+      const input = ${JSON.stringify(input)};
+      for (const operation of [store.read(input.planId), service.getState(), service.assess(input)]) {
+        const result = await Effect.runPromise(Effect.result(operation));
+        assert.ok(Result.isFailure(result));
+        assert.equal(result.failure.code, 'unsupported-platform');
+      }
+      assert.deepEqual(calls, { filesystem: 0, preparation: 0, source: 0, inventory: 0 });
+      process.stdout.write('windows-zero-access');
+    `;
+    assert.equal(
+      execFileSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", child], {
+        cwd: resolve(import.meta.dirname, ".."),
+        encoding: "utf8",
+        timeout: 10_000,
+        maxBuffer: 4096,
+      }),
+      "windows-zero-access",
+    );
+  });
 } catch {
   groups.push({ name: "fixture-setup", passed: false });
 } finally {
   for (const database of databases) database.close();
   await rm(base, { recursive: true, force: true });
   const report = {
-    passed: groups.length === 14 && groups.every((group) => group.passed),
+    passed: groups.length === 15 && groups.every((group) => group.passed),
     groups,
     realDataRead: false,
     credentialsRead: false,

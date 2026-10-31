@@ -7,7 +7,7 @@ export const messages = defineMessages("migrationAssessment", {
   "migrationAssessment.unverified":
     "This assessment is offline and unverified. It does not certify compatibility. The inventory is incomplete. Migration actions remain unavailable.",
   "migrationAssessment.windowsUnavailable":
-    "Saving assessments is not supported on Windows in this version. You can still reload an existing assessment.",
+    "Offline destination assessment is not supported on Windows in this version. Saving and reloading assessments are unavailable.",
   "migrationAssessment.declaration": "Destination declaration",
   "migrationAssessment.declarationDescription":
     "These values are your declaration. OpenBot has not checked a destination host, its storage, or its isolation.",

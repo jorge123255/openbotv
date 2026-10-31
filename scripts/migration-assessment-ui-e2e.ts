@@ -159,8 +159,10 @@ try {
     },
   );
   let assessmentRequests = 0;
+  let assessmentCalls = 0;
   let loseResponse = false;
   await page.exposeFunction("__openbotMigrationAssessmentInvoke", async (request: MigrationAssessmentStoryRequest) => {
+    assessmentCalls++;
     if (request.method === "assess") assessmentRequests++;
     const state =
       request.method === "getState"
@@ -285,20 +287,64 @@ try {
   );
   url.searchParams.set("id", "settings-migration-preparation--windows-assessment-unavailable");
   url.searchParams.set("globals", "colorScheme:light");
+  const callsBeforeWindows = assessmentCalls;
   await page.goto(url.href);
   await page
     .getByText(
-      "Saving assessments is not supported on Windows in this version. You can still reload an existing assessment.",
+      "Offline destination assessment is not supported on Windows in this version. Saving and reloading assessments are unavailable.",
       { exact: true },
     )
     .waitFor();
   assert.equal(await save.isEnabled(), false);
-  await page.getByRole("button", { name: "Reload assessment", exact: true }).click();
-  await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
-  assert.equal(await save.isEnabled(), false);
+  assert.equal(await page.getByRole("button", { name: "Reload assessment", exact: true }).isEnabled(), false);
+  for (const name of [
+    "Destination platform",
+    "Destination architecture",
+    "Destination executor",
+    "Destination data ownership",
+    "Destination persistence",
+  ])
+    assert.equal(await page.getByRole("combobox", { name, exact: true }).isEnabled(), false);
+  for (const name of ["Destination OpenBot version", "Destination schema version"])
+    assert.equal(await page.getByRole("textbox", { name, exact: true }).isEnabled(), false);
+  assert.equal(assessmentCalls, callsBeforeWindows);
   assert.equal(assessmentRequests, requests + 1);
   await save.scrollIntoViewIfNeeded();
   await screenshot("windows-assessment-unavailable-light");
+  report.cases.push("Simulated Windows source disables saves and reloads with zero assessment calls for empty history");
+  assert.ok(fresh.preparation);
+  // Seed through the POSIX fixture service only; this is not native Windows storage validation.
+  await Effect.runPromise(
+    assessment.assess({
+      planId: fresh.preparation.planId,
+      expectedPreparationRevision: fresh.preparation.revision,
+      expectedAssessmentRevision: 0,
+      destination: {
+        platform: "unknown",
+        architecture: "unknown",
+        appVersion: null,
+        schemaVersion: null,
+        executor: "unknown",
+        dataRoot: "unspecified",
+        persistence: "unknown",
+      },
+    }),
+  );
+  const retained = join(profile, "openbot-migration-assessments-v1", fresh.preparation.planId, "1.json");
+  const retainedHash = await hash(retained);
+  await page.reload();
+  await page
+    .getByText(
+      "Offline destination assessment is not supported on Windows in this version. Saving and reloading assessments are unavailable.",
+      { exact: true },
+    )
+    .waitFor();
+  assert.equal(await save.isEnabled(), false);
+  assert.equal(await page.getByRole("button", { name: "Reload assessment", exact: true }).isEnabled(), false);
+  assert.equal(assessmentCalls, callsBeforeWindows);
+  assert.equal(await hash(retained), retainedHash);
+  assert.equal(await page.getByText("Metadata comparison", { exact: true }).count(), 0);
+  await screenshot("windows-existing-assessment-unavailable-light");
   const wire = JSON.stringify(state) + (await page.locator("body").innerText());
   assert.equal(wire.includes("PRIVATE_"), false);
   assert.equal(wire.includes(fixture), false);
@@ -308,7 +354,7 @@ try {
   assert.deepEqual(report.pageErrors, []);
   assert.equal(report.reactivity.immutableUpdates, 0);
   report.cases.push(
-    "Simulated Windows source disables assessment saves while reload works; source database/WAL and credential canary remain byte-identical and no routine run is created",
+    "Simulated Windows source makes zero assessment calls for existing history; retained report, source database/WAL and credential canary remain byte-identical and no routine run is created",
   );
   report.passed = true;
 } finally {
