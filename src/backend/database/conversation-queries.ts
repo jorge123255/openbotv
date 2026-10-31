@@ -19,7 +19,6 @@ import {
   SKILL_EVENT_ITEM_TYPE_PREFIX,
 } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
-import { COLLAPSE_WHITESPACE_FUNCTION, type DatabaseCore, LOWERCASE_FUNCTION } from "./database-core";
 import {
   databaseRow,
   databaseRows,
@@ -29,9 +28,11 @@ import {
   requiredNumberColumn,
   requiredStringColumn,
 } from "./database-rows";
+import type { ReadDatabaseCore } from "./read-database-core";
+import { COLLAPSE_WHITESPACE_FUNCTION, LOWERCASE_FUNCTION } from "./search-sql-functions";
 
 export interface ConversationQueriesOptions {
-  core: DatabaseCore;
+  core: ReadDatabaseCore;
 }
 
 /** The message kinds that a Team API client cannot show, left out of its pages and read state. */
@@ -66,7 +67,7 @@ const ARCHIVED_SIDE_THREAD_EXCLUSION = `${CHANNEL_THREAD_EXCLUSION}
  * class never imports the facade.
  */
 export class ConversationQueries {
-  readonly #core: DatabaseCore;
+  readonly #core: ReadDatabaseCore;
 
   constructor(options: ConversationQueriesOptions) {
     this.#core = options.core;

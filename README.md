@@ -112,6 +112,10 @@ docker exec -it openbot openbot login
 See [Docker](docs/docker.md) for Compose, the data volume, upgrades and the security limits. For Amazon ECS,
 see [AWS ECS](docs/aws-ecs.md).
 
+The fork's [synthetic migration read acceptance](docs/architecture/migration-read-acceptance.md)
+checks restored fixture history through the real conversation reader. It does not start the app,
+move credentials or provide complete migration.
+
 ### Nix
 
 The flake installs the desktop app from the latest release on x64 or arm64 Linux and on Apple silicon:
