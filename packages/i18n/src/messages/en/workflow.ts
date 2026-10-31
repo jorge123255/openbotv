@@ -327,4 +327,19 @@ export const messages = defineMessages("workflow", {
   "workflow.page.conflict": "Changed on another device. Undo to get your edits back.",
   "workflow.page.needsNewerApp": "This workflow has steps from a newer OpenBot. Update OpenBot to change it.",
   "workflow.page.manageOnly": "To change this workflow, you need “Can manage” on each of its agents.",
+  "workflow.starter.label": "Start with a connected flow",
+  "workflow.starter.intro":
+    "Start manually. Review each step, then run. Results and errors appear on the nodes and in History.",
+  "workflow.starter.keyboard":
+    "Keyboard: Tab selects a node; Enter opens its controls. Tab to a port and press Enter, then choose a matching port. Escape cancels.",
+  "workflow.starter.approval.title": "Try an approval flow",
+  "workflow.starter.approval.description": "Sample text → your approval → local notification. No provider needed.",
+  "workflow.starter.approval.sample": "Your first connected workflow is ready.",
+  "workflow.starter.approval.guide":
+    "1. Edit the sample text.\n2. Press Run. The flow waits at Approval.\n3. Approve to send a local notification, or Reject to stop. Stop run also cancels a waiting approval.\n4. Open History to inspect the run.\n\nTab selects a node; Enter opens its controls. Connect ports with a click or with Tab and Enter. Escape cancels a connection. Use Undo to reverse canvas edits.",
+  "workflow.starter.agent.title": "Build an agent review flow",
+  "workflow.starter.agent.description": "Choose an agent, review the task and model decision, then approve its result.",
+  "workflow.starter.agent.guide":
+    "1. Choose an agent and review its task before Run. The agent uses its existing tools and permissions. Approval here pauses AFTER the task; it does not restrict those tools.\n2. The condition uses a model: Yes goes to Approval; No ends with the later steps skipped.\n3. Approve to send a local notification. Reject or Stop run cancels the run.\n4. Inspect results and errors on each node and in History.\n\nTab selects a node; Enter opens its controls. Connect ports with a click or with Tab and Enter. Escape cancels a connection.",
+  "workflow.starter.question": "Send this text as a local notification?",
 });

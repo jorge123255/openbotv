@@ -583,6 +583,10 @@ jobs:
           bun scripts/grok-bot-inference-usage-e2e.ts
           bun scripts/grok-bot-cached-usage-diagnostic-e2e.ts
 
+      - name: Run the workflow starters E2E test
+        if: ${{ !cancelled() }}
+        run: bun scripts/workflow-starters-e2e.ts
+
       - name: Run the workflow model steps E2E test
         if: ${{ !cancelled() }}
         run: bun run test:workflow-model-steps
@@ -670,6 +674,7 @@ jobs:
             .openbot-build/antigravity-accounts-e2e/
             .openbot-build/antigravity-usage-metering-e2e/
             .openbot-build/workflow-model-steps-e2e/
+            .openbot-build/workflow-starters-e2e/
             .openbot-build/opencode-usage-metering-e2e/
             .openbot-build/claude-api-key-e2e/
             .openbot-build/cursor-usage-e2e/
