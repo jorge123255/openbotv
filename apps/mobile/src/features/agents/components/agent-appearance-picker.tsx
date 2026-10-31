@@ -1,4 +1,4 @@
-import { AVATAR_HUE_CHOICES, avatarHueSwatch } from "@openbot/brand/bloub-avatar";
+import { AVATAR_HUE_CHOICES, avatarCharacter, avatarCharacterSeed, avatarHueSwatch } from "@openbot/brand/bloub-avatar";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import type { MobileTextKey } from "@openbot/i18n/mobile";
 import { Button, Typography } from "heroui-native";
@@ -66,6 +66,7 @@ export function AgentAppearancePicker({
   const shuffle = useCallback(() => setCandidates((current) => createAvatarCandidates(seed, current)), [seed]);
   const targetColor = getBloubAvatarColor(seed, hue);
   const color = useAgentColorTransition(targetColor);
+  const character = avatarCharacter(seed);
 
   return (
     <View className="gap-4">
@@ -90,15 +91,20 @@ export function AgentAppearancePicker({
       {nameField}
       {showFaces ? (
         <>
-          <AvatarFaceOptions
-            seeds={candidates.seeds}
-            seed={seed}
-            hue={hue}
-            disabled={disabled}
-            onSeedChange={onSeedChange}
-            onShuffle={shuffle}
-            photoField={photoField}
-          />
+          <AvatarCharacterOptions seed={seed} hue={hue} disabled={disabled} onSeedChange={onSeedChange} />
+          {character.kind === "shape" ? (
+            <AvatarFaceOptions
+              seeds={candidates.seeds}
+              seed={seed}
+              hue={hue}
+              disabled={disabled}
+              onSeedChange={onSeedChange}
+              onShuffle={shuffle}
+              photoField={photoField}
+            />
+          ) : photoField ? (
+            <View className="flex-row flex-wrap items-center justify-center gap-2">{photoField}</View>
+          ) : null}
           <AvatarHueOptions hue={hue} disabled={disabled} onHueChange={onHueChange} />
         </>
       ) : photoField ? (
@@ -107,6 +113,67 @@ export function AgentAppearancePicker({
     </View>
   );
 }
+
+const CHARACTER_LABELS = {
+  shape: "mobile.agent.appearance.characterShapes",
+  robot: "mobile.agent.appearance.characterRobot",
+  orb: "mobile.agent.appearance.characterOrb",
+} as const satisfies Record<string, MobileTextKey>;
+
+const AvatarCharacterOptions = memo(function AvatarCharacterOptions({
+  seed,
+  hue,
+  disabled,
+  onSeedChange,
+}: {
+  seed: string;
+  hue: AvatarHue | null;
+  disabled: boolean;
+  onSeedChange: (seed: string) => void;
+}) {
+  const { t } = useText();
+  const character = avatarCharacter(seed);
+  const limited = avatarCharacterSeed(seed, "robot") === null || avatarCharacterSeed(seed, "orb") === null;
+  return (
+    <View className="gap-2">
+      <View
+        className="flex-row flex-wrap items-center justify-center gap-2"
+        accessibilityRole="radiogroup"
+        accessibilityLabel={t("mobile.agent.appearance.character")}
+      >
+        {(["shape", "robot", "orb"] as const).map((kind) => {
+          const next = avatarCharacterSeed(seed, kind);
+          const checked = character.kind === kind;
+          const unavailable = disabled || next === null;
+          return (
+            <Button
+              key={kind}
+              variant={checked ? "secondary" : "ghost"}
+              className="h-auto min-h-12 flex-col gap-1 py-2"
+              accessibilityRole="radio"
+              accessibilityLabel={t(CHARACTER_LABELS[kind])}
+              accessibilityState={{ checked, disabled: unavailable }}
+              isDisabled={unavailable}
+              onPress={() => {
+                if (next === null) return;
+                void haptics.selection();
+                onSeedChange(next);
+              }}
+            >
+              <AvatarThumbnail seed={next ?? seed} hue={hue} size={40} />
+              <Typography type="body-sm">{t(CHARACTER_LABELS[kind])}</Typography>
+            </Button>
+          );
+        })}
+      </View>
+      {limited ? (
+        <Typography type="body-sm" className="text-muted">
+          {t("mobile.agent.appearance.characterSeedLimit")}
+        </Typography>
+      ) : null}
+    </View>
+  );
+});
 
 // Memoized so typing in the name field does not re-render every choice.
 const AvatarFaceOptions = memo(function AvatarFaceOptions({

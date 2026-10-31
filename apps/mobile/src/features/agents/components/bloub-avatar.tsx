@@ -1,8 +1,8 @@
+import { avatarCharacter } from "@openbot/brand/bloub-avatar";
 import { type AvatarMood, avatarMoodPresentation } from "@openbot/brand/bloub-avatar-motion";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { memo, useMemo } from "react";
 import Animated, {
-  convertToRGBA,
   type DerivedValue,
   type SharedValue,
   useAnimatedProps,
@@ -13,6 +13,7 @@ import Svg, { Circle, Path } from "react-native-svg";
 import { useAgentColorTransition } from "@/features/agents/components/agent-color-glow";
 import { AgentOrbitRings } from "@/features/agents/components/agent-orbit-rings";
 import { useBloubActivityFrame } from "@/features/agents/components/use-bloub-activity-frame";
+import { saturateColor, thumbnailColor } from "@/features/agents/model/avatar-color";
 import {
   type BloubActivityFrame,
   bloubActivityGeometry,
@@ -28,6 +29,7 @@ import { useMobileWorkspaceSelector } from "@/features/workspace/context/mobile-
 import { agentActivityMood } from "@/features/workspace/model/agent-activity";
 import { showsOnline } from "@/features/workspace/model/server-status";
 import { AgentPhoto, type AgentPhotoProps } from "./agent-photo";
+import { CharacterAvatar, CharacterAvatarThumbnail } from "./character-avatar";
 
 interface BloubAvatarProps extends AgentPhotoProps {
   agentId: string;
@@ -106,9 +108,14 @@ export const BloubAvatarPreview = memo(function BloubAvatarPreview(
   props: Omit<BloubAvatarProps, "agentId"> & AgentPhotoProps & AvatarPreviewOptions,
 ) {
   const size = props.size ?? 54;
+  const character = avatarCharacter(props.seed);
   const avatar = (
     <AgentPhoto {...props} size={size}>
-      <AnimatedAvatarPreview {...props} />
+      {character.kind === "shape" ? (
+        <AnimatedAvatarPreview {...props} />
+      ) : (
+        <CharacterAvatar {...props} kind={character.kind} size={size} />
+      )}
     </AgentPhoto>
   );
   if (!props.rings) return avatar;
@@ -182,7 +189,22 @@ export const BloubAvatarThumbnail = memo(function BloubAvatarThumbnail(
 });
 
 // Draws the idle pose without the photo lookup, for pickers that never show a photo.
-export const AvatarThumbnail = memo(function AvatarThumbnail({
+export const AvatarThumbnail = memo(function AvatarThumbnail(
+  props: Omit<BloubAvatarProps, "agentId"> & {
+    disconnected?: boolean;
+    /** Eases the body to a new colour, for a picker where the colour changes in place. */
+    animateColor?: boolean;
+  },
+) {
+  const character = avatarCharacter(props.seed);
+  return character.kind === "shape" ? (
+    <ShapeThumbnail {...props} />
+  ) : (
+    <CharacterAvatarThumbnail {...props} kind={character.kind} />
+  );
+});
+
+const ShapeThumbnail = memo(function ShapeThumbnail({
   seed,
   hue,
   size = 48,
@@ -233,15 +255,4 @@ function AnimatedThumbnailBody({ d, color, opacity }: { d: string; color: string
   return <AnimatedPath d={d} opacity={opacity} animatedProps={props} />;
 }
 
-function saturateColor(color: string, saturation: number) {
-  "worklet";
-  if (saturation >= 1) return color;
-  const [r, g, b, a] = convertToRGBA(color);
-  const gray = r * 0.213 + g * 0.715 + b * 0.072;
-  const channel = (value: number) => Math.round((gray + (value - gray) * saturation) * 255);
-  return `rgba(${channel(r)}, ${channel(g)}, ${channel(b)}, ${a})`;
-}
-
-export function thumbnailColor(color: string, disconnected: boolean) {
-  return disconnected ? saturateColor(color, DISCONNECTED_APPEARANCE.saturation) : color;
-}
+export { thumbnailColor } from "@/features/agents/model/avatar-color";
