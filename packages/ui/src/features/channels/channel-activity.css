@@ -35,69 +35,114 @@
   flex-shrink: 0;
 }
 
-/* Reserve space outside the transcript. Only the panel's padded lower edge sits behind the composer.
-   The top edge is pulled over the transcript's own bottom padding, so messages pass behind the glass
-   as the reader scrolls while that padding still clears the last one at rest. */
+/* A closed attention summary leaves the transcript and composer usable. */
 .channel-paused-tasks {
   position: relative;
   max-height: 35dvh;
   overflow-y: auto;
-  margin: calc(-1 * var(--openbot-space-6)) var(--openbot-space-3) calc(-1 * var(--openbot-radius-lg));
-  border-radius: var(--openbot-radius-lg) var(--openbot-radius-lg) var(--openbot-radius-md) var(--openbot-radius-md);
-  background: var(--openbot-accent-strong);
-  box-shadow: 0 0 0 1px var(--openbot-accent-soft);
-  -webkit-backdrop-filter: blur(var(--openbot-space-3));
-  backdrop-filter: blur(var(--openbot-space-3));
-  padding-bottom: var(--openbot-radius-lg);
-  color: var(--openbot-accent-text);
+  margin: calc(-1 * var(--openbot-space-6)) var(--openbot-space-3) var(--openbot-space-2);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-sm);
 }
-
-/* Under the waiting block, the panel covers that block's lower edge, as the queue does, instead of
-   the transcript's padding. */
 .awaiting-replies + .channel-paused-tasks {
   z-index: 10;
   margin-top: 0;
 }
-
-.channel-paused-task {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--openbot-space-2);
-  align-items: center;
-  justify-content: space-between;
+.channel-paused-summary,
+.channel-paused-task-heading,
+.channel-task-event-details > summary {
+  cursor: pointer;
   padding: var(--openbot-space-2) var(--openbot-space-3);
 }
-.channel-paused-task + .channel-paused-task {
-  border-top: 1px solid var(--openbot-accent-soft);
+.channel-paused-summary {
+  font-weight: var(--openbot-weight-semibold);
 }
-.channel-paused-task-copy {
-  min-width: 0;
-  flex: 1 1 24ch;
+.channel-paused-task {
+  border-top: 1px solid var(--openbot-border);
+}
+.channel-paused-task-heading strong {
+  display: inline;
   overflow-wrap: anywhere;
-  color: var(--openbot-text-primary);
-  font-size: var(--openbot-text-sm);
 }
-.channel-paused-task-instruction {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
-  margin: var(--openbot-space-1) 0;
+.channel-paused-task-heading > span {
+  display: block;
+  margin-top: var(--openbot-space-1);
+  color: var(--openbot-text-muted);
+}
+.channel-paused-task-body {
+  padding: 0 var(--openbot-space-3) var(--openbot-space-3);
 }
 .channel-paused-task-reason {
-  margin: 0;
+  margin: 0 0 var(--openbot-space-2);
 }
-.channel-paused-task-actions {
+.channel-paused-task-actions,
+.channel-task-review footer {
   display: flex;
   flex-wrap: wrap;
   gap: var(--openbot-space-2);
   align-items: center;
 }
-.channel-paused-task-actions .ui-button {
-  background: var(--openbot-surface-light);
-  color: var(--openbot-text-on-light);
+.channel-paused-error {
+  padding: var(--openbot-space-2) var(--openbot-space-3);
 }
-.channel-paused-task-actions .ui-button:hover {
-  background: var(--openbot-surface-light);
-  box-shadow: 0 0 0 1px var(--openbot-text-dim-on-light);
+.channel-task-event-details {
+  margin-top: var(--openbot-space-2);
+  font-size: var(--openbot-text-sm);
+}
+.channel-task-event-details > summary {
+  padding-left: 0;
+  color: var(--openbot-text-muted);
+}
+.channel-task-event-details pre,
+.channel-task-review-request {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.channel-task-event-details pre {
+  max-height: 25dvh;
+  overflow-y: auto;
+  padding: var(--openbot-space-2);
+  border-radius: var(--openbot-radius-md);
+  background: var(--openbot-bg-canvas);
+}
+.channel-task-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-3);
+  width: min(100%, 70ch);
+  max-height: calc(100dvh - 2 * var(--openbot-space-6));
+  padding: var(--openbot-space-4);
+  background: var(--openbot-bg-surface);
+  color: var(--openbot-text-primary);
+}
+.channel-task-review h2,
+.channel-task-review h3,
+.channel-task-review p {
+  margin: 0;
+}
+.channel-task-review-history {
+  display: grid;
+  gap: var(--openbot-space-3);
+  min-height: 0;
+  overflow-y: auto;
+  font-size: var(--openbot-text-sm);
+}
+.channel-task-review-entry {
+  border-top: 1px solid var(--openbot-border);
+  padding-top: var(--openbot-space-3);
+}
+.channel-task-review-entry header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--openbot-space-2);
+  margin-bottom: var(--openbot-space-2);
+}
+.channel-task-review-entry time {
+  color: var(--openbot-text-muted);
+}
+.channel-task-review footer {
+  justify-content: flex-end;
 }

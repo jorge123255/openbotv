@@ -19,6 +19,7 @@ import {
   assertHostAnalyticsScope,
   BROWSER_SECRET_RESPONSE_PATH,
   CHANNEL_DELETE_CAPABILITY,
+  CHANNEL_TASK_ACTIONS_CAPABILITY,
   DEFAULT_PROVIDER_ACCOUNT_ID,
   decodeAgentProfileDraft,
   decodeChannel,
@@ -30,11 +31,13 @@ import {
   LOCAL_SERVER_ID,
   parseAgentAnalyticsInput,
   parseAskSideQuestion,
+  parseCancelChannelTask,
   parseChannelCommand,
   parseChannelRead,
   parseGenerateAgentProfile,
   parseHostAnalyticsInput,
   parseLocalBrowserSecretResponse,
+  parseRecoverChannelTask,
   parseResetAgentSessionSetting,
   parseSaveAgentProfile,
   parseSetAgentHiddenInput,
@@ -54,6 +57,10 @@ import {
   AGENT_THREAD_READS_ROUTES,
 } from "@openbot/contracts/team-protocol/agent-thread-reads-v1";
 import { AGENT_THREADS_CAPABILITY, AGENT_THREADS_ROUTES } from "@openbot/contracts/team-protocol/agent-threads-v1";
+import {
+  CHANNEL_TASK_CANCEL_PATH,
+  CHANNEL_TASK_RECOVER_PATH,
+} from "@openbot/contracts/team-protocol/channel-task-actions-v1";
 import { CHANNEL_ROUTES } from "@openbot/contracts/team-protocol/channels-v1";
 import { CONTEXT_RESET_CAPABILITY, CONTEXT_RESET_ROUTES } from "@openbot/contracts/team-protocol/context-reset-v1";
 import {
@@ -375,6 +382,26 @@ export function agentIpcHandlers({
           runCauseEffect(
             remoteServers.request(serverId, CHANNEL_ROUTES.command, decodeChannel, { method: "POST", body: input }),
           ),
+      }),
+      cancelChannelTask: scopedHandler(parseCancelChannelTask, {
+        local: (input) => runCauseEffect(service.channels.cancelTask(input, host.channelActor())),
+        remote: (input, serverId) => {
+          if (!remoteServers.supportsCapability(serverId, CHANNEL_TASK_ACTIONS_CAPABILITY))
+            throw new Error(sourceText("error.backend.channelTaskCancelUnsupported"));
+          return runCauseEffect(
+            remoteServers.request(serverId, CHANNEL_TASK_CANCEL_PATH, decodeChannel, { method: "POST", body: input }),
+          );
+        },
+      }),
+      recoverChannelTask: scopedHandler(parseRecoverChannelTask, {
+        local: (input) => runCauseEffect(service.channels.recoverTask(input, host.channelActor())),
+        remote: (input, serverId) => {
+          if (!remoteServers.supportsCapability(serverId, CHANNEL_TASK_ACTIONS_CAPABILITY))
+            throw new Error(sourceText("error.backend.channelTaskActionsUnsupported"));
+          return runCauseEffect(
+            remoteServers.request(serverId, CHANNEL_TASK_RECOVER_PATH, decodeChannel, { method: "POST", body: input }),
+          );
+        },
       }),
       deleteChannel: scopedHandler(parseChannelId, {
         local: (channelId) => runCauseEffect(service.deleteChannel(channelId)),

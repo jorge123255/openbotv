@@ -66,6 +66,12 @@ SolidJS, provider, Cloudflare, and application code; and the account server to d
 
 - `openbot.db` is the source of truth for OpenBot agents, conversations, queues, reactions,
   attachments, and provider-session bindings.
+- `ChannelService` owns stopped-task cancellation and reviewed recovery. The optional
+  `channel-task-actions-v1` routes and desktop IPC carry task and channel revisions; stale actions
+  fail before mutation. Cancellation keeps messages, assignments and an audit note. Reviewed
+  recovery can remove cancelled dependencies from remaining work, but never revives a cancelled
+  task. The shared task panel and review dialog receive display data and actions from the renderer;
+  they do not execute tools. Released channel commands keep their existing behavior.
 - `RoutineStore` saves a routine and its webhook trigger in one transaction. `WebhookRouteStore`
   owns route IDs, encrypted secrets, receipts, and route revocations. `RoutineRecords` gives main one
   owner-neutral view of these. Webhook runs use the existing agent and channel queues. Main owns

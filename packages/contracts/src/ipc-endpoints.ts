@@ -224,7 +224,15 @@ import type {
   TestChannelRoutineInput,
   UpdateChannelRoutineInput,
 } from "./ipc-channel-routines";
-import type { Channel, ChannelCommand, ChannelPage, ChannelReadInput, ChannelSummary } from "./ipc-chat-channels";
+import type {
+  CancelChannelTaskInput,
+  Channel,
+  ChannelCommand,
+  ChannelPage,
+  ChannelReadInput,
+  ChannelSummary,
+  RecoverChannelTaskInput,
+} from "./ipc-chat-channels";
 import type {
   CancelMessageLinkInput,
   ConversationFileSearchPage,
@@ -1388,6 +1396,8 @@ export const IPC_ENDPOINTS = {
     listChannels: scopedQuery<ChannelSummary[]>()("agent:channels:list"),
     readChannel: scopedRequest<ChannelReadInput, ChannelPage>()("agent:channels:read"),
     channelCommand: scopedRequest<ChannelCommand, Channel>()("agent:channels:command"),
+    cancelChannelTask: scopedRequest<CancelChannelTaskInput, Channel>()("agent:channels:cancel-task"),
+    recoverChannelTask: scopedRequest<RecoverChannelTaskInput, Channel>()("agent:channels:recover-task"),
     deleteChannel: scopedRequest<string, void>()("agent:channels:delete"),
     getSidebarLayout: scopedQuery<SidebarLayoutSnapshot>()("agent:get-sidebar-layout"),
     mutateSidebarLayout: scopedRequest<SidebarLayoutAction, SidebarLayoutSnapshot>()("agent:mutate-sidebar-layout"),

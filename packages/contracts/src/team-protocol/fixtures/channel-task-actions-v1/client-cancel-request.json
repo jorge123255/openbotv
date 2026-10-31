@@ -1,0 +1,7 @@
+{
+  "channelId": "fixture-channel",
+  "taskId": "fixture-task",
+  "operationId": "fixture-cancel",
+  "expectedRevision": 2,
+  "expectedChannelRevision": 4
+}

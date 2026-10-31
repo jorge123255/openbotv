@@ -265,7 +265,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
         onClose={props.onClose}
       />
     ),
-    AboveComposer: () => <ChannelAboveComposer channelId={channelId} />,
+    AboveComposer: () => <ChannelAboveComposer channelId={channelId} hiddenAgentIds={env.hiddenAgentIds()} />,
     EmptyState: () => <ChannelEmptyState channelId={channelId} />,
   };
 

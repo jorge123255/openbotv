@@ -7,7 +7,7 @@
 import { Button, ErrorReference } from "@openbot/ui";
 import { SettingsPanel, SettingsPanelContent, SettingsPanelHeader } from "@openbot/ui/components/SettingsPanel";
 import { ChannelAvatar } from "@openbot/ui/features/channels/ChannelAvatar";
-import { ChannelStoppedTasks } from "@openbot/ui/features/channels/ChannelStoppedTasks";
+import { ChannelStoppedTasks, type ChannelStoppedTaskView } from "@openbot/ui/features/channels/ChannelStoppedTasks";
 import { useText } from "@openbot/ui/text";
 import { createEffect, createMemo, createStore, Show } from "solid-js";
 import { createSettingsPanelWidth, saveSettingsPanelWidth } from "../../components/settings-panel-width";
@@ -18,7 +18,7 @@ import { channelMemoriesPort } from "../conversation/memories-port";
 import { desktopEventRoutinesApi } from "../conversation/routine-webhooks-api";
 import { channelRoutinesPort, eventRoutinesPort } from "../conversation/routines-port";
 import { ChannelEditor } from "./ChannelEditor";
-import { stoppedChannelTasks } from "./channel-conversation-rows";
+import { channelTaskAttention } from "./channel-task-attention";
 import { useChannels } from "./channels-context";
 
 /** Where the routines of a channel are kept, as for an agent. */
@@ -109,29 +109,47 @@ export function ChannelEmptyState(props: { channelId: string }) {
   );
 }
 
-export function ChannelAboveComposer(props: { channelId: string }) {
+export function ChannelAboveComposer(props: { channelId: string; hiddenAgentIds: ReadonlySet<string> }) {
   const channels = useChannels();
   const { t } = useText();
   const page = useOpenChannel(props.channelId);
   const name = (id: string | null) =>
     channels.agents().find((agent) => agent.id === id)?.name ?? id ?? t("sidebar.section.unassigned");
-  const resumeTask = (taskId: string, recipientAgentId: string | null) =>
-    channels.command({
-      type: recipientAgentId ? "reassign" : "resume",
+  const resumeTask = (task: ChannelStoppedTaskView, recipientAgentId: string | null) =>
+    channels.recoverTask({
+      action: recipientAgentId ? "reassign" : "resume",
       operationId: crypto.randomUUID(),
       channelId: props.channelId,
-      taskId,
+      taskId: task.id,
+      expectedRevision: task.revision,
+      expectedChannelRevision: task.channelRevision,
       recipientAgentId,
+    });
+  const cancelTask = (task: ChannelStoppedTaskView) =>
+    channels.cancelTask({
+      operationId: crypto.randomUUID(),
+      channelId: props.channelId,
+      taskId: task.id,
+      expectedRevision: task.revision,
+      expectedChannelRevision: task.channelRevision,
     });
   return (
     <Show when={page()}>
       {(current) => (
         <>
           <ChannelStoppedTasks
-            tasks={stoppedChannelTasks(current())}
-            members={current().channel.members}
+            tasks={channelTaskAttention(current())}
+            members={current().channel.members.filter(
+              (member) =>
+                !props.hiddenAgentIds.has(member.agentId) &&
+                channels.agents().some((agent) => agent.id === member.agentId),
+            )}
             name={name}
             onResume={resumeTask}
+            onCancel={cancelTask}
+            onLoadOlder={channels.loadOlder}
+            pending={channels.state.pending}
+            actionsSupported={channels.taskActionsSupported()}
           />
           <Show when={!current().channel.archived && !current().channel.members.length}>
             <p>{t("channel.conversation.noMembers")}</p>

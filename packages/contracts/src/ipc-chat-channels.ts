@@ -6,6 +6,52 @@ import { type DynamicRecord, isDynamicRecord, isOneOf, isString } from "./runtim
 
 export const CHANNEL_CHATS_CAPABILITY = "channel-chats-v1";
 export const CHANNEL_DELETE_CAPABILITY = "channel-delete-v1";
+export { CHANNEL_TASK_ACTIONS_CAPABILITY } from "./team-protocol/channel-task-actions-v1";
+
+export interface CancelChannelTaskInput {
+  channelId: string;
+  taskId: string;
+  operationId: string;
+  expectedRevision: number;
+  expectedChannelRevision: number;
+}
+
+export interface RecoverChannelTaskInput extends CancelChannelTaskInput {
+  action: "resume" | "reassign";
+  recipientAgentId: string | null;
+}
+
+export function parseRecoverChannelTask(value: unknown): RecoverChannelTaskInput {
+  const input = parseCancelChannelTask(value);
+  if (
+    !isDynamicRecord(value) ||
+    (value.action !== "resume" && value.action !== "reassign") ||
+    !(value.recipientAgentId === null || isIdentifier(value.recipientAgentId)) ||
+    (value.action === "resume" && value.recipientAgentId !== null) ||
+    (value.action === "reassign" && value.recipientAgentId === null)
+  )
+    throw new Error("Provide a valid reviewed channel task action.");
+  return { ...input, action: value.action, recipientAgentId: value.recipientAgentId };
+}
+
+export function parseCancelChannelTask(value: unknown): CancelChannelTaskInput {
+  if (
+    !isDynamicRecord(value) ||
+    !isIdentifier(value.channelId) ||
+    !isIdentifier(value.taskId) ||
+    !isIdentifier(value.operationId) ||
+    !sequence(value.expectedRevision) ||
+    !sequence(value.expectedChannelRevision)
+  )
+    throw new Error("Provide a valid channel task cancellation.");
+  return {
+    channelId: value.channelId,
+    taskId: value.taskId,
+    operationId: value.operationId,
+    expectedRevision: value.expectedRevision,
+    expectedChannelRevision: value.expectedChannelRevision,
+  };
+}
 /**
  * The id a channel row carries for the reader, and for its own author, while no account is signed
  * in. The person behind it does not change when they sign in, so their read cursors follow them and

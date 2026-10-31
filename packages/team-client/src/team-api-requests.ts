@@ -1,3 +1,7 @@
+import {
+  CHANNEL_TASK_CANCEL_PATH,
+  CHANNEL_TASK_RECOVER_PATH,
+} from "@openbot/contracts/team-protocol/channel-task-actions-v1";
 import { Effect, Schema } from "effect";
 // Team API requests that the web client and the mobile app send in the same way.
 //
@@ -380,6 +384,8 @@ export type TeamChannelsApi = Pick<
   | "listChannels"
   | "readChannel"
   | "channelCommand"
+  | "cancelChannelTask"
+  | "recoverChannelTask"
   | "listChannelMemories"
   | "createChannelMemory"
   | "updateChannelMemory"
@@ -401,6 +407,8 @@ export function teamChannelsApi(request: TeamApiRequest): TeamChannelsApi {
     listChannels: () => request("GET", CHANNEL_ROUTES.list, decodeChannelSummaries),
     readChannel: (input) => post(CHANNEL_ROUTES.read, decodeChannelPage, input),
     channelCommand: (command) => post(CHANNEL_ROUTES.command, decodeChannel, command),
+    cancelChannelTask: (input) => post(CHANNEL_TASK_CANCEL_PATH, decodeChannel, input),
+    recoverChannelTask: (input) => post(CHANNEL_TASK_RECOVER_PATH, decodeChannel, input),
     listChannelMemories: (channelId) => post(CHANNEL_ROUTES.memories, decodeChannelMemories, { channelId }),
     createChannelMemory: (input) => post(CHANNEL_ROUTES.memoryCreate, decodeChannelMemory, input),
     updateChannelMemory: (input) => post(CHANNEL_ROUTES.memoryUpdate, decodeChannelMemory, input),

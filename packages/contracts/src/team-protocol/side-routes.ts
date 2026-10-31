@@ -8,6 +8,13 @@
 // below does not change which codec a route gets.
 import { withAgentTaskUiBlocks } from "./agent-task-ui-blocks-v1";
 import { isChannelAttentionRoute, withChannelAttention } from "./channel-attention-v1";
+import {
+  CHANNEL_TASK_CANCEL_PATH,
+  CHANNEL_TASK_RECOVER_PATH,
+  channelTaskCancelRequest,
+  channelTaskCancelResponse,
+  channelTaskRecoverRequest,
+} from "./channel-task-actions-v1";
 import { channelRequest, channelResponse, isChannelRoute } from "./channels-v1";
 import { isChannelHistoryExtentRoute, withChannelHistoryExtent } from "./history-extent-v1";
 import { isMcpRoute, mcpRequest, mcpResponse } from "./mcp-v1";
@@ -53,6 +60,10 @@ const STORAGE_CODEC: TeamSideRouteCodec = { request: storageRequest, response: s
 
 /** The side-protocol codec that owns `path`, or `null` when the negotiated protocol's adapter does. */
 export function teamSideRouteCodec(path: string): TeamSideRouteCodec | null {
+  if (new URL(path, "http://openbot.invalid").pathname === CHANNEL_TASK_CANCEL_PATH)
+    return { request: (_path, value) => channelTaskCancelRequest(value), response: channelTaskCancelResponse };
+  if (new URL(path, "http://openbot.invalid").pathname === CHANNEL_TASK_RECOVER_PATH)
+    return { request: (_path, value) => channelTaskRecoverRequest(value), response: channelTaskCancelResponse };
   if (isChannelRoute(path)) return CHANNEL_CODEC;
   if (isMcpRoute(path)) return MCP_CODEC;
   if (isStorageRoute(path)) return STORAGE_CODEC;

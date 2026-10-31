@@ -71,6 +71,14 @@ export const messages = defineMessages("error.backend", {
     "This request exceeds the routing context limit. Select a member or send a shorter request.",
   "error.backend.channelTaskMemberRequired": "Choose a member for this task.",
   "error.backend.channelTaskStopped": "Stopped. Continue or reassign this task.",
+  "error.backend.channelTaskCancelled": "This task was cancelled by the user. It will not run again.",
+  "error.backend.channelTaskChanged": "This task changed. Review its current state before you act.",
+  "error.backend.channelTaskNotStopped": "This action needs a stopped or failed task.",
+  "error.backend.channelTaskDependencyCancelled":
+    "A delegated task was cancelled. Review this work before you continue it.",
+  "error.backend.channelTaskCancelUnsupported": "This server does not support cancelling channel tasks.",
+  "error.backend.channelTaskActionsUnsupported":
+    "Update this server before you review and continue stopped channel work.",
   "error.backend.channelRoutingUnreadable": "The lead could not route this message. Reassign it to a member.",
   "error.backend.channelRoutingFailed": "Routing failed. Choose a member or try again.",
   "error.backend.channelLeadTimedOut": "The channel lead did not answer in time. Choose a member or try again.",

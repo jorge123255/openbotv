@@ -8,6 +8,7 @@ import {
   type AgentStatus,
   type AppInfo,
   CHANNEL_CHATS_CAPABILITY,
+  CHANNEL_TASK_ACTIONS_CAPABILITY,
   type ChannelSummary,
   type ClientAgentModelOption,
   canAdministerServer,
@@ -1215,6 +1216,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
     },
     supported: channelsSupported,
     deletionSupported: () => canAdministerServer(workspace.state.host?.role),
+    taskActionsSupported: () => workspace.state.capabilities.includes(CHANNEL_TASK_ACTIONS_CAPABILITY),
     beforeOpen: () => {
       setCreating(false);
       // Not `showAgents`: the list restores the saved channel after a host connects, and that must

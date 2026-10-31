@@ -129,7 +129,24 @@ export function StoryChannelConversation(props: ChannelStoryProps) {
     ),
     SettingsPane: () => null,
     AboveComposer: () => (
-      <ChannelStoppedTasks tasks={props.stopped ?? []} members={members} name={agentName} onResume={fn()} />
+      <ChannelStoppedTasks
+        tasks={(props.stopped ?? []).map((task) => ({
+          ...task,
+          revision: 0,
+          channelRevision: 0,
+          reason: "uncertain",
+          requiresReview: true,
+          lastActivityAt: "2026-09-01T13:10:00.000Z",
+          unfinishedSubtasks: 0,
+          historyComplete: true,
+          history: [],
+        }))}
+        members={members}
+        name={agentName}
+        actionsSupported
+        onResume={fn(async () => true)}
+        onCancel={fn(async () => true)}
+      />
     ),
     EmptyState: () => (
       <div class="channel-empty">
