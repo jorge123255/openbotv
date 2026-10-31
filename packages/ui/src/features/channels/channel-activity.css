@@ -146,3 +146,16 @@
 .channel-task-review footer {
   justify-content: flex-end;
 }
+
+.channel-assignment-target {
+  flex-wrap: wrap;
+}
+.channel-assignment-state {
+  border-left: 1px solid var(--openbot-border);
+  padding-left: var(--openbot-space-2);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-xs);
+}
+.channel-assignment-context {
+  color: var(--openbot-text-muted);
+}

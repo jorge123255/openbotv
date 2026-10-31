@@ -37,6 +37,7 @@ import {
   sentChannelMessageId,
   waitingChannelPrompt,
 } from "./channel-conversation-rows";
+import { channelTaskActivity } from "./channel-task-activity";
 import { useChannels } from "./channels-context";
 
 export interface ChannelConversationEnvironment {
@@ -83,7 +84,11 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     const current = page();
     if (!current) return [];
     const next = new Map<string, AgentMessage>();
-    const rows = channelConversationRows(entries()).map((mapped) => {
+    const tasks = channelTaskActivity(current, channels.agents(), {
+      unassigned: t("sidebar.section.unassigned"),
+      unavailable: t("chat.marker.unavailableAgent"),
+    });
+    const rows = channelConversationRows(entries(), tasks).map((mapped) => {
       const known = rowsById.get(mapped.id);
       const row = known && agentMessagesEqual(known, mapped) ? known : mapped;
       next.set(row.id, row);

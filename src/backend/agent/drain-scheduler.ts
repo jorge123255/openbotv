@@ -10,6 +10,7 @@ import { causeHelpers } from "../effect-boundary";
 import type { DeliveryContext, MailboxStore } from "../mailbox-store";
 import type { MessagingThreads } from "../messaging/messaging-threads";
 import { decodeTurnResponse } from "../protocol";
+import { TimeoutError } from "../with-timeout";
 import type { ContextCompaction } from "./context-compaction";
 import type { ConversationRuntime } from "./conversation-runtime";
 import {
@@ -42,7 +43,7 @@ import { checkAgentFolders, codexSandboxPolicy, workspaceWritableRoots } from ".
 export const REMOVED_ENDPOINT_MESSAGE = sourceText("error.agent.endpointRemoved");
 
 const logger = createOpenBotLogger("drain-scheduler");
-const CHANNEL_START_FAILED = "The provider could not start this assignment. Resume to try again.";
+const CHANNEL_START_FAILED = sourceText("error.backend.channelAssignmentStartFailed");
 /** How long messages wait for their turn after the provider did not confirm `turn/start` in time. */
 const TURN_START_GRACE_MS = 5 * 60_000;
 
@@ -652,6 +653,7 @@ export class DrainScheduler {
     // The model this start asks for. The agent can move to another one while `turn/start` waits, and
     // a plan limit belongs to the model the provider refused.
     let requestedModel: string | null = null;
+    let requestedProvider: AgentProvider | null = null;
     yield* Effect.gen({ self: this }, function* () {
       for (const item of batch) yield* this.#mailbox.markStarting(item.delivery.id).pipe(toDeliveryStartFailed);
       this.#mailboxSync.emitQueue(delivery.recipientAgentId);
@@ -688,6 +690,7 @@ export class DrainScheduler {
       yield* this.#threads.applyPendingRuntimeRefresh(agent, new Set(batch.map((item) => item.delivery.id)));
       releaseRuntimeRefresh = this.#threads.holdRuntimeRefresh(agent.id, taskId !== null);
       const client = yield* this.#providers.ensureAgentClient(agent).pipe(toDeliveryStartFailed);
+      requestedProvider = client.provider;
       const messaging = this.#messaging;
       const channels = this.#channels;
       const taskThreadId = taskId === null ? null : this.#tasks.threadId(taskId);
@@ -1012,8 +1015,17 @@ export class DrainScheduler {
               yield* this.#mailbox.restoreQueued(companion.id).pipe(toDeliveryStartFailed);
           }
           this.#mailboxSync.emitQueue(delivery.recipientAgentId);
-          if (this.#channels)
-            yield* this.#channels.deliveryFailed(delivery.id, CHANNEL_START_FAILED).pipe(toDeliveryStartFailed);
+          if (this.#channels) {
+            // A provider's confirmed missing-session failure belongs to the channel task too.
+            // Keep a fixed reason: the raw diagnostic can name private paths or request bodies.
+            const channelReason =
+              requestedProvider !== null && isMissingProviderSessionError(error, requestedProvider)
+                ? sourceText("error.backend.channelAssignmentSessionUnavailable")
+                : requestedProvider !== null && error instanceof TimeoutError
+                  ? sourceText("error.backend.channelAssignmentPreparationTimedOut")
+                  : CHANNEL_START_FAILED;
+            yield* this.#channels.deliveryFailed(delivery.id, channelReason).pipe(toDeliveryStartFailed);
+          }
           this.#messaging?.deliveryFailed(delivery.id);
           // The provider refused the session or the turn, so no turn line records the failure.
           logger.warn("A message did not start.", {

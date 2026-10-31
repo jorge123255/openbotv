@@ -66,6 +66,10 @@ SolidJS, provider, Cloudflare, and application code; and the account server to d
 
 - `openbot.db` is the source of truth for OpenBot agents, conversations, queues, reactions,
   attachments, and provider-session bindings.
+- Channel routing receipts carry display-only task activity from `channel-task-activity.ts` into
+  shared `ChannelAssignmentTarget`. It opens a read-only channel task view. It never selects the
+  recipient's private chat, opens a provider session or sends a recovery command. The wire receipt
+  stays unchanged; the renderer resolves its existing task id against the current channel page.
 - `ChannelService` owns stopped-task cancellation and reviewed recovery. The optional
   `channel-task-actions-v1` routes and desktop IPC carry task and channel revisions; stale actions
   fail before mutation. Cancellation keeps messages, assignments and an audit note. Reviewed
