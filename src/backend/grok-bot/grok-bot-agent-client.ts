@@ -72,6 +72,12 @@ export interface GrokBotAgentClientOptions {
   /** Call `InferenceService/Stream` directly (old path). Off by default: BotAI uses the box gateway. */
   readonly directInference?: boolean;
   readonly gatewayPollMs?: number;
+  /**
+   * Quiet window after the last transcript change (reply text, tool card, or permission card)
+   * before a gateway turn counts as done. Default 12s. An interim `send-message` such as
+   * "Checking now." is often stable for several seconds before the tool card lands.
+   */
+  readonly gatewayQuietMs?: number;
   readonly gatewayTurnTimeoutMs?: number;
 }
 
@@ -80,8 +86,10 @@ export interface GrokBotAgentClientOptions {
  * A turn is `POST /api/sendPrompt` on the sand gateway. The sand host runs the model.
  * The user-visible reply is a text `send-message` card. OpenBot stores that card as the
  * assistant message. A `tool-call` card becomes a sand tool row. OpenBot shows the row.
- * OpenBot does not run that tool. The turn completes when the reply text is stable and no
- * tool row is in progress. `InferenceService/Stream` runs only when `directInference` is set.
+ * OpenBot does not run that tool. The transcript has no end-of-turn card, so the turn completes
+ * when no tool row or permission card is open and nothing in the transcript after the prompt has
+ * changed for `gatewayQuietMs`. Stable text alone is not done: an interim reply may be followed by
+ * a tool card and a later final reply. `InferenceService/Stream` runs only when `directInference` is set.
  */
 export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements AgentClient {
   readonly provider = "grok-bot" as const;
@@ -462,8 +470,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       const started = Date.now();
       const timeoutMs = this.#options.gatewayTurnTimeoutMs ?? 10 * 60_000;
       const pollMs = this.#options.gatewayPollMs ?? 1500;
-      let stable = 0;
-      let lastSeen = "";
+      const quietMs = Math.max(this.#options.gatewayQuietMs ?? 12_000, pollMs * 2);
+      let lastSignature = "";
+      let lastChange = Date.now();
       while (Date.now() - started < timeoutMs) {
         await sleep(pollMs, turn.controller.signal);
         if (thread.turn?.id !== turn.id) return;
@@ -480,16 +489,20 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
         } else if (reply !== turn.text && reply.length > 0) {
           turn.text = reply;
         }
-        const toolRunning = activity.steps.some((step) => step.status === "inProgress");
-        // An open tool row or permission card is not a missing reply. Two empty reads are not success.
-        if (toolRunning || activity.permissionPending) {
-          stable = 0;
-          lastSeen = reply;
+        const signature = JSON.stringify([
+          reply,
+          activity.steps.map((step) => [step.id, step.status, step.detail]),
+          activity.permissionPending,
+        ]);
+        if (signature !== lastSignature) {
+          lastSignature = signature;
+          lastChange = Date.now();
           continue;
         }
-        stable = reply.length > 0 && reply === lastSeen ? stable + 1 : 0;
-        lastSeen = reply;
-        if (stable >= 2) break;
+        const toolRunning = activity.steps.some((step) => step.status === "inProgress");
+        // An open tool row or permission card is not a missing reply. Empty reads are not success.
+        if (toolRunning || activity.permissionPending || reply.length === 0) continue;
+        if (Date.now() - lastChange >= quietMs) break;
       }
       if (thread.turn?.id !== turn.id) return;
       if (turn.text.length === 0) throw new Error(sourceText("error.provider.grokBotTurnFailed"));

@@ -26,6 +26,8 @@ const TOOL_REPLY = "Done with the tool";
 const WAIT_REPLY = "Finished after the tool";
 const FAIL_REPLY = "The tool failed";
 const PERMISSION_REPLY = "Allowed";
+const INTERIM_REPLY = "Checking your computer's date now.";
+const FINAL_REPLY = "It is Friday, Oct 30.";
 const cipher = {
   encrypt: (value: string) => Buffer.from(value, "utf8"),
   decrypt: (value: Buffer) => value.toString("utf8"),
@@ -39,6 +41,7 @@ const report: {
   waitingHeld: boolean;
   permissionHeld: boolean;
   failedToolStatus: string;
+  interimHeld: boolean;
   noToolCallRequest: boolean;
   noDirectStream: boolean;
   directInferenceOmitted: boolean;
@@ -50,6 +53,7 @@ const report: {
   waitingHeld: false,
   permissionHeld: false,
   failedToolStatus: "",
+  interimHeld: false,
   noToolCallRequest: false,
   noDirectStream: false,
   directInferenceOmitted: false,
@@ -145,7 +149,7 @@ function readBody(request: IncomingMessage): Promise<string> {
   });
 }
 
-type Mode = "text" | "tool" | "wait" | "fail" | "permission";
+type Mode = "text" | "tool" | "wait" | "fail" | "permission" | "interim";
 
 assertParser();
 
@@ -160,6 +164,7 @@ let mode: Mode = "text";
 let arm = false;
 let polls = 0;
 let released = false;
+let armedAt = 0;
 let streamCalls = 0;
 let addressPort = 0;
 const toolRequests: string[] = [];
@@ -173,6 +178,20 @@ function liveEntries(): unknown[] {
       { id: "t4c", kind: "tool-call", name: "Shell", status: "error", summary: "disk full" },
       { id: "t4s", kind: "send-message", message: { type: "text", content: FAIL_REPLY } },
     ];
+  }
+  if (mode === "interim") {
+    // Live race: interim text alone for ~5s, then a tool card, then the final reply.
+    const age = Date.now() - armedAt;
+    const rows: unknown[] = [
+      { id: "t6u", kind: "message", role: "user", content: "date on my computer" },
+      { id: "t6s0", kind: "send-message", message: { type: "text", content: INTERIM_REPLY } },
+    ];
+    if (age >= 5_000) {
+      const done = age >= 6_000;
+      rows.push({ id: "t6c", kind: "tool-call", name: "Shell", status: done ? "done" : "running", summary: "date" });
+      if (done) rows.push({ id: "t6s1", kind: "send-message", message: { type: "text", content: FINAL_REPLY } });
+    }
+    return rows;
   }
   const open = !released;
   if (mode === "wait") {
@@ -222,6 +241,7 @@ const server = createServer((request, response: ServerResponse) => {
       const parsed = JSON.parse(body);
       assert.equal(isDynamicRecord(parsed) && typeof parsed.prompt === "string" && parsed.prompt.length > 0, true);
       arm = true;
+      armedAt = Date.now();
       polls = 0;
       released = false;
       response.writeHead(200, { "content-type": "application/json" });
@@ -292,7 +312,13 @@ function assistantText(notes: readonly Note[]): string {
     .join("");
 }
 
-async function runTurn(client: GrokBotAgentClient, threadId: string, prompt: string, nextMode: Mode): Promise<Note[]> {
+async function runTurn(
+  client: GrokBotAgentClient,
+  threadId: string,
+  prompt: string,
+  nextMode: Mode,
+  limitMs = 4_000,
+): Promise<Note[]> {
   arm = false;
   mode = nextMode;
   const notes: Note[] = [];
@@ -306,7 +332,7 @@ async function runTurn(client: GrokBotAgentClient, threadId: string, prompt: str
     ),
   );
   await new Promise<void>((ready, reject) => {
-    const timer = setTimeout(() => reject(new Error(`turn did not finish: ${prompt}`)), 4_000);
+    const timer = setTimeout(() => reject(new Error(`turn did not finish: ${prompt}`)), limitMs);
     const done = () => {
       const completed = notes.find((note) => note.method === "turn/completed");
       if (!completed || !isDynamicRecord(completed.params) || !isDynamicRecord(completed.params.turn)) return;
@@ -331,6 +357,7 @@ try {
     apiBaseUrl: `http://127.0.0.1:${addressPort}`,
     allowLoopback: true,
     gatewayPollMs: 20,
+    gatewayQuietMs: 100,
     gatewayTurnTimeoutMs: 3_000,
   });
   client.on("request", (request) => toolRequests.push(request.method));
@@ -396,6 +423,48 @@ try {
   assert.equal(report.permissionHeld, true);
   assert.equal(toolRows(permissionNotes, "item/completed").length, 0);
   assert.equal(toolRows(permissionNotes, "item/started").length, 0);
+
+  // Production-like timing: interim text stable for ~5s must not end the turn.
+  const slow = new GrokBotAgentClient({
+    store,
+    apiBaseUrl: `http://127.0.0.1:${addressPort}`,
+    allowLoopback: true,
+    gatewayPollMs: 250,
+    gatewayQuietMs: 6_000,
+    gatewayTurnTimeoutMs: 20_000,
+  });
+  slow.on("request", (request) => toolRequests.push(request.method));
+  slow.start();
+  const slowThread = await Effect.runPromise(
+    slow.request("thread/start", { developerInstructions: "Be brief." }, decodeThreadResponse),
+  );
+  const interimStart = Date.now();
+  const interimNotes = await runTurn(slow, slowThread.thread.id, "date on my computer", "interim", 18_000);
+  const interimDone = Date.now() - interimStart;
+  const interimTool = toolRows(interimNotes, "item/completed").find((item) => item.id === "t6c");
+  assert.equal(interimTool?.status, "completed");
+  assert.equal(interimTool?.namespace, "sand");
+  assert.equal(assistantText(interimNotes), `${INTERIM_REPLY}\n\n${FINAL_REPLY}`);
+  const interimTurn = interimNotes.find((note) => note.method === "turn/completed");
+  assert.equal(
+    isDynamicRecord(interimTurn?.params) && isDynamicRecord(interimTurn.params.turn) && interimTurn.params.turn.status,
+    "completed",
+  );
+  const finalItem = interimNotes.find(
+    (note) =>
+      note.method === "item/completed" &&
+      isDynamicRecord(note.params) &&
+      isDynamicRecord(note.params.item) &&
+      note.params.item.type === "agentMessage",
+  );
+  assert.ok(
+    isDynamicRecord(finalItem?.params) &&
+      isDynamicRecord(finalItem.params.item) &&
+      String(finalItem.params.item.text).endsWith(FINAL_REPLY),
+  );
+  assert.ok(interimDone >= 6_000, `turn closed early after ${interimDone}ms`);
+  report.interimHeld = true;
+  await Effect.runPromise(slow.stop());
 
   report.noToolCallRequest = !toolRequests.includes("item/tool/call");
   report.noDirectStream = streamCalls === 0;
