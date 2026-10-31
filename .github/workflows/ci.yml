@@ -858,7 +858,8 @@ jobs:
           name: provider-fakes-e2e
           path: |
             .openbot-build/custom-acp-agent-e2e/
-            .openbot-build/instance-backup-stop-e2e/
+            .openbot-build/instance-backup-stop-e2e/report.json
+            .openbot-build/instance-backup-stop-e2e/fixture.log
             .openbot-build/custom-acp-agent-login-path-e2e/
             .openbot-build/codex-login-path-e2e/
             .openbot-build/antigravity-login-path-e2e/

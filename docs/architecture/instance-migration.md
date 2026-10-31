@@ -35,11 +35,27 @@ file hashes, SQLite integrity, record counts and shared ownership warnings. It d
 keyring, decrypt credentials, verify every attachment reference or start OpenBot. Hash checks detect
 accidental changes; they do not authenticate an untrusted archive and its hash file.
 
+**Credential migration is unavailable.** Ordinary backups contain credential unlock material in
+an unencrypted archive. They are not portable migration exports. No future migration path may
+accept this archive as credential-transfer authorization or report credentials as transferred.
+An approved authenticated-encryption adapter and destination verification must exist first.
+That adapter must refuse missing protection, wrong keys, tampering and unknown versions without
+modifying the destination. These are required future tests, not implemented controls in this PR.
+Do not run a real credential export, backup or restore as a migration rehearsal.
+
 Docker restore verifies first and leaves the target stopped. Neither backup nor restore proves that
 another copy with the same identity is off. `--keep-stopped` prevents the backup itself from starting
 the source after its stop, including copy or verification failure. It checks the exit code only when
 it performs the stop. An already stopped or removed container is accepted with unknown prior stop
 state. It is not a persistent fence or proof of a clean, complete migration snapshot.
+
+The synthetic backup E2E runs on every platform in a restricted Linux container. It mounts only an
+owned temporary tree containing the shell fixture and the real backup service script. It compares
+an archived synthetic password canary to prove that ordinary compression is not encryption, checks
+the canary stays out of diagnostics, and keeps credential/fencing verification flags false. Each
+start has a UUID owner name; hard timeout, exact-name removal and verified absence apply before
+source-pack deletion. A separate ready-marker wait process proves timeout cleanup. If cleanup
+cannot be confirmed, the test fails and retains only its source pack and pending container name.
 
 ## Required inventory
 
@@ -135,16 +151,17 @@ rollback: it can invalidate both copies and requires its own approved action.
 
 ## Verification in this stage
 
-Run `node --import tsx scripts/instance-backup-stop-e2e.ts`. Linux runs the real shell backup service
-with injected host boundaries and real temporary files, tar/gzip and hashes. macOS runs the same
-fixture in an unprivileged Debian container with no network, a read-only source mount and no Docker
-socket. The first run can download its public base image. It does not run OpenBot or contact a
-provider. The report is `.openbot-build/instance-backup-stop-e2e/report.json`.
+Run `node --import tsx scripts/instance-backup-stop-e2e.ts`. Every platform runs the real shell backup
+service with injected host boundaries and synthetic temporary files, tar/gzip and hashes inside an
+unprivileged Debian container. It has no network or Docker socket and mounts only the two public
+source files read-only. The first run can download its public base image. It does not run OpenBot
+or contact a provider. The report is `.openbot-build/instance-backup-stop-e2e/report.json`.
 
 The fixture checks normal restart, keep-stopped success with and without verification, argument
 order, an already stopped source, copy failure cleanup, failed verification, unclean stop refusal,
 preflight failure and unknown arguments. It checks archived synthetic workspace/keyring bytes and
-hashes. Docker state, mount/UID boundaries and the verification callback are injected. This test
+hashes, plus refusal of an injected diagnostic canary and missing diagnostic file. Docker state,
+mount/UID boundaries and the verification callback are injected. This test
 does not prove real Docker stop behavior, keyring unlock, SQLite verification or cross-OS migration.
 The separate `scripts/instance-backup-e2e.ts` covers the full Linux backup/verify/restore path.
 

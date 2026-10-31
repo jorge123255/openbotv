@@ -311,6 +311,11 @@ start the same identity. It does not pause routines in the database, encrypt the
 credential decryption, or implement a Mac-to-Linux move. See the
 [full migration plan](architecture/instance-migration.md) for these required stages.
 
+An ordinary backup contains the keyring and its unlock password in an unencrypted archive.
+Credential migration remains unavailable until an approved authenticated-encryption adapter and
+destination verification exist. Do not treat this archive or `--keep-stopped` as authorization
+for credential transfer or as proof that only one host can execute work.
+
 Each backup is a folder `<UTC time>` with:
 
 | File | Contents |

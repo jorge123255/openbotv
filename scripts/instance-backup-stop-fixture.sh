@@ -71,7 +71,16 @@ run_backup() {
   set -e
 }
 
-pass() { printf 'PASS %s\n' "$1"; }
+pass() {
+  # The archive contains this synthetic unlock canary, but diagnostics must never print it.
+  local grep_status=0
+  grep -Fq 'synthetic password' "$fixture/stdout" "$fixture/stderr" 2>/dev/null || grep_status=$?
+  if [ "$grep_status" -ne 1 ]; then
+    printf 'SYNTHETIC_CREDENTIAL_DIAGNOSTIC_REFUSED\n' >&2
+    return 1
+  fi
+  printf 'PASS %s\n' "$1"
+}
 assert_stopped() {
   [ "$(cat "$fixture/state")" = false ]
   ! grep -q '^start$' "$fixture/events"
@@ -93,6 +102,7 @@ archive=$(json_value "$backup_folder/manifest.json" archive)
 decompress "$archive" "$backup_folder/$archive" | command tar -xf - -C "$fixture/unpacked"
 cmp "$DATA/main/data/Workspace/file.txt" "$fixture/unpacked/Workspace/file.txt"
 cmp "$DATA/main/data/.local/share/keyrings/login.keyring" "$fixture/unpacked/.local/share/keyrings/login.keyring"
+cmp "$DATA/main/data/.config/openbot-container/keyring-password" "$fixture/unpacked/.config/openbot-container/keyring-password"
 assert_no_partial
 pass kept-stopped-success
 
@@ -186,3 +196,20 @@ run_backup
 [ "$(cat "$fixture/state")" = true ]
 grep -q 'SQLite keeps the last complete transaction' "$fixture/stderr"
 pass default-unclean-stop-keeps-existing-policy
+
+# Probe only generated diagnostic files. The canary must not reach a PASS line or parent log.
+reset_case
+printf 'synthetic password\n' >"$fixture/stdout"
+: >"$fixture/stderr"
+if pass must-not-pass >"$fixture/gate-stdout" 2>"$fixture/gate-stderr"; then exit 1; fi
+[ ! -s "$fixture/gate-stdout" ]
+grep -Fxq SYNTHETIC_CREDENTIAL_DIAGNOSTIC_REFUSED "$fixture/gate-stderr"
+printf 'synthetic safe output\n' >"$fixture/stdout"
+pass credential-diagnostic-leak-refused
+
+rm "$fixture/stdout"
+if pass must-not-pass >"$fixture/gate-stdout" 2>"$fixture/gate-stderr"; then exit 1; fi
+[ ! -s "$fixture/gate-stdout" ]
+grep -Fxq SYNTHETIC_CREDENTIAL_DIAGNOSTIC_REFUSED "$fixture/gate-stderr"
+printf 'synthetic safe output\n' >"$fixture/stdout"
+pass missing-diagnostic-file-refused
