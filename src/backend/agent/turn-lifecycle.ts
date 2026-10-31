@@ -751,6 +751,15 @@ export class TurnLifecycle {
           );
         return;
       }
+      case "openbot/activity": {
+        // Grok Bot puts Writing… or Retrying… on the activity line. The text is already source English.
+        if (!threadId || !agentId) return;
+        const turnId = getString(params, "turnId");
+        const detail = getString(params, "detail");
+        if (!turnId || detail === null || !this.#runningTurns.has(turnId)) return;
+        this.#emitTurnProgress(agentId, this.#conversation.publicThreadId(agentId, threadId), turnId, detail);
+        return;
+      }
       case "openbot/context-compaction": {
         if (!threadId || !agentId || this.#conversation.loadedClientFor(threadId) !== source) return;
         const status = getString(params, "status");

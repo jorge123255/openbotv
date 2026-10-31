@@ -45,6 +45,18 @@ const authFile = join(root, "grok-account.json");
 let promptSent = false;
 let streamCalls = 0;
 let addressPort = 0;
+const eventStreams = new Set<ServerResponse>();
+let pendingTurnEnded = "";
+
+function publishTurnEnded(): void {
+  pendingTurnEnded = `data: ${JSON.stringify({
+    channel: "transcript",
+    payload: { agentId: "sand-agent-e2e", type: "turn-ended" },
+  })}\n\n`;
+  for (const stream of eventStreams) {
+    if (!stream.writableEnded) stream.write(pendingTurnEnded);
+  }
+}
 
 const server = createServer((request, response: ServerResponse) => {
   void (async () => {
@@ -66,6 +78,18 @@ const server = createServer((request, response: ServerResponse) => {
       response.end(JSON.stringify({ agent: { id: "sand-agent-e2e", name: "OpenBot" } }));
       return;
     }
+    if (url.pathname === "/events") {
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      eventStreams.add(response);
+      response.write(":ping\n\n");
+      if (pendingTurnEnded.length > 0) response.write(pendingTurnEnded);
+      response.on("close", () => eventStreams.delete(response));
+      return;
+    }
     if (url.pathname === "/api/sendPrompt") {
       assert.equal(request.headers.authorization, "Bearer gw-e2e");
       assert.equal(request.headers["content-type"], "application/json");
@@ -77,6 +101,7 @@ const server = createServer((request, response: ServerResponse) => {
       promptSent = true;
       response.writeHead(200, { "content-type": "application/json" });
       response.end(JSON.stringify({ accepted: true }));
+      publishTurnEnded();
       return;
     }
     if (url.pathname === "/api/getAgentTranscriptTail") {
@@ -181,6 +206,7 @@ try {
   await Effect.runPromise(client.stop());
   report.passed = true;
 } finally {
+  for (const stream of eventStreams) stream.end();
   await new Promise<void>((ready, reject) => server.close((error) => (error ? reject(error) : ready())));
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

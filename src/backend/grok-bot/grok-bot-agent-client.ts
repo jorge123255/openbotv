@@ -20,7 +20,19 @@ import { getString, isRecord } from "../protocol";
 import { type ProviderClientOperationError, providerFailure } from "../provider-client-effects";
 import { accessTokenNeedsRefresh, type GrokBotAccountStore } from "./grok-bot-account";
 import { readOrCreateMachineId } from "./grok-bot-checksum";
-import { createGrokBotAgent, listGrokBotAgents, readGrokBotTranscript, sendGrokBotPrompt } from "./grok-bot-gateway";
+import {
+  createGrokBotAgent,
+  listGrokBotAgents,
+  readGrokBotRoster,
+  readGrokBotTranscript,
+  sendGrokBotPrompt,
+} from "./grok-bot-gateway";
+import {
+  createGatewayEventQueue,
+  GROK_BOT_SSE_CONNECT_MS,
+  sleepWithSignal,
+  startGrokBotEventStream,
+} from "./grok-bot-gateway-events";
 import {
   GROK_BOT_MAX_IMAGE_BYTES,
   GROK_BOT_MODEL_ID,
@@ -39,6 +51,15 @@ import {
   transcriptActivityAfterPrompt,
   transcriptToMessages,
 } from "./grok-bot-transcript";
+import {
+  applyGatewayEvent,
+  applyRosterBody,
+  createTurnWatch,
+  grokBotActivityDetail,
+  grokBotUsageParams,
+  noteSendMessagePending,
+  rosterBodyHasRunningField,
+} from "./grok-bot-turn-watch";
 import { readGrokBotUsageSummary } from "./grok-bot-usage";
 
 const DEFAULT_API = "https://api2.cursor.sh";
@@ -73,12 +94,15 @@ export interface GrokBotAgentClientOptions {
   readonly directInference?: boolean;
   readonly gatewayPollMs?: number;
   /**
-   * Quiet window after the last transcript change (reply text, tool card, or permission card)
-   * before a gateway turn counts as done. Default 12s. An interim `send-message` such as
-   * "Checking now." is often stable for several seconds before the tool card lands.
+   * Last-resort quiet window. Used only when the gateway has no event stream and `listAgents`
+   * has no running flag. Default 12s.
    */
   readonly gatewayQuietMs?: number;
   readonly gatewayTurnTimeoutMs?: number;
+  /** BotAI stall watchdog. Default 35s. */
+  readonly gatewayEventsStallMs?: number;
+  /** How long to wait for the first `GET /events` response. Default 15s. */
+  readonly gatewayEventsConnectMs?: number;
 }
 
 /**
@@ -86,10 +110,12 @@ export interface GrokBotAgentClientOptions {
  * A turn is `POST /api/sendPrompt` on the sand gateway. The sand host runs the model.
  * The user-visible reply is a text `send-message` card. OpenBot stores that card as the
  * assistant message. A `tool-call` card becomes a sand tool row. OpenBot shows the row.
- * OpenBot does not run that tool. The transcript has no end-of-turn card, so the turn completes
- * when no tool row or permission card is open and nothing in the transcript after the prompt has
- * changed for `gatewayQuietMs`. Stable text alone is not done: an interim reply may be followed by
- * a tool card and a later final reply. `InferenceService/Stream` runs only when `directInference` is set.
+ * OpenBot does not run that tool. The turn ends when the gateway event stream delivers `turn-ended`
+ * for this agent, or when that agent's running flag goes from true to false. A subagent keeps the
+ * parent running. Retrying is not an idle end. Composing is on while a SendMessage tool is pending,
+ * and off on send-message or turn-ended. The transcript tail still fills tool rows and reply text.
+ * The quiet window is only the fallback when `/events` is absent and the roster has no running flag.
+ * `InferenceService/Stream` runs only when `directInference` is set.
  */
 export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements AgentClient {
   readonly provider = "grok-bot" as const;
@@ -448,10 +474,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
   }
 
   /**
-   * BotAI path: `POST /api/sendPrompt` returns `{ accepted: true }`. The sand host owns the model
-   * stream and writes a text `send-message` card. Poll `/api/getAgentTranscriptTail` until that
-   * card stops changing, then project it as the assistant reply. Project `tool-call` cards as
-   * display rows. Do not call `item/tool/call`.
+   * BotAI path: `POST /api/sendPrompt` returns when the prompt is accepted. The sand host owns the
+   * model stream. This method watches `GET /events` and the roster running flag, and polls the
+   * transcript tail for tool rows and reply text. It does not call `item/tool/call`.
    */
   async #viaGateway(thread: SandThread, params: unknown): Promise<void> {
     const turn = thread.turn;
@@ -460,12 +485,46 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     const options = { ...this.#callOptions(), allowLoopback: this.#options.allowLoopback === true };
     const shownTools = new Map<string, GrokBotTranscriptToolStep["status"]>();
     const readTail = async () => Effect.runPromise(readGrokBotTranscript(store, thread.id, options));
+    const streamAbort = new AbortController();
+    const abortStream = () => streamAbort.abort();
+    turn.controller.signal.addEventListener("abort", abortStream);
     try {
       const prompt = promptText(params);
       const none: GrokBotInferenceMessage[] = [];
       const before = await readTail()
         .then((body) => transcriptToMessages(body))
         .catch(() => none);
+      const queue = createGatewayEventQueue();
+      const watch = createTurnWatch();
+      const session = (await Effect.runPromise(store.load()))?.gateway ?? null;
+      let mode: "events" | "roster" | "quiet" = "quiet";
+      if (session) {
+        const stream = startGrokBotEventStream({
+          session,
+          signal: streamAbort.signal,
+          ...(this.#options.fetchImpl ? { fetchImpl: this.#options.fetchImpl } : {}),
+          ...(this.#options.gatewayEventsStallMs ? { stallMs: this.#options.gatewayEventsStallMs } : {}),
+          onEvent: (event) => queue.push(event),
+        });
+        void stream.done.catch(() => undefined);
+        const connectMs = this.#options.gatewayEventsConnectMs ?? GROK_BOT_SSE_CONNECT_MS;
+        const connectSleep = sleepWithSignal(connectMs, streamAbort.signal).then(
+          () => "timeout" as const,
+          () => "aborted" as const,
+        );
+        const ready = await Promise.race([stream.ready, connectSleep]);
+        if (ready === "open") mode = "events";
+        else streamAbort.abort();
+      }
+      if (mode !== "events") {
+        const roster = await Effect.runPromise(readGrokBotRoster(store, options)).catch(() => null);
+        if (roster && rosterBodyHasRunningField(roster)) {
+          mode = "roster";
+          applyRosterBody(watch, thread.id, roster);
+        } else {
+          this.emit("diagnostic", "Grok Bot has no gateway turn signal. The turn ends after a quiet window.");
+        }
+      }
       await Effect.runPromise(sendGrokBotPrompt(store, { agentId: thread.id, prompt, clientNonce: turn.id }, options));
       const started = Date.now();
       const timeoutMs = this.#options.gatewayTurnTimeoutMs ?? 10 * 60_000;
@@ -473,14 +532,17 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       const quietMs = Math.max(this.#options.gatewayQuietMs ?? 12_000, pollMs * 2);
       let lastSignature = "";
       let lastChange = Date.now();
-      while (Date.now() - started < timeoutMs) {
-        await sleep(pollMs, turn.controller.signal);
-        if (thread.turn?.id !== turn.id) return;
-        const body = await readTail().catch(() => null);
-        if (!body) continue;
+      let shownActivity: "writing" | "retrying" | null = null;
+      let usageSent = false;
+      let quietOpen = false;
+      const project = (body: unknown) => {
         const messages = transcriptToMessages(body);
         const activity = transcriptActivityAfterPrompt(body, prompt);
         this.#projectSandTools(thread.id, turn.id, activity.steps, shownTools);
+        noteSendMessagePending(
+          watch,
+          activity.steps.some((step) => step.name === "SendMessage" && step.status === "inProgress"),
+        );
         const reply = replyAfter(before, messages, prompt);
         if (reply.length > turn.text.length && reply.startsWith(turn.text)) {
           const delta = reply.slice(turn.text.length);
@@ -489,19 +551,66 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
         } else if (reply !== turn.text && reply.length > 0) {
           turn.text = reply;
         }
-        const signature = JSON.stringify([
+        quietOpen =
+          activity.steps.some((step) => step.status === "inProgress") ||
+          activity.permissionPending ||
+          reply.length === 0;
+        return JSON.stringify([
           reply,
           activity.steps.map((step) => [step.id, step.status, step.detail]),
           activity.permissionPending,
         ]);
+      };
+      const publishWatch = () => {
+        if (watch.activity !== shownActivity) {
+          shownActivity = watch.activity;
+          this.#emit("openbot/activity", {
+            threadId: thread.id,
+            turnId: turn.id,
+            detail: grokBotActivityDetail(watch.activity),
+          });
+        }
+        if (watch.usage && !usageSent) {
+          usageSent = true;
+          this.#emit("openbot/usage", { threadId: thread.id, turnId: turn.id, usage: grokBotUsageParams(watch.usage) });
+        }
+      };
+      while (Date.now() - started < timeoutMs) {
+        if (queue.size === 0) {
+          const poke = new AbortController();
+          const onTurnAbort = () => poke.abort();
+          turn.controller.signal.addEventListener("abort", onTurnAbort);
+          await Promise.race([
+            sleepWithSignal(pollMs, turn.controller.signal).catch(() => undefined),
+            queue.wait(poke.signal),
+          ]);
+          poke.abort();
+          turn.controller.signal.removeEventListener("abort", onTurnAbort);
+        }
+        if (thread.turn?.id !== turn.id || turn.controller.signal.aborted) return;
+        const body = await readTail().catch(() => null);
+        let signature = lastSignature;
+        if (body) signature = project(body);
+        for (const event of queue.drain()) applyGatewayEvent(watch, thread.id, event);
+        if (mode === "roster") {
+          const roster = await Effect.runPromise(readGrokBotRoster(store, options)).catch(() => null);
+          if (roster) applyRosterBody(watch, thread.id, roster);
+        }
+        publishWatch();
+        if (watch.ended) {
+          const latest = await readTail().catch(() => null);
+          if (latest) project(latest);
+          publishWatch();
+          break;
+        }
+        if (mode !== "quiet" || !body) continue;
         if (signature !== lastSignature) {
           lastSignature = signature;
           lastChange = Date.now();
           continue;
         }
-        const toolRunning = activity.steps.some((step) => step.status === "inProgress");
         // An open tool row or permission card is not a missing reply. Empty reads are not success.
-        if (toolRunning || activity.permissionPending || reply.length === 0) continue;
+        if (quietOpen) continue;
         if (Date.now() - lastChange >= quietMs) break;
       }
       if (thread.turn?.id !== turn.id) return;
@@ -528,6 +637,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
         threadId: thread.id,
         turn: { id: turn.id, status: "failed", error: { message } },
       });
+    } finally {
+      streamAbort.abort();
+      turn.controller.signal.removeEventListener("abort", abortStream);
     }
   }
 
@@ -801,21 +913,6 @@ function isToolResult(value: unknown): value is DynamicToolResult {
 function isUnauthenticated(error: unknown): boolean {
   const text = error instanceof Error ? error.message : String(error);
   return /unauthenticated|HTTP 401/iu.test(text);
-}
-
-function sleep(ms: number, signal: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal.aborted) return reject(signal.reason);
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = () => {
-      clearTimeout(timer);
-      reject(signal.reason);
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
 }
 
 /** Text of the user's prompt from `turn/start` params (`input` text items). */
