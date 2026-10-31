@@ -1091,8 +1091,9 @@
 
 /* ------------------------------------------------------- Empty canvas */
 
-/* An empty workflow asks for its trigger in the middle of the canvas. The canvas stays usable. */
+/* The starter choices leave the empty canvas usable. */
 .wfn-empty {
+  padding: var(--openbot-space-6);
   position: absolute;
   inset: 0;
   display: grid;
@@ -1124,6 +1125,28 @@
   font-size: var(--openbot-text-md);
   font-weight: var(--openbot-weight-medium);
   text-wrap: balance;
+}
+
+.wfn-empty-hint {
+  margin: 0;
+  max-inline-size: calc(var(--openbot-space-8) * 18);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-md);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.wfn-starters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--openbot-space-6);
+}
+
+.wfn-starter {
+  display: grid;
+  justify-items: center;
+  gap: var(--openbot-space-2);
 }
 
 /* ------------------------------------------------------------ Selection */

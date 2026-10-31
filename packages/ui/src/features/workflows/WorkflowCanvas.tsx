@@ -161,6 +161,7 @@ import {
   translated,
 } from "./workflow-node-parts";
 import { activeRun, indexRunView, type WorkflowRunView } from "./workflow-run-view";
+import { type WorkflowStarterKind, workflowStarterGraph, workflowStarters } from "./workflow-starters";
 import { DrawArt, ShapesArt, StickyArt } from "./workflow-tool-art";
 
 export interface WorkflowCanvasProps {
@@ -1079,7 +1080,17 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
         : { id: workflow.id, title: workflow.title, steps: workflow.steps },
     );
   };
+  const starters = createMemo(() => workflowStarters(props.features));
   const onSwitcher = (action: SwitcherAction) => {
+    if (action === "starter:approval" || action === "starter:agent") {
+      const kind = action === "starter:approval" ? "approval" : "agent";
+      const starter = starters().find((item) => item.kind === kind);
+      if (!props.readOnly && starter) {
+        closeVersion();
+        props.onCreate({ title: t(starter.title), graph: workflowStarterGraph(kind, t) });
+      }
+      return;
+    }
     if (action.startsWith("version:")) return openVersion(action.slice("version:".length));
     if (action === "live") return closeVersion();
     // Another action leaves the version first. A rename changes only the name.
@@ -1312,6 +1323,20 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
     canvas.putFields(id, hostDefaults(kind, props.catalogs, props.features));
     setNodes((list) => [...list, kind === "trigger" ? { id, kind, schedule: newTriggerSchedule() } : { id, kind }]);
     return id;
+  };
+
+  /** Populate only an empty canvas, as one undo step. Keep any drawings. */
+  const addStarter = (kind: WorkflowStarterKind) => {
+    if (frozen() || running() || live().length > 0 || !starters().some((starter) => starter.kind === kind)) return;
+    commit();
+    const next = workflowStarterGraph(kind, t);
+    next.strokes = graph().strokes;
+    apply(snapshotFromGraph(next));
+    afterLayout(() => {
+      fitView(false);
+      const first = next.nodes.find((node) => node.kind === (kind === "agent" ? "agent" : "trigger"));
+      if (first) focusNode(first.id);
+    });
   };
 
   /**
@@ -2908,7 +2933,26 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
             <span class="wfn-menu-icon wfn-empty-icon" data-kind="trigger" aria-hidden="true">
               <Zap />
             </span>
-            <h2 class="wfn-empty-title">{t("workflow.canvas.empty.title")}</h2>
+            <h2 class="wfn-empty-title">
+              {starters().length > 0 ? t("workflow.starter.label") : t("workflow.canvas.empty.title")}
+            </h2>
+            <Show when={starters().length > 0}>
+              <p class="wfn-empty-hint">{t("workflow.starter.intro")}</p>
+              <div class="wfn-starters">
+                <For each={starters()}>
+                  {(starter) => (
+                    <div class="wfn-starter">
+                      <Button variant="outline" size="sm" onClick={() => addStarter(starter.kind)}>
+                        <Plus aria-hidden="true" />
+                        {t(starter.title)}
+                      </Button>
+                      <p class="wfn-empty-hint">{t(starter.description)}</p>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+            <p class="wfn-empty-hint">{t("workflow.starter.keyboard")}</p>
             <Button size="sm" onClick={() => addNode("trigger")}>
               <Plus aria-hidden="true" />
               {t("workflow.canvas.empty.add")}
@@ -2931,6 +2975,7 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
               viewing={props.versionPreview?.versionId}
               versionsDisabled={running()}
               readOnly={props.readOnly === true}
+              starters={starters()}
               onAction={onSwitcher}
             />
           }
