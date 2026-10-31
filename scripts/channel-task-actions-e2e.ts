@@ -25,7 +25,11 @@ import {
   CHANNEL_TASK_RECOVER_PATH,
 } from "@openbot/contracts/team-protocol/channel-task-actions-v1";
 import { CHANNEL_ROUTES, channelRequest } from "@openbot/contracts/team-protocol/channels-v1";
-import { teamCapabilitiesForProtocol } from "@openbot/contracts/team-protocol/current";
+import {
+  legacyTeamCapabilities,
+  TEAM_CURRENT_CAPABILITIES,
+  teamCapabilitiesForProtocol,
+} from "@openbot/contracts/team-protocol/current";
 import { teamSideRouteCodec } from "@openbot/contracts/team-protocol/side-routes";
 import { matchingSourceKeys, sourceText } from "@openbot/i18n/source";
 import { teamChannelsApi } from "@openbot/team-client/team-api-requests";
@@ -584,6 +588,9 @@ try {
     recoveryCodec.request(CHANNEL_TASK_RECOVER_PATH, { ...httpInput, action: "delete", recipientAgentId: null }),
   );
   assert.ok(teamSideRouteCodec(CHANNEL_TASK_RECOVER_PATH));
+  const legacyCapabilities = legacyTeamCapabilities(TEAM_CURRENT_CAPABILITIES);
+  assert.ok(legacyCapabilities.length <= 64);
+  assert.ok(!legacyCapabilities.includes(CHANNEL_TASK_ACTIONS_CAPABILITY));
   for (const protocol of [7, 8]) {
     const capabilities = teamCapabilitiesForProtocol(protocol);
     assert.ok(!capabilities.includes(CHANNEL_TASK_ACTIONS_CAPABILITY));

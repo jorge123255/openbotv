@@ -985,24 +985,24 @@ jobs:
       - name: Install the fixture browser
         run: bun node_modules/playwright-core/cli.js install --with-deps chromium
 
-      - name: Check usage UI and Ollama quota with mocks
+      - name: Check UI fixtures from built Storybook
         shell: bash
         run: |
           mkdir -p .openbot-build/usage-chart-e2e
-          bun run storybook --no-open --ci --quiet > .openbot-build/usage-chart-e2e/storybook.log 2>&1 &
+          # Exercise the output built above. A cold Vite dev server can leave the full-app
+          # fixture loading hundreds of source modules past its readiness deadline.
+          test -f storybook-static/iframe.html
+          python3 -m http.server 6006 --bind 127.0.0.1 --directory storybook-static > .openbot-build/usage-chart-e2e/storybook.log 2>&1 &
           storybook_pid=$!
           trap 'kill "$storybook_pid" 2>/dev/null || true' EXIT
-          curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:6006/iframe.html
-          bun scripts/channel-task-attention-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
-          bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
+          curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://127.0.0.1:6006/iframe.html
+          bun scripts/channel-task-attention-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/usage-chart-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/ollama-quota-e2e.ts
-          bun scripts/storybook-a11y-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
-          bun scripts/ollama-quota-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
-          bun scripts/channel-send-retry-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
-          bun scripts/local-skill-sharing-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
-        env:
-          STORYBOOK_DISABLE_TELEMETRY: "1"
-          OPENBOT_STORYBOOK_PORT: "6006"
+          bun scripts/storybook-a11y-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/ollama-quota-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/channel-send-retry-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/local-skill-sharing-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
 
       - name: Upload local skill sharing UI evidence
         if: always()

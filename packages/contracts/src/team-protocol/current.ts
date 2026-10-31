@@ -587,6 +587,7 @@ export function legacyTeamCapabilities(capabilities: readonly string[]): string[
       capability !== AGENT_NOTIFICATION_LEVELS_CAPABILITY &&
       capability !== PROVIDER_SIGN_OUT_CAPABILITY &&
       capability !== CUSTOM_PROVIDER_HARNESS_CAPABILITY &&
-      capability !== TEAM_LONG_CAPABILITY_LISTS_CAPABILITY,
+      capability !== TEAM_LONG_CAPABILITY_LISTS_CAPABILITY &&
+      capability !== CHANNEL_TASK_ACTIONS_CAPABILITY,
   );
 }
