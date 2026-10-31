@@ -35,6 +35,9 @@ export interface GrokBotGatewayCallOptions {
   apiBaseUrl?: string;
   now?: () => number;
   allowLoopback?: boolean;
+  /** How many status reads follow `ensureForeverBox` while the desktop is still starting. */
+  readyAttempts?: number;
+  readyDelayMs?: number;
 }
 
 export const listGrokBotAgents = Effect.fn("GrokBotGateway.list")(function* (
@@ -98,6 +101,72 @@ export const ensureGrokBotComputer = Effect.fn("GrokBotGateway.computerEnsure")(
   options: GrokBotGatewayCallOptions,
 ) {
   return yield* computerCall(store, options, "/api/ensureForeverBox", {});
+});
+
+const WAITING_COMPUTER = new Set(["starting", "pulling", "sleeping"]);
+
+/**
+ * BotAI `ensureReady`: one `ensureForeverBox`, then status reads until the desktop is up.
+ * A box that stays off is returned as it is. The caller still decides whether to open the screen.
+ */
+export const ensureGrokBotComputerReady = Effect.fn("GrokBotGateway.computerReady")(function* (
+  store: GrokBotAccountStore,
+  options: GrokBotGatewayCallOptions,
+) {
+  const attempts = options.readyAttempts ?? 4;
+  const delayMs = options.readyDelayMs ?? 500;
+  let status = yield* ensureGrokBotComputer(store, options);
+  let reads = 0;
+  while (WAITING_COMPUTER.has(status.phase) && reads < attempts - 1) {
+    reads += 1;
+    if (delayMs > 0) yield* Effect.sleep(delayMs);
+    status = yield* readGrokBotComputer(store, options);
+  }
+  return status;
+});
+
+/**
+ * BotAI `captureRoutedComputerScreenshot`. The in-box host runs the screenshot on the sand desktop.
+ */
+export const captureGrokBotComputerScreenshot = Effect.fn("GrokBotGateway.computerScreenshot")(function* (
+  store: GrokBotAccountStore,
+  agentId: string,
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* gatewayJson(store, options, "/api/captureRoutedComputerScreenshot", { agentId });
+});
+
+/** The Computer tool object BotAI sends to `executeRoutedComputerAction`. */
+export interface GrokBotComputerToolArgs {
+  readonly action: "screenshot" | "click" | "move" | "drag" | "type" | "key" | "scroll" | "wait";
+  readonly x?: number;
+  readonly y?: number;
+  readonly x2?: number;
+  readonly y2?: number;
+  readonly text?: string;
+  readonly key?: string;
+  readonly button?: "left" | "right" | "middle";
+  readonly count?: number;
+  readonly direction?: "up" | "down" | "left" | "right";
+  readonly amount?: number;
+  readonly durationMs?: number;
+  readonly description?: string;
+}
+
+/**
+ * BotAI `executeRoutedComputerAction`. The in-box host turns `args` into `cua-driver` calls.
+ * This is not the host-tool local-exec loop.
+ */
+export const executeGrokBotComputerAction = Effect.fn("GrokBotGateway.computerAction")(function* (
+  store: GrokBotAccountStore,
+  input: { readonly agentId: string; readonly args: GrokBotComputerToolArgs; readonly toolCallId?: string },
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* gatewayJson(store, options, "/api/executeRoutedComputerAction", {
+    agentId: input.agentId,
+    args: input.args,
+    ...(input.toolCallId === undefined ? {} : { toolCallId: input.toolCallId }),
+  });
 });
 
 /** BotAI `handBackForeverBox { id, trigger }`: "I'm done, continue" after an agent asked for a takeover. */

@@ -2,7 +2,7 @@ import type { CreateGrokBotAgentInput, GrokBotComputerSummary } from "@openbot/c
 import { IPC_ENDPOINTS } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger } from "@openbot/logging";
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
 import {
   GrokBotAccountFailed,
   GrokBotAccountStore,
@@ -10,10 +10,12 @@ import {
   type SecretCipher,
   startGrokBotSignIn,
 } from "../backend/grok-bot/grok-bot-account";
+import { GrokBotBoxComputer } from "../backend/grok-bot/grok-bot-box-computer";
+import { type GrokBotBoxExec, startGrokBotBoxExec } from "../backend/grok-bot/grok-bot-box-exec";
 import type { GrokBotComputerStatus } from "../backend/grok-bot/grok-bot-computer";
 import {
   createGrokBotAgent,
-  ensureGrokBotComputer,
+  ensureGrokBotComputerReady,
   handBackGrokBotComputer,
   listGrokBotAgents,
   readGrokBotComputer,
@@ -45,6 +47,8 @@ export class GrokBotAccountService {
   readonly #agentStore: GrokBotImportStore | undefined;
   #abort: AbortController | null = null;
   #computer = new GrokBotComputerWindow();
+  #boxExec: GrokBotBoxExec | null = null;
+  #boxAttached = false;
   #diagnosticAbort: AbortController | null = null;
 
   constructor(options: GrokBotAccountServiceOptions) {
@@ -160,9 +164,14 @@ export class GrokBotAccountService {
     return computerSummary(yield* readGrokBotComputer(this.#store, callOptions()), this.#computer.isOpen());
   });
 
-  /** BotAI "Open computer": ensure the box, then show its screen in the computer window. */
+  /**
+   * BotAI "Open computer": wake the sand desktop, connect its computer control, then show the screen.
+   * Control on this machine uses the box `cua-driver` when that binary is present. Otherwise the
+   * in-box host keeps click, type, and screenshot, and this window only shows the desktop.
+   */
   readonly openComputer = Effect.fn("GrokBotAccountService.openComputer")(function* (this: GrokBotAccountService) {
-    const status = yield* ensureGrokBotComputer(this.#store, callOptions());
+    const status = yield* ensureGrokBotComputerReady(this.#store, callOptions());
+    yield* this.#connectBoxComputer();
     if (status.vncUrl) this.#computer.open(status.vncUrl, status.networkToken, "Grok Bot computer");
     return computerSummary(status, this.#computer.isOpen());
   });
@@ -179,10 +188,30 @@ export class GrokBotAccountService {
   dispose(): void {
     this.#diagnosticAbort?.abort();
     this.#store.forgetCachedGateway();
+    this.#boxExec?.close();
+    this.#boxExec = null;
+    this.#boxAttached = false;
     this.#computer.close();
     this.#abort?.abort();
     this.#abort = null;
   }
+
+  /**
+   * Holds the box driver when this process can see it. A box-host port
+   * (`SAND_BOX_EXEC_DAEMON_PORT`) also starts the loopback computer control server.
+   */
+  readonly #connectBoxComputer = Effect.fn("GrokBotAccountService.connectBoxComputer")(function* (
+    this: GrokBotAccountService,
+  ) {
+    if (this.#boxAttached) return;
+    this.#boxAttached = true;
+    const computer = new GrokBotBoxComputer();
+    const port = boxExecPort();
+    if (!computer.configured || port == null) return;
+    const started = yield* Effect.result(startGrokBotBoxExec({ computer, port }));
+    if (Result.isSuccess(started)) this.#boxExec = started.success;
+    else diagnosticLogger.info("Grok Bot box computer control did not start.");
+  });
 }
 
 function computerSummary(status: GrokBotComputerStatus, windowOpen: boolean): GrokBotComputerSummary {
@@ -200,6 +229,14 @@ function computerSummary(status: GrokBotComputerStatus, windowOpen: boolean): Gr
 function callOptions(): { allowLoopback: false; apiBaseUrl?: string } {
   const apiBaseUrl = sandApiBase();
   return { allowLoopback: false, ...(apiBaseUrl ? { apiBaseUrl } : {}) };
+}
+
+function boxExecPort(): number | null {
+  const raw = process.env.SAND_BOX_EXEC_DAEMON_PORT;
+  if (raw == null || raw.length === 0) return null;
+  const port = Number.parseInt(raw, 10);
+  if (!Number.isInteger(port) || port <= 0 || port > 65_535) return null;
+  return port;
 }
 
 function sandApiBase(): string | undefined {
