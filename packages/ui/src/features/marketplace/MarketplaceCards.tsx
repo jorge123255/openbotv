@@ -190,22 +190,18 @@ export function AppAction(props: {
   );
 }
 
-/** A connect moves the app into "Your apps", and the button is then gone. The row keeps the focus. */
-function focusRow(label: string) {
-  requestAnimationFrame(() =>
-    document
-      .querySelector<HTMLElement>(`.skills-marketplace .marketplace-app-row-hit[aria-label="${CSS.escape(label)}"]`)
-      ?.focus(),
-  );
-}
-
 /** An app in the list: its logo, name and one line, and its status. The row opens the app page. */
 export function AppRow(props: { scope: MarketplaceScope; app: MarketplaceApp }) {
   const { t } = useText();
+  let hit: HTMLButtonElement | undefined;
+  // Both plugin lists stay mounted. Return focus to this row, not the first
+  // matching name in another (hidden and inert) tab panel.
+  const focusRow = () => requestAnimationFrame(() => hit?.focus());
   const open = () => t("marketplace.open", { name: props.app.name });
   return (
     <li class="marketplace-app-row">
       <Button
+        ref={hit}
         type="button"
         variant="ghost"
         class="marketplace-app-row-hit"
@@ -219,7 +215,7 @@ export function AppRow(props: { scope: MarketplaceScope; app: MarketplaceApp }) 
         <span class="marketplace-app-row-tagline">{props.app.tagline}</span>
       </span>
       <span class="marketplace-app-row-status">
-        <AppAction scope={props.scope} app={props.app} size="sm" onConnected={() => focusRow(open())} />
+        <AppAction scope={props.scope} app={props.app} size="sm" onConnected={focusRow} />
       </span>
     </li>
   );

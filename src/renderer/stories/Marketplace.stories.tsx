@@ -242,6 +242,8 @@ interface StoryProps {
   manyAgents?: boolean;
   /** No agent has a skill yet. */
   noSkills?: boolean;
+  /** A host connection is in flight, before it has a saved row. */
+  pendingPlugin?: string;
   /** The agents dialog of this skill is open over the window. */
   dialogSkill?: string;
 }
@@ -326,7 +328,7 @@ function MarketplaceStory(props: StoryProps) {
         }),
       ),
     ],
-    busy: {},
+    busy: props.pendingPlugin ? { [props.pendingPlugin]: true } : {},
     notice: "",
   });
   const [error, setError] = createSignal<string | null>(null);
@@ -583,6 +585,18 @@ export const PluginsCreate = at((nav) =>
     draft.pluginMode = "create";
   }),
 );
+
+export const PluginsReconnect = at(
+  (nav) =>
+    nav.set((draft) => {
+      draft.pluginMode = "manage";
+    }),
+  {
+    held: { notion: "signInNeeded" },
+  },
+);
+
+export const PluginsPendingConnection: Story = { render: () => <MarketplaceStory held={{}} pendingPlugin="notion" /> };
 
 export const Narrow: Story = { parameters: { viewport: { defaultViewport: "marketplaceNarrow" } } };
 

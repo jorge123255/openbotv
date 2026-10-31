@@ -280,6 +280,8 @@ function GeneratedAvatar(props: {
   style?: Record<string, string>;
 }) {
   let element: HTMLSpanElement | undefined;
+  let mouth: SVGPathElement | undefined;
+  let mouthMask: SVGPathElement | undefined;
   const gaze = createPointerGaze();
   const [interacting, setInteracting] = createSignal(false);
   const [reducedMotion, setReducedMotion] = createSignal(prefersReducedMotion());
@@ -300,6 +302,60 @@ function GeneratedAvatar(props: {
     !reducedMotion() &&
     (props.followPointer || avatarMoodIsBusy(props.mood) || !STATIC_MOTIONS.has(props.motion) || interacting());
   const gazeScript = createMemo(() => (props.followPointer ? gaze.script : null));
+
+  onSettled(() => {
+    if (!element || !mouth || !mouthMask) return;
+    const face = element;
+    const lip = mouth;
+    const mask = mouthMask;
+    // Bloub exposes no face-frame callback. Its mask holds the two projected eye
+    // paths. Read their final transforms so the mouth follows the same gaze,
+    // drift and roll without a second animation clock or a layout measurement.
+    const sync = () => {
+      const body = face.querySelector<SVGPathElement>(".bloub-avatar-svg > g:nth-of-type(2) > path:first-child");
+      const silhouette = body?.getAttribute("d") ?? "";
+      if (mask.getAttribute("d") !== silhouette) mask.setAttribute("d", silhouette);
+      const eyes = face.querySelectorAll<SVGPathElement>(".bloub-avatar-svg mask > path[transform]");
+      const left = eyes[0];
+      const right = eyes[1];
+      if (!left || !right) {
+        lip.setAttribute("opacity", "0");
+        return;
+      }
+      const a = new DOMMatrix(left.getAttribute("transform") ?? undefined);
+      const b = new DOMMatrix(right.getAttribute("transform") ?? undefined);
+      const dx = b.e - a.e;
+      const dy = b.f - a.f;
+      const scale = Math.min(1.15, Math.max(0.25, Math.hypot(dx, dy) / 53));
+      const roll = (Math.atan2(dy, dx) * 180) / Math.PI;
+      lip.setAttribute(
+        "transform",
+        `translate(${(a.e + b.e) / 2} ${(a.f + b.f) / 2}) rotate(${roll}) translate(0 52) scale(${scale} 1) translate(0 -34)`,
+      );
+      lip.setAttribute(
+        "opacity",
+        String(Math.min(Number(left.getAttribute("opacity") ?? 1), Number(right.getAttribute("opacity") ?? 1))),
+      );
+    };
+    const observer = new MutationObserver((records) => {
+      if (
+        records.some(
+          (record) =>
+            record.type === "childList" ||
+            (record.target instanceof Element && record.target.closest(".bloub-avatar-svg")),
+        )
+      )
+        sync();
+    });
+    observer.observe(face, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["d", "transform", "opacity"],
+    });
+    sync();
+    return () => observer.disconnect();
+  });
   const motionCycle = () => {
     if (props.mood !== "idle") return [slowerBlock(presentation().state)];
     return cycle();
@@ -402,7 +458,15 @@ function GeneratedAvatar(props: {
           {avatar()}
         </Show>
       </AvatarRings>
-      <AvatarMouth mood={props.mood} />
+      <AvatarMouth
+        mood={props.mood}
+        maskRef={(path) => {
+          mouthMask = path;
+        }}
+        pathRef={(path) => {
+          mouth = path;
+        }}
+      />
     </span>
   );
 }
@@ -410,7 +474,12 @@ function GeneratedAvatar(props: {
 // Bloub draws eyes but has no mouth API. This custom SVG is part of the face,
 // not an icon. It shares the viewBox and optical offset of the generated avatar.
 // Image avatars keep their original artwork and never receive this layer.
-function AvatarMouth(props: { mood: AvatarMood }) {
+function AvatarMouth(props: {
+  mood: AvatarMood;
+  pathRef: (path: SVGPathElement) => void;
+  maskRef: (path: SVGPathElement) => void;
+}) {
+  const clipId = createUniqueId();
   const path = () => {
     switch (props.mood) {
       case "failed":
@@ -434,14 +503,22 @@ function AvatarMouth(props: { mood: AvatarMood }) {
       viewBox={`${-DEMI_VIEWBOX} ${-DEMI_VIEWBOX} ${DEMI_VIEWBOX * 2} ${DEMI_VIEWBOX * 2}`}
       aria-hidden="true"
     >
-      <path
-        d={path()}
-        fill="none"
-        stroke="var(--openbot-logo-eye)"
-        stroke-width="6"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
+      <defs>
+        <clipPath id={clipId}>
+          <path ref={props.maskRef} />
+        </clipPath>
+      </defs>
+      <g clip-path={`url(#${clipId})`}>
+        <path
+          ref={props.pathRef}
+          d={path()}
+          fill="none"
+          stroke="var(--openbot-logo-eye)"
+          stroke-width="6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
     </svg>
   );
 }

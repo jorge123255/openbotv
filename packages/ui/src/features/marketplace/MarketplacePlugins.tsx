@@ -23,7 +23,8 @@ export function MarketplacePlugins(props: {
   const nav = () => props.scope.nav;
   const mode = () => nav().state.pluginMode;
   // Include a connecting app so its pending operation is still visible in Manage.
-  const managed = () => props.apps.filter((app) => app.kind === "custom" || app.status !== "idle");
+  const managed = () =>
+    props.apps.filter((app) => app.kind === "custom" || app.status !== "idle" || props.scope.model.appBusy(app.id));
   const createSkill = () => (props.scope.model.agents().length > 0 ? props.scope.model.createSkill : undefined);
   return (
     <div class="marketplace-plugins">

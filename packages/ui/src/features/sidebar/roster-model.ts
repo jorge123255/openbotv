@@ -22,14 +22,6 @@ export type RosterFilter = (typeof ROSTER_FILTERS)[number];
 /** Quiet for this long and the row moves under Asleep. */
 export const ROSTER_ASLEEP_AFTER_MS = 30 * 60 * 1000;
 
-/** Avatar hue for each group, from the shared hue list. The saved hue of the agent stays as it is. */
-export const ROSTER_CATEGORY_HUE = {
-  monitor: 185,
-  worker: 215,
-  artist: 320,
-  helper: 55,
-} as const satisfies Record<RosterCategory, number>;
-
 const CATEGORY_WORDS = {
   monitor: ["monitor", "watch", "sentry", "observer", "alert"],
   artist: ["artist", "paint", "draw", "doodle", "design", "illustrat"],
