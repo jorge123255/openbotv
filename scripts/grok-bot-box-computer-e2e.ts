@@ -17,7 +17,7 @@ import {
 } from "../src/backend/grok-bot/grok-bot-box-computer";
 import {
   authorizationMatches,
-  BOX_EXEC_DAEMON_AUTH_TOKEN,
+  BOX_EXEC_DAEMON_AUTH_TOKEN_ENV,
   startGrokBotBoxExec,
 } from "../src/backend/grok-bot/grok-bot-box-exec";
 import {
@@ -39,6 +39,8 @@ const report: {
   driverError: boolean;
   execAuthorized: boolean;
   execRefusedOpenHost: boolean;
+  generatedTokenWorks: boolean;
+  literalTokenRefused: boolean;
   computerUseSupported: boolean;
   readyPhase: string;
   routedAction: boolean;
@@ -50,6 +52,8 @@ const report: {
   driverError: false,
   execAuthorized: false,
   execRefusedOpenHost: false,
+  generatedTokenWorks: false,
+  literalTokenRefused: false,
   computerUseSupported: false,
   readyPhase: "",
   routedAction: false,
@@ -245,11 +249,57 @@ try {
     await Effect.runPromise(exec.stop());
   }
 
-  const openHost = await Effect.runPromise(Effect.result(startGrokBotBoxExec({ computer, host: "0.0.0.0", port: 0 })));
+  const openHost = await Effect.runPromise(
+    Effect.result(
+      startGrokBotBoxExec({
+        computer,
+        host: "0.0.0.0",
+        port: 0,
+        authToken: "explicit-secret-still-refused",
+        environment: {},
+      }),
+    ),
+  );
   report.execRefusedOpenHost = Result.isFailure(openHost);
   assert.equal(report.execRefusedOpenHost, true);
-  assert.equal(authorizationMatches("Bearer short", BOX_EXEC_DAEMON_AUTH_TOKEN), false);
-  assert.equal(authorizationMatches(`Bearer ${BOX_EXEC_DAEMON_AUTH_TOKEN}`, BOX_EXEC_DAEMON_AUTH_TOKEN), true);
+  const literal = await Effect.runPromise(
+    Effect.result(startGrokBotBoxExec({ computer, host: "127.0.0.1", port: 0, authToken: "local", environment: {} })),
+  );
+  const literalEnv = await Effect.runPromise(
+    Effect.result(
+      startGrokBotBoxExec({
+        computer,
+        host: "127.0.0.1",
+        port: 0,
+        environment: { [BOX_EXEC_DAEMON_AUTH_TOKEN_ENV]: "local" },
+      }),
+    ),
+  );
+  report.literalTokenRefused = Result.isFailure(literal) && Result.isFailure(literalEnv);
+  assert.equal(report.literalTokenRefused, true);
+  assert.equal(authorizationMatches("Bearer short", "box-token-e2e"), false);
+  assert.equal(authorizationMatches("Bearer box-token-e2e", "box-token-e2e"), true);
+
+  const generated = await Effect.runPromise(
+    startGrokBotBoxExec({ computer, host: "127.0.0.1", port: 0, environment: {} }),
+  );
+  try {
+    assert.notEqual(generated.authToken, "local");
+    assert.ok(generated.authToken.length >= 32);
+    const knownWord = await fetch(`${generated.url}/capabilities`, {
+      method: "POST",
+      headers: { authorization: "Bearer local" },
+    });
+    assert.equal(knownWord.status, 401);
+    const accepted = await fetch(`${generated.url}/capabilities`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${generated.authToken}` },
+    });
+    assert.equal(accepted.status, 200);
+    report.generatedTokenWorks = true;
+  } finally {
+    await Effect.runPromise(generated.stop());
+  }
 
   let mode: "wake" | "off" | "action" = "wake";
   const seen: string[] = [];

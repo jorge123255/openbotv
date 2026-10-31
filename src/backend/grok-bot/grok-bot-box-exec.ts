@@ -1,6 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
+import { registerSecretValue } from "@openbot/logging";
 import { Effect, Schema } from "effect";
 import type {
   GrokBotBoxComputer,
@@ -16,12 +17,16 @@ import type {
  *
  * Ported from BotAI `startBoxExecDaemon` (`source/box-exec-daemon/server.ts`) for the
  * computer-control routes only. Shell, file read, and MCP stay on the sand host.
- * Plan #32 owns the host-tool runner. The default token `local` is refused off loopback.
+ * Plan #32 owns the host-tool runner. The server listens on loopback only.
+ * Its bearer token is a new random secret, or `SAND_BOX_EXEC_DAEMON_AUTH_TOKEN` when that value is set.
+ * The literal word `local` is never accepted.
  */
 
 export const BOX_EXEC_DAEMON_HOST = "127.0.0.1";
 export const BOX_EXEC_DAEMON_PORT = 1337;
-export const BOX_EXEC_DAEMON_AUTH_TOKEN = "local";
+export const BOX_EXEC_DAEMON_AUTH_TOKEN_ENV = "SAND_BOX_EXEC_DAEMON_AUTH_TOKEN";
+/** BotAI's old loopback default. This server rejects it on every host. */
+const FORBIDDEN_BOX_EXEC_AUTH_TOKEN = "local";
 
 const BODY_LIMIT = 1024 * 1024;
 
@@ -33,7 +38,10 @@ export interface GrokBotBoxExecOptions {
   readonly computer: GrokBotBoxComputer;
   readonly host?: string;
   readonly port?: number;
+  /** Caller secret. When absent, the env secret is used, then a new random secret. */
   readonly authToken?: string;
+  /** Token lookup only. When set, process env is not read. */
+  readonly environment?: NodeJS.ProcessEnv;
 }
 
 export function isLoopbackHost(host: string): boolean {
@@ -53,15 +61,18 @@ export class GrokBotBoxExec {
   readonly host: string;
   readonly port: number;
   readonly url: string;
+  /** Bearer secret for this process. Do not log it. */
+  readonly authToken: string;
   readonly computerUseSupported: boolean;
   readonly #server: Server;
   #stopped = false;
 
-  constructor(server: Server, host: string, port: number, computerUseSupported: boolean) {
+  constructor(server: Server, host: string, port: number, authToken: string, computerUseSupported: boolean) {
     this.#server = server;
     this.host = host;
     this.port = port;
     this.url = `http://${host}:${port}`;
+    this.authToken = authToken;
     this.computerUseSupported = computerUseSupported;
   }
 
@@ -85,16 +96,24 @@ export class GrokBotBoxExec {
 export const startGrokBotBoxExec = Effect.fn("GrokBotBoxExec.start")(function* (options: GrokBotBoxExecOptions) {
   const host = options.host ?? BOX_EXEC_DAEMON_HOST;
   const port = options.port ?? BOX_EXEC_DAEMON_PORT;
-  const authToken = options.authToken ?? BOX_EXEC_DAEMON_AUTH_TOKEN;
-  if (!isLoopbackHost(host) && authToken === BOX_EXEC_DAEMON_AUTH_TOKEN) {
+  if (!isLoopbackHost(host)) {
     return yield* Effect.fail(
       new GrokBotBoxExecFailed({
         cause: new Error(
-          `Refusing to bind the box exec daemon to ${host} with the default "${BOX_EXEC_DAEMON_AUTH_TOKEN}" token; set an explicit authToken.`,
+          `Refusing to bind the box exec daemon to ${host}. The computer server listens on loopback only.`,
         ),
       }),
     );
   }
+  const authToken = resolveBoxExecAuthToken(options);
+  if (authToken == null) {
+    return yield* Effect.fail(
+      new GrokBotBoxExecFailed({
+        cause: new Error('Refusing the box exec token "local". Set a different secret, or leave it unset.'),
+      }),
+    );
+  }
+  registerSecretValue(authToken);
   const computer = options.computer;
   const server = createServer((request, response) => {
     void handle(request, response, computer, authToken);
@@ -119,8 +138,19 @@ export const startGrokBotBoxExec = Effect.fn("GrokBotBoxExec.start")(function* (
       }),
     );
   }
-  return new GrokBotBoxExec(server, host, address.port, computer.configured);
+  return new GrokBotBoxExec(server, host, address.port, authToken, computer.configured);
 });
+
+/** A set secret, or a new random secret. The literal `local` is refused. */
+function resolveBoxExecAuthToken(options: GrokBotBoxExecOptions): string | null {
+  const environment = options.environment ?? process.env;
+  const explicit = options.authToken?.trim() ?? "";
+  const fromEnv = environment[BOX_EXEC_DAEMON_AUTH_TOKEN_ENV]?.trim() ?? "";
+  const provided = explicit.length > 0 ? explicit : fromEnv;
+  if (provided === FORBIDDEN_BOX_EXEC_AUTH_TOKEN) return null;
+  if (provided.length > 0) return provided;
+  return randomBytes(32).toString("base64url");
+}
 
 async function handle(
   request: IncomingMessage,
