@@ -382,6 +382,7 @@
     "./features/import/HermesImportView": "./src/features/import/HermesImportView.tsx",
     "./features/transfer/InstanceTransferView": "./src/features/transfer/InstanceTransferView.tsx",
     "./features/migration/MigrationPreparationView": "./src/features/migration/MigrationPreparationView.tsx",
+    "./features/migration/MigrationAssessmentView": "./src/features/migration/MigrationAssessmentView.tsx",
     "./components/GlobalSearch": "./src/components/GlobalSearch.tsx",
     "./components/ProviderCodeLoginDialog": "./src/components/ProviderCodeLoginDialog.tsx",
     "./components/ProviderUseAppDialog": "./src/components/ProviderUseAppDialog.tsx",

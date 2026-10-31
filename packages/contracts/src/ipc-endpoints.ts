@@ -389,6 +389,7 @@ import type {
   TelegramChatInput,
   TelegramOverview,
 } from "./ipc-messaging";
+import type { MigrationAssessmentAssessInput, MigrationAssessmentState } from "./ipc-migration-assessment";
 import type {
   MigrationPreparationCancelInput,
   MigrationPreparationPrepareInput,
@@ -1860,6 +1861,10 @@ export const IPC_ENDPOINTS = {
     prepare: request<MigrationPreparationPrepareInput, MigrationPreparationState>()("migration-preparation:prepare"),
     cancel: request<MigrationPreparationCancelInput, MigrationPreparationState>()("migration-preparation:cancel"),
   },
+  migrationAssessment: {
+    getState: request<undefined, MigrationAssessmentState>()("migration-assessment:get-state"),
+    assess: request<MigrationAssessmentAssessInput, MigrationAssessmentState>()("migration-assessment:assess"),
+  },
   // The plugin deep link, its own group because its registrar holds the pending link rather than a
   // service. `takePendingListing` is what a window that finished loading after the link arrived
   // asks for; `openListing` is the same slug pushed to a window that was already there.
@@ -1994,6 +1999,7 @@ export const IPC_GROUP_PATHS = {
   grokBot: "grokBot",
   instanceTransfer: "instanceTransfer",
   migrationPreparation: "migrationPreparation",
+  migrationAssessment: "migrationAssessment",
   plugins: "plugins",
   host: "host",
   events: "events",

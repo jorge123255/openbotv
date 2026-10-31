@@ -11,6 +11,7 @@ import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { migrationPreparationHostConfirmed } from "../src/features/servers/migration-preparation-platform";
 import { ServerSettingsModal } from "../src/features/servers/ServerSettingsModal";
 import { PlatformProvider, usePlatform } from "../src/platform";
+import { injectedMigrationAssessmentCalls } from "./migration-assessment-calls";
 import { injectedMigrationPreparationCalls } from "./migration-preparation-calls";
 import { createMockOpenBot } from "./mock-openbot";
 import { ServerSettingsStory, serverSettingsArgs } from "./server-settings-story";
@@ -127,6 +128,32 @@ export const WindowsCancelledPlan: Story = {
   ),
 };
 
+/** The form reads its revision and saved report from the real renderer assessment adapter. */
+export const OfflineAssessment: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        migrationPreparation: { calls: fixtureCalls(savedPlan()) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
+export const WindowsAssessmentUnavailable: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        platform: "win32",
+        migrationPreparation: { calls: fixtureCalls(savedPlan()) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
 /** Exercise the actual provider's host-read and fallback paths without a nested mock. */
 function HostMetadataStory(props: { rejected: boolean }) {
   const previous = window.openbot;
@@ -136,6 +163,9 @@ function HostMetadataStory(props: { rejected: boolean }) {
     resolveMetadata = resolve;
   });
   const calls = injectedMigrationPreparationCalls() ?? fixtureCalls();
+  mock.api.migrationPreparation = calls;
+  const assessmentCalls = injectedMigrationAssessmentCalls();
+  if (assessmentCalls) mock.api.migrationAssessment = assessmentCalls;
   window.openbot = {
     ...mock.api,
     getAppInfo: async () => {

@@ -24,6 +24,7 @@ import { messages as mcp } from "./mcp";
 import { messages as memory } from "./memory";
 import { messages as menu } from "./menu";
 import { messages as messaging } from "./messaging";
+import { messages as migrationAssessment } from "./migrationAssessment";
 import { messages as migrationPreparation } from "./migrationPreparation";
 import { messages as notification } from "./notification";
 import { messages as onboarding } from "./onboarding";
@@ -98,6 +99,7 @@ export const en = {
   ...mcp,
   ...messaging,
   ...migrationPreparation,
+  ...migrationAssessment,
   ...webClient,
   ...account,
   ...onboarding,

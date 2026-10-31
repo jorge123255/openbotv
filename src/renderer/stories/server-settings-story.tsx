@@ -1,8 +1,9 @@
 import type { HostReleaseStatus, HostUpdateStatus, OpenBotDesktopApi } from "@openbot/contracts/ipc";
-import { createMemo, onSettled, snapshot } from "solid-js";
+import { createMemo, onSettled, snapshot, untrack } from "solid-js";
 import { fn } from "storybook/test";
 import { ServerSettingsModal, type ServerSettingsModalProps } from "../src/features/servers/ServerSettingsModal";
 import { STORY_HOST_STATUS, STORY_INVITES, STORY_PRESENCE, STORY_SERVERS } from "../src/preview/fixtures";
+import { injectedMigrationAssessmentCalls } from "./migration-assessment-calls";
 import { injectedMigrationPreparationCalls } from "./migration-preparation-calls";
 import { createMockOpenBot } from "./mock-openbot";
 import { SettingsPageStory } from "./settings-page-story";
@@ -53,21 +54,39 @@ export function ServerSettingsStory(props: {
   hostUpdate?: HostUpdateStatus;
   hostRelease?: HostReleaseStatus;
   migrationPreparationCalls?: OpenBotDesktopApi["migrationPreparation"];
+  migrationAssessmentCalls?: OpenBotDesktopApi["migrationAssessment"];
 }) {
   const previous = window.openbot;
-  // Storybook passes the args as a store, and the mock copies its options with `structuredClone`.
-  const hostStatus = props.settings.hostStatus;
-  const mock = createMockOpenBot({
-    ...(hostStatus ? { hostStatus: snapshot(hostStatus) } : {}),
-    ...(props.hostUpdate ? { hostUpdate: props.hostUpdate } : {}),
-    ...(props.hostRelease ? { hostRelease: props.hostRelease } : {}),
+  // Each story mount owns one copied mock profile and one selection of bridge overrides.
+  const { mock, migrationPreparationCalls, migrationAssessmentCalls } = untrack(() => {
+    const hostStatus = props.settings.hostStatus;
+    return {
+      mock: createMockOpenBot({
+        ...(hostStatus ? { hostStatus: snapshot(hostStatus) } : {}),
+        ...(props.hostUpdate ? { hostUpdate: props.hostUpdate } : {}),
+        ...(props.hostRelease ? { hostRelease: props.hostRelease } : {}),
+      }),
+      migrationPreparationCalls:
+        props.migrationPreparationCalls ??
+        injectedMigrationPreparationCalls() ??
+        props.settings.migrationPreparation?.calls,
+      migrationAssessmentCalls:
+        props.migrationAssessmentCalls ??
+        injectedMigrationAssessmentCalls() ??
+        props.settings.migrationPreparation?.assessmentCalls,
+    };
   });
   window.openbot = mock.api;
-  const migrationPreparationCalls = props.migrationPreparationCalls ?? injectedMigrationPreparationCalls();
+  if (migrationPreparationCalls) mock.api.migrationPreparation = migrationPreparationCalls;
+  if (migrationAssessmentCalls) mock.api.migrationAssessment = migrationAssessmentCalls;
   const migrationPreparation = createMemo(() => {
     const options = props.settings.migrationPreparation;
     return options
-      ? { ...options, ...(migrationPreparationCalls ? { calls: migrationPreparationCalls } : {}) }
+      ? {
+          ...options,
+          ...(migrationPreparationCalls ? { calls: migrationPreparationCalls } : {}),
+          ...(migrationAssessmentCalls ? { assessmentCalls: migrationAssessmentCalls } : {}),
+        }
       : undefined;
   });
   onSettled(() => () => {
