@@ -91,3 +91,29 @@ export const CancelledPlan: Story = {
     />
   ),
 };
+
+export const WindowsUnavailable: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        platform: "win32",
+        migrationPreparation: { calls: fixtureCalls() },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
+export const WindowsCancelledPlan: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        platform: "win32",
+        migrationPreparation: { calls: fixtureCalls({ ...savedPlan(), status: "cancelled" }) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};

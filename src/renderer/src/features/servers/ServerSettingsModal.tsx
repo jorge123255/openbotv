@@ -904,7 +904,7 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
           {(options) => (
             <Tabs.Content value="migration" class="settings-modal-tab-panel server-settings-panel" data-tab="migration">
               <Show when={props.server.id} keyed>
-                {(_serverId) => <ServerMigrationPreparationPanel {...options()} />}
+                {(_serverId) => <ServerMigrationPreparationPanel {...options()} platform={props.platform} />}
               </Show>
             </Tabs.Content>
           )}

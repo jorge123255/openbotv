@@ -13,6 +13,8 @@ export const messages = defineMessages("migrationPreparation", {
   "migrationPreparation.prepare": "Save preparation plan",
   "migrationPreparation.preparing": "Saving preparation plan…",
   "migrationPreparation.newPlan": "Save a new preparation plan",
+  "migrationPreparation.windowsUnavailable":
+    "Saving preparation plans is not supported on Windows in this version. You can still reload an existing plan.",
   "migrationPreparation.reload": "Reload saved plan",
   "migrationPreparation.loading": "Reading saved plan…",
   "migrationPreparation.cancel": "Cancel preparation plan",

@@ -14,7 +14,7 @@ interface PreparationViewState {
 }
 
 /** The bridge owns persistence. The renderer never retries a mutation after an uncertain result. */
-export function createMigrationPreparationStore(calls: MigrationPreparationCalls) {
+export function createMigrationPreparationStore(calls: MigrationPreparationCalls, canPrepare: () => boolean) {
   const [state, setState] = createStore<PreparationViewState>({
     value: null,
     destinationKind: "local-desktop",
@@ -74,6 +74,7 @@ export function createMigrationPreparationStore(calls: MigrationPreparationCalls
   }
 
   function prepare(): void {
+    if (!canPrepare()) return;
     const value = state.value;
     if (!state.ready || !value || value.plan?.status === "prepared") return;
     const input = { destinationKind: state.destinationKind, expectedRevision: value.revision };
@@ -88,7 +89,7 @@ export function createMigrationPreparationStore(calls: MigrationPreparationCalls
   }
 
   function setDestination(destinationKind: MigrationPreparationDestinationKind): void {
-    if (inFlight || disposed || state.value?.plan?.status === "prepared") return;
+    if (!canPrepare() || inFlight || disposed || state.value?.plan?.status === "prepared") return;
     setState((draft) => {
       draft.destinationKind = destinationKind;
     });

@@ -2,7 +2,7 @@
 // This exercises component/bridge integration; it does not bootstrap Electron or migrate data.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { AgentSummary, ConversationSnapshot } from "@openbot/contracts/ipc";
 import { Effect } from "effect";
@@ -32,9 +32,9 @@ const report: { passed: boolean; cases: string[]; pageErrors: string[]; screensh
   screenshots: [],
 };
 const now = "2026-01-01T12:00:00.000Z";
-const makeService = () =>
+const makeService = (journalProfile = profile) =>
   new MigrationPreparationService({
-    userDataPath: profile,
+    userDataPath: journalProfile,
     readInventory: () => readMigrationPreparationInventory(() => database.connection),
     now: () => now,
   });
@@ -106,9 +106,11 @@ try {
       : route.continue();
   });
   let losePrepareResponse = false;
+  let prepareRequests = 0;
   await page.exposeFunction(
     "__openbotMigrationPreparationInvoke",
     async (request: MigrationPreparationStoryRequest) => {
+      if (request.method === "prepare") prepareRequests++;
       const result =
         request.method === "getState"
           ? await Effect.runPromise(service.getState())
@@ -206,6 +208,57 @@ try {
   assert.equal(database.connection.prepare("SELECT active FROM projection_agent_routines").get()?.active, 1);
   report.cases.push(
     "Source database/credential-canary bytes stay unchanged; private content/paths stay out of the plan/UI; no routine run is created",
+  );
+  const requestsBeforeWindows = prepareRequests;
+  const windowsProfile = join(fixture, "windows-preparation");
+  service = makeService(windowsProfile);
+  url.searchParams.set("id", "settings-migration-preparation--windows-unavailable");
+  await page.goto(url.href);
+  const windowsNotice = page.getByText(
+    "Saving preparation plans is not supported on Windows in this version. You can still reload an existing plan.",
+    { exact: true },
+  );
+  await windowsNotice.waitFor();
+  await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
+  assert.equal(await prepare.isEnabled(), false);
+  assert.equal(await page.getByRole("button", { name: /^Destination type\b/ }).isEnabled(), false);
+  const reload = page.getByRole("button", { name: "Reload saved plan", exact: true });
+  assert.equal(await reload.isEnabled(), true);
+  await reload.click();
+  await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
+  await disabledActions();
+  assert.equal(prepareRequests, requestsBeforeWindows);
+  assert.deepEqual(await Effect.runPromise(service.getState()), { revision: 0, plan: null });
+  assert.equal((await readdir(fixture)).includes("windows-preparation"), false);
+  assert.equal(await page.getByRole("alert").count(), 0);
+  await screenshot("windows-save-unavailable-light");
+  report.cases.push(
+    "Simulated Windows source disables Save and destination choice with a specific notice; Reload works with no prepare IPC or journal creation",
+  );
+  // Seed only through the host's real coordinator to test reading an existing plan in Windows UI.
+  // This does not claim native Windows publication support.
+  const windowsSaved = await Effect.runPromise(
+    service.prepare({ destinationKind: "docker-host", expectedRevision: 0 }),
+  );
+  assert.ok(windowsSaved.plan);
+  const windowsCancelled = await Effect.runPromise(
+    service.cancel({ planId: windowsSaved.plan.id, expectedRevision: 1 }),
+  );
+  url.searchParams.set("id", "settings-migration-preparation--windows-cancelled-plan");
+  await page.goto(url.href);
+  await windowsNotice.waitFor();
+  await page.getByText("Preparation plan cancelled", { exact: true }).waitFor();
+  const saveNew = page.getByRole("button", { name: "Save a new preparation plan", exact: true });
+  assert.equal(await saveNew.isEnabled(), false);
+  await reload.click();
+  await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
+  assert.equal(await saveNew.isEnabled(), false);
+  assert.equal(prepareRequests, requestsBeforeWindows);
+  assert.deepEqual(await Effect.runPromise(service.getState()), windowsCancelled);
+  await disabledActions();
+  await screenshot("windows-cancelled-plan-light");
+  report.cases.push(
+    "Simulated Windows source reloads a persisted cancelled plan and keeps Save a new preparation plan disabled without mutation IPC",
   );
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;

@@ -61,6 +61,7 @@ export interface MigrationPreparationViewProps {
   state: MigrationPreparationState | null;
   destinationKind: MigrationPreparationDestinationKind;
   ready: boolean;
+  canPrepare: boolean;
   busy: "loading" | "preparing" | "cancelling" | null;
   error: string | null;
   onDestinationChange: (value: MigrationPreparationDestinationKind) => void;
@@ -83,6 +84,13 @@ export function MigrationPreparationView(props: MigrationPreparationViewProps) {
       description={t("migrationPreparation.description")}
       aria-busy={props.busy ? "true" : undefined}
     >
+      <Show when={!props.canPrepare}>
+        <Alert tone="neutral" role="status" report={false}>
+          <AlertContent>
+            <AlertDescription>{t("migrationPreparation.windowsUnavailable")}</AlertDescription>
+          </AlertContent>
+        </Alert>
+      </Show>
       <Show when={props.error}>
         {(error) => (
           <Alert tone="danger" role="alert" report={false}>
@@ -103,7 +111,7 @@ export function MigrationPreparationView(props: MigrationPreparationViewProps) {
               class="settings-modal-select"
               options={destinations}
               value={props.destinationKind}
-              disabled={Boolean(props.busy) || !props.ready || prepared()}
+              disabled={!props.canPrepare || Boolean(props.busy) || !props.ready || prepared()}
               onChange={(value) => value && props.onDestinationChange(value)}
               itemComponent={(item) => <SelectItem item={item.item}>{destinationLabel(item.item.rawValue)}</SelectItem>}
             >
@@ -121,7 +129,7 @@ export function MigrationPreparationView(props: MigrationPreparationViewProps) {
         <Show when={!prepared()}>
           <Button
             type="button"
-            disabled={!props.ready || Boolean(props.busy)}
+            disabled={!props.canPrepare || !props.ready || Boolean(props.busy)}
             loading={props.busy === "preparing"}
             loadingLabel={t("migrationPreparation.preparing")}
             onClick={props.onPrepare}
