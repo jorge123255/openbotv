@@ -72,7 +72,12 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       usageRows={usageRows()}
       openUrl={(url) => void appPort().openUrl(url)}
       customAgentUsage={localAgentUsage()}
-      onAgents={windowPage.showAgents}
+      onAgents={() => {
+        // Returning from another page keeps the current bot list. Routines is its own
+        // rail destination, so leave it explicitly when Agents opens.
+        if (layout.sidebarView() === "routines") showSidebarView("roster");
+        else windowPage.showAgents();
+      }}
       onRoutines={() => showSidebarView("routines")}
       // A joined server without workflows shows its notice on the page.
       onWorkflows={() => windowPage.openWorkflows(null)}

@@ -59,6 +59,20 @@ try {
   assert.equal(await editor.innerText(), "Keep this offline fixture draft.");
   report.cases.push("Settings and back retain the selected bot, roster view and unsent draft.");
 
+  await rail.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Routines", exact: true }).click();
+  const routines = page.locator(".sidebar-view-tabs").getByRole("tab", { name: "Routines", exact: true });
+  await page.waitForFunction((tab) => tab?.getAttribute("aria-selected") === "true", await routines.elementHandle());
+  await rail.getByRole("button", { name: "Agents", exact: true }).click();
+  const bots = page.locator(".sidebar-view-tabs").getByRole("tab", { name: "Bots", exact: true });
+  await page.waitForFunction((tab) => tab?.getAttribute("aria-selected") === "true", await bots.elementHandle(), {
+    timeout: 5_000,
+  });
+  await page.locator(".roster-row").first().waitFor();
+  assert.equal(await page.locator(".conversation-title h1").innerText(), name);
+  assert.equal(await editor.innerText(), "Keep this offline fixture draft.");
+  report.cases.push("Routines then Agents returns to the bot roster with the selected chat and draft.");
+
   await rail.getByRole("button", { name: "Marketplace", exact: true }).click();
   await page.locator(".marketplace-nav-title").waitFor();
   await page.locator(".marketplace-nav").getByRole("button", { name: "Plugins", exact: true }).click();
@@ -81,6 +95,40 @@ try {
   assert.equal(
     await rail.getByRole("button", { name: "Settings", exact: true }).evaluate((e) => e === document.activeElement),
     true,
+  );
+  const sound = page.locator(".roster-sound");
+  await sound.waitFor();
+  const rows = page.locator(".roster-row");
+  for (const row of await rows.all()) {
+    const rowBox = await row.boundingBox();
+    const soundBox = await sound.boundingBox();
+    assert.ok(rowBox && soundBox);
+    const intersects =
+      rowBox.x < soundBox.x + soundBox.width &&
+      rowBox.x + rowBox.width > soundBox.x &&
+      rowBox.y < soundBox.y + soundBox.height &&
+      rowBox.y + rowBox.height > soundBox.y;
+    assert.equal(intersects, false, "The sound control must not cover a bot row.");
+  }
+  await rows.last().scrollIntoViewIfNeeded();
+  const rowReachable = await rows.last().evaluate((row) => {
+    const bounds = row.getBoundingClientRect();
+    const viewport = row.closest(".roster-list")?.getBoundingClientRect();
+    return viewport && bounds.top >= viewport.top && bounds.bottom <= viewport.bottom;
+  });
+  assert.equal(rowReachable, true, "The final bot row must be fully reachable by scrolling.");
+  await sound.scrollIntoViewIfNeeded();
+  assert.equal(
+    await sound.evaluate((control) => {
+      const bounds = control.getBoundingClientRect();
+      const viewport = control.closest(".roster-list")?.getBoundingClientRect();
+      return viewport && bounds.top >= viewport.top && bounds.bottom <= viewport.bottom;
+    }),
+    true,
+    "The sound control must remain reachable by scrolling.",
+  );
+  report.cases.push(
+    "At 1024px the sound control does not overlap a bot row; the final row and sound control are scroll-reachable.",
   );
   await shot("roster-chat-1024");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);

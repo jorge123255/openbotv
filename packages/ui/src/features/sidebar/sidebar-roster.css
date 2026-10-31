@@ -77,6 +77,7 @@
   display: grid;
   width: 100%;
   height: auto;
+  flex-shrink: 0;
   min-height: calc(var(--openbot-control-xl) + var(--openbot-space-8));
   border: 1px solid var(--openbot-border);
   grid-template-columns: var(--openbot-space-1) var(--openbot-roster-avatar-size) minmax(0, 1fr) auto;
@@ -241,8 +242,7 @@
 
 .roster-sound {
   --roster-accent: var(--openbot-text-secondary);
-  position: sticky;
-  bottom: var(--openbot-space-2);
+  flex-shrink: 0;
   display: inline-flex;
   align-self: flex-end;
   align-items: center;

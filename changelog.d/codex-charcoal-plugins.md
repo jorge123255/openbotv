@@ -15,3 +15,5 @@
 - Keep a plugin in Manage while its first connection is in progress.
 - Keep generated mouth expressions with the animated face and inside its silhouette.
 - Keep the selected bot, roster view, and unsent draft when returning from settings or Marketplace.
+- Leave Routines when Agents opens from the navigation.
+- Keep the roster sound control clear of bot cards at smaller window sizes.
