@@ -93,6 +93,7 @@ export const messages = {
   "chat.trace.expand": "Mostra i passaggi di {name}",
   "chat.awaiting.title": "In attesa di risposte",
   "chat.awaiting.subtasks": "In attesa delle sotto-attività",
+  "chat.awaiting.subtasksLabel": "Sotto-attività",
   "chat.awaiting.count": "{done}/{total}",
   "chat.awaiting.summary": "{done} risposte su {total} ricevute",
   "chat.awaiting.state.asked": "Richiesta inviata",

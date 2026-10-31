@@ -32,6 +32,8 @@ export interface AwaitingReplyListProps {
   items: readonly AwaitingReplyItem[];
   /** The header text. The default is "Waiting for replies". */
   title?: string | undefined;
+  /** A plain label in place of the "{done}/{total}" count, such as "Sub-tasks". */
+  countLabel?: string | undefined;
   /** The list starts collapsed when this is false. */
   defaultOpen?: boolean;
   /** Hides the block. It has a close button only when this is set and no agent still works. */
@@ -131,7 +133,8 @@ function AwaitingReplyList(props: AwaitingReplyListProps) {
           title={props.title ?? t("chat.awaiting.title")}
           active={active()}
           summary={t("chat.awaiting.summary", { done: done(), total: total() })}
-          count={t("chat.awaiting.count", { done: done(), total: total() })}
+          count={props.countLabel ?? t("chat.awaiting.count", { done: done(), total: total() })}
+          countKind={props.countLabel ? "label" : "fraction"}
         />
         <Show when={settled() && props.onDismiss}>
           {(dismiss) => (

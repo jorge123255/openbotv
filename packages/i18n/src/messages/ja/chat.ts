@@ -93,6 +93,7 @@ export const messages = {
   "chat.trace.expand": "{name} のステップを表示",
   "chat.awaiting.title": "返信を待っています",
   "chat.awaiting.subtasks": "サブタスクを待っています",
+  "chat.awaiting.subtasksLabel": "サブタスク",
   "chat.awaiting.count": "{done}/{total}",
   "chat.awaiting.summary": "{total} 件中 {done} 件の返信を受信",
   "chat.awaiting.state.asked": "依頼済み",

@@ -32,6 +32,8 @@
 
   /* Neutral color system. Keep UI colors here, not in components. */
   --openbot-bg-canvas: #1a1a1a;
+  /* The Tasks card in a chat. Opaque, a step off the canvas, so the text stays readable. */
+  --openbot-task-card-bg: #1c1c1e;
   /* The window frame around the page card, darker than the card, so the card comes forward. */
   --openbot-bg-frame: #0d0d0d;
   /* A rail inside a menu, a step darker than the menu sheet. */

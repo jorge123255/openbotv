@@ -24,6 +24,11 @@
   padding-top: var(--openbot-chat-marker-gap);
 }
 
+/* The Tasks card sits close under the comment above it. */
+.virtual-chat-row.chat-plan-row {
+  padding-top: var(--openbot-space-2);
+}
+
 .virtual-chat-row > .chat-action-marker + .message-entry {
   margin-top: var(--openbot-chat-marker-gap);
 }

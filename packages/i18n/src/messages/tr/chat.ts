@@ -93,6 +93,7 @@ export const messages = {
   "chat.trace.expand": "{name} adımlarını göster",
   "chat.awaiting.title": "Yanıtlar bekleniyor",
   "chat.awaiting.subtasks": "Alt görevler bekleniyor",
+  "chat.awaiting.subtasksLabel": "Alt görevler",
   "chat.awaiting.count": "{done}/{total}",
   "chat.awaiting.summary": "{total} yanıttan {done} tanesi alındı",
   "chat.awaiting.state.asked": "Soruldu",

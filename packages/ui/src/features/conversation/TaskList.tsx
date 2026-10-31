@@ -49,7 +49,7 @@ export function TaskList(props: TaskListProps) {
   return (
     <section
       style={{ "--task-list-play-state": playState() }}
-      class={["task-list", props.class]}
+      class={["task-list", "task-list-plan", props.class]}
       data-open={open() ? "" : undefined}
     >
       <TaskListHeader
@@ -63,32 +63,40 @@ export function TaskList(props: TaskListProps) {
         summary={t("chat.taskList.summary", { done: done(), total: total() })}
       />
       <div id={panelId} class="task-list-panel" inert={open() ? undefined : true}>
-        <ol class="task-list-items">
-          <For each={props.items} keyed={(item) => item.id}>
-            {(item, index) => {
-              const percent = () => {
-                const current = item();
-                return current.state === "active" && current.progress !== undefined
-                  ? Math.min(Math.max(current.progress, 0), 1)
-                  : undefined;
-              };
-              return (
-                <li class="task-list-item" data-state={item().state} style={{ "--task-list-index": index() }}>
-                  <span class="task-list-item-mark" role="img" aria-label={t(STATE_LABEL[item().state])}>
-                    <TaskMark state={item().state} />
-                  </span>
-                  <span class="task-list-item-label">
-                    <span class="task-list-item-text">{item().label}</span>
-                  </span>
-                  {/* A progress of 0 still shows, so the badge does not flicker when a task starts. */}
-                  <Show when={percent() !== undefined}>
-                    <TaskProgress value={percent() ?? 0} />
-                  </Show>
-                </li>
-              );
-            }}
-          </For>
-        </ol>
+        <div class="task-list-panel-body">
+          <ol class="task-list-items">
+            <For each={props.items} keyed={(item) => item.id}>
+              {(item, index) => {
+                const percent = () => {
+                  const current = item();
+                  return current.state === "active" && current.progress !== undefined
+                    ? Math.min(Math.max(current.progress, 0), 1)
+                    : undefined;
+                };
+                return (
+                  <li class="task-list-item" data-state={item().state} style={{ "--task-list-index": index() }}>
+                    <span class="task-list-item-mark" role="img" aria-label={t(STATE_LABEL[item().state])}>
+                      <TaskMark state={item().state} />
+                    </span>
+                    <span class="task-list-item-label">
+                      <span class="task-list-item-text">{item().label}</span>
+                    </span>
+                    {/* A progress of 0 still shows, so the badge does not flicker when a task starts. */}
+                    <Show when={percent() !== undefined}>
+                      <TaskProgress value={percent() ?? 0} />
+                    </Show>
+                  </li>
+                );
+              }}
+            </For>
+          </ol>
+          <footer class="task-list-footer">
+            <span>{t("chat.taskList.summary", { done: done(), total: total() })}</span>
+            <Show when={active()}>
+              <span class="task-list-working">{t("chat.awaiting.state.working")}</span>
+            </Show>
+          </footer>
+        </div>
       </div>
     </section>
   );
@@ -107,6 +115,11 @@ export interface TaskListHeaderProps {
   summary: string;
   /** The count that shows. The default is "{done}/{total}". */
   count?: string;
+  /**
+   * `fraction` is "{done}/{total}". `label` is a plain word, such as "Sub-tasks", in place of that
+   * fraction.
+   */
+  countKind?: "fraction" | "label";
 }
 
 /**
@@ -166,7 +179,7 @@ export function TaskListHeader(props: TaskListHeaderProps) {
           </For>
         </span>
       </span>
-      <span class="task-list-count" aria-hidden="true">
+      <span class="task-list-count" data-kind={props.countKind ?? "fraction"} aria-hidden="true">
         {props.count ?? t("chat.taskList.count", { done: props.done, total: props.total })}
       </span>
       <span class="sr-only">{props.summary}</span>
