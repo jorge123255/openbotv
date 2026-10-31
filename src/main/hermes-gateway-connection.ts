@@ -1,6 +1,7 @@
 import { registerSecretValue } from "@openbot/logging";
 import { Effect, Semaphore } from "effect";
 import WebSocket from "ws";
+import { HermesGatewayChatTransport } from "./hermes-gateway-chat-transport";
 import { type GatewayRoute, gatewayRequest, HermesGatewayCookies } from "./hermes-gateway-http";
 import { authorizeHermesPassword, type HermesGatewayBrowser } from "./hermes-gateway-native-auth";
 import {
@@ -15,12 +16,13 @@ import {
   HermesGatewayFailure,
 } from "./hermes-gateway-protocol";
 
-/** Internal foundation only: no IPC, saved credentials, bot creation, chat or approval methods. */
+/** Main-only authentication owner. Staged chat transports share its lifetime, never its renderer. */
 export class HermesGatewayConnection {
   readonly #base: URL;
   readonly #cookies = new HermesGatewayCookies();
   readonly #lifetime = new AbortController();
   readonly #lock = Semaphore.makeUnsafe(1);
+  readonly #chats = new Set<HermesGatewayChatTransport>();
   #authenticated = false;
   #nativeAccess: { token: string; expiresAt: number } | null = null;
 
@@ -108,6 +110,53 @@ export class HermesGatewayConnection {
     });
   }).bind(this);
 
+  /** Main-only staged transport. Creating it does not dial, attach, or send a turn. */
+  readonly createChatTransport = Effect.fn("HermesGatewayConnection.createChatTransport")(function (
+    this: HermesGatewayConnection,
+    profile: string,
+  ) {
+    // Pinned hermes_constants.PROFILE_ID_RE. Never let an empty selector route to the launch profile.
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/u.test(profile)) return Effect.fail(new HermesGatewayFailure({ code: "profile" }));
+    return this.#operate(async (signal) => {
+      const access = this.#nativeAccess;
+      if (!this.#authenticated || !access) throw new HermesGatewayFailure({ code: "authentication" });
+      if (this.#chats.size >= 4) throw new HermesGatewayFailure({ code: "limit" });
+      const profiles = await this.#profiles(signal);
+      if (!profiles.some((item) => item.name === profile)) throw new HermesGatewayFailure({ code: "profile" });
+      signal.throwIfAborted();
+      if (access.expiresAt <= Date.now()) throw new HermesGatewayFailure({ code: "authentication" });
+      const chat = new HermesGatewayChatTransport({
+        base: new URL(this.#base),
+        profile,
+        owner: this.#lifetime.signal,
+        expiresAt: access.expiresAt,
+        // Native bearer grants do not mutate a cookie jar. Cancelling this one dial must not
+        // sign out sibling profile transports. Authentication refusal still invalidates the owner.
+        mintTicket: Effect.tryPromise({
+          try: async (cancel) => {
+            if (!this.#authenticated || this.#nativeAccess !== access || access.expiresAt <= Date.now())
+              throw new HermesGatewayFailure({ code: "authentication" });
+            const signal = AbortSignal.any([cancel, this.#lifetime.signal]);
+            const reply = await gatewayRequest(this.#base, "/api/auth/ws-ticket", signal, "", "{}", access.token);
+            const ticket = decodeGateway(GatewayTicket, reply.body).ticket;
+            registerSecretValue(ticket);
+            return ticket;
+          },
+          catch: (error) => {
+            const failure =
+              error instanceof HermesGatewayFailure ? error : new HermesGatewayFailure({ code: "transport" });
+            if (failure.code === "authentication") this.#clearSession();
+            return failure;
+          },
+        }).pipe(this.#lock.withPermits(1)),
+        onClose: (transport) => this.#chats.delete(transport),
+      });
+      if (chat.state().phase === "closed") throw new HermesGatewayFailure({ code: "authentication" });
+      this.#chats.add(chat);
+      return chat;
+    });
+  }).bind(this);
+
   /** Local sign-out is terminal and immediate, including during login. Reconnect uses a new object. */
   close(): void {
     this.#lifetime.abort();
@@ -121,6 +170,8 @@ export class HermesGatewayConnection {
   }).bind(this);
 
   #clearSession(): void {
+    for (const chat of [...this.#chats]) chat.close();
+    this.#chats.clear();
     this.#authenticated = false;
     this.#nativeAccess = null;
     this.#cookies.clear();
@@ -134,7 +185,10 @@ export class HermesGatewayConnection {
         try {
           return await work(signal);
         } catch (error) {
-          this.#clearSession();
+          // Local factory validation has sent no turn or credential mutation. Refusing an
+          // unlisted profile or a resource limit must not sign out existing profile transports.
+          if (!(error instanceof HermesGatewayFailure && (error.code === "profile" || error.code === "limit")))
+            this.#clearSession();
           if (this.#lifetime.signal.aborted) throw new HermesGatewayFailure({ code: "closed" });
           throw error;
         } finally {

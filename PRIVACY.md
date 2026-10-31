@@ -109,6 +109,12 @@ bearer token or refresh token is saved. Remembered gateways do not connect autom
 restart. Disconnect clears the active local session; Remove also clears remembered metadata.
 These actions do not revoke a remote token or sign out your system browser.
 
+An internal canonical chat transport is staged separately and has no Settings, agent-conversation
+or renderer IPC entry point yet. Its synthetic tests use generated accounts and text only. When
+explicitly called by a future integration, that transport sends text and selected prompt responses
+only to the authenticated gateway and keeps its event buffers and uncertainty state in memory.
+It does not import history or send chat content to the account service or analytics.
+
 ## AI conversation context
 
 When a provider session is replaced, OpenBot sends a bounded excerpt of the current conversation
