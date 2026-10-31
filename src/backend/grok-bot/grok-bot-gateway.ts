@@ -45,6 +45,14 @@ export const listGrokBotAgents = Effect.fn("GrokBotGateway.list")(function* (
   return parseAgents(body);
 });
 
+/** Raw `POST /api/listAgents` body. The turn watch reads `isRunning` from it. */
+export const readGrokBotRoster = Effect.fn("GrokBotGateway.roster")(function* (
+  store: GrokBotAccountStore,
+  options: GrokBotGatewayCallOptions,
+) {
+  return yield* gatewayJson(store, options, "/api/listAgents", {});
+});
+
 export const createGrokBotAgent = Effect.fn("GrokBotGateway.create")(function* (
   store: GrokBotAccountStore,
   input: CreateGrokBotAgentInput,

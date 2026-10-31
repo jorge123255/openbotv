@@ -696,6 +696,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:mcp-bridge-shutdown
 
+      - name: Run the MCP proxy routing headers E2E test
+        if: ${{ !cancelled() }}
+        run: bun scripts/mcp-proxy-headers-e2e.ts
+
       - name: Run the provider shutdown E2E test
         if: ${{ !cancelled() }}
         run: bun run test:provider-shutdown
@@ -787,6 +791,7 @@ jobs:
             .openbot-build/acp-flavor-e2e/
             .openbot-build/acp-mcp-server-names-e2e/
             .openbot-build/mcp-bridge-shutdown-e2e/
+            .openbot-build/mcp-proxy-headers-e2e/
             .openbot-build/provider-shutdown-e2e/
             .openbot-build/stale-config-session-e2e/
             .openbot-build/acp-turn-stall-e2e/
@@ -985,7 +990,9 @@ jobs:
           curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:6006/iframe.html
           bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/ollama-quota-e2e.ts
+          bun scripts/storybook-a11y-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/ollama-quota-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
+          bun scripts/channel-send-retry-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/local-skill-sharing-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
         env:
           STORYBOOK_DISABLE_TELEMETRY: "1"
@@ -1014,6 +1021,15 @@ jobs:
           path: |
             .openbot-build/ollama-quota-e2e/
             .openbot-build/ollama-quota-ui-e2e/
+            .openbot-build/storybook-a11y-e2e/
+          retention-days: 3
+
+      - name: Upload channel retry fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: channel-send-retry-e2e
+          path: .openbot-build/channel-send-retry-e2e/
           retention-days: 3
 
   all-checks-pass:

@@ -3,7 +3,7 @@
 // Writes .openbot-build/grok-bot-inference-usage-e2e/report.json.
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { Effect } from "effect";
@@ -40,10 +40,33 @@ function frame(value: unknown, flags = 0): Buffer {
   header.writeUInt32BE(body.length, 1);
   return Buffer.concat([header, body]);
 }
+const eventStreams = new Set<ServerResponse>();
+let pendingGatewayEnd = "";
+function publishGatewayEnd(): void {
+  pendingGatewayEnd = `data: ${JSON.stringify({
+    channel: "transcript",
+    payload: { agentId: "gateway-agent", type: "turn-ended" },
+  })}\n\n`;
+  for (const stream of eventStreams) {
+    if (!stream.writableEnded) stream.write(pendingGatewayEnd);
+  }
+}
 const server = createServer((request, response) => {
   const chunks: Buffer[] = [];
   request.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
   request.on("end", () => {
+    if (request.url === "/events") {
+      response.writeHead(200, {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+        connection: "keep-alive",
+      });
+      eventStreams.add(response);
+      response.write(":ping\n\n");
+      if (pendingGatewayEnd.length > 0) response.write(pendingGatewayEnd);
+      response.on("close", () => eventStreams.delete(response));
+      return;
+    }
     if (request.url === "/aiserver.v1.InferenceService/Stream") {
       inferenceCalls += 1;
       response.writeHead(status, { "content-type": "application/connect+json" });
@@ -57,6 +80,7 @@ const server = createServer((request, response) => {
       sendBody = Buffer.concat(chunks).toString("utf8");
       sent = true;
       response.end('{"accepted":true}');
+      publishGatewayEnd();
     } else if (request.url === "/api/getAgentTranscriptTail") {
       response.end(
         JSON.stringify({
@@ -232,6 +256,7 @@ try {
   }
   report.passed = true;
 } finally {
+  for (const stream of eventStreams) stream.end();
   await new Promise<void>((ready, reject) => server.close((error) => (error ? reject(error) : ready())));
   await mkdir(OUT, { recursive: true });
   await writeFile(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
