@@ -100,9 +100,9 @@ export function AgentAppearancePicker({
               disabled={disabled}
               onSeedChange={onSeedChange}
               onShuffle={shuffle}
-              photoField={photoField}
             />
-          ) : photoField ? (
+          ) : null}
+          {photoField ? (
             <View className="flex-row flex-wrap items-center justify-center gap-2">{photoField}</View>
           ) : null}
           <AvatarHueOptions hue={hue} disabled={disabled} onHueChange={onHueChange} />
@@ -183,7 +183,6 @@ const AvatarFaceOptions = memo(function AvatarFaceOptions({
   disabled,
   onSeedChange,
   onShuffle,
-  photoField,
 }: {
   seeds: string[];
   seed: string;
@@ -191,7 +190,6 @@ const AvatarFaceOptions = memo(function AvatarFaceOptions({
   disabled: boolean;
   onSeedChange: (seed: string) => void;
   onShuffle: () => void;
-  photoField?: ReactNode;
 }) {
   const { t } = useText();
   return (
@@ -230,7 +228,6 @@ const AvatarFaceOptions = memo(function AvatarFaceOptions({
       >
         <ShuffleIcon />
       </Button>
-      {photoField}
     </View>
   );
 });

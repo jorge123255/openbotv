@@ -12,6 +12,7 @@ import {
 import { savedAgentAvatar } from "@/features/workspace/model/agent-avatar-cache";
 import { queryKeys } from "@/features/workspace/model/query-keys";
 import { showsOnline } from "@/features/workspace/model/server-status";
+import { useMotionPreference } from "@/shared/lib/motion";
 
 export interface AgentPhotoProps {
   agentId?: string;
@@ -29,6 +30,7 @@ export function AgentPhoto({
   children,
 }: AgentPhotoProps & { size: number; children: ReactNode }) {
   const workspace = useMobileWorkspaceReader();
+  const animate = useMotionPreference("agentFaces");
   const queryScope = useQueryScope();
   const avatarUrl = useMobileWorkspaceSelector((current) =>
     imageUrl === undefined
@@ -56,6 +58,8 @@ export function AgentPhoto({
   return uri && uri !== failed ? (
     <View style={{ width: size, height: size, borderRadius: size / 2, overflow: "hidden" }}>
       <Image
+        key={animate && !disconnected ? "animated" : "still"}
+        autoplay={animate && !disconnected}
         source={{ uri }}
         contentFit="cover"
         recyclingKey={uri}

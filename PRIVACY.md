@@ -505,6 +505,12 @@ Image attachment previews are downloaded from the desktop host through the same 
 Other attachments are downloaded when you choose Open or save. The phone creates a temporary file for
 the system share sheet and removes it when that sheet closes. The app you select can keep its own copy.
 Cloudflare account storage does not receive these files.
+Mobile agent appearance settings can also import an original animated WebP, up to 512 KiB and
+512 × 512 pixels. The system file picker makes a cache copy. The phone keeps the selected bytes,
+including animation frames and any embedded metadata, for the preview and sends them to the
+agent's host only when you save. This path does not crop, re-encode or remove metadata. The
+existing agent-avatar cache can keep the uploaded image on the phone. The static photo option
+still crops and saves a JPEG. Raw GIF is not an accepted agent-avatar upload type.
 When you share text, a link, an image or a file from another app to OpenBot, the phone keeps a copy
 of each file in its app cache until the chat that you choose has read it, or until you close the
 share sheet. Nothing is sent until you send the message. On iPhone, the OpenBot share extension can
