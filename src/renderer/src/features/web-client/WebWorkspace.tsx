@@ -2587,6 +2587,9 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                 onManageBrowserProfiles={browserProfiles() ? openBrowserProfileSettings : undefined}
                 onOpenNotificationSettings={(serverId) => openNotificationSettings(serverId)}
                 agent={conversationAgent()}
+                avatarMood={
+                  workspace.state.selectedId ? (sidebarAgentMoods()[workspace.state.selectedId] ?? "idle") : undefined
+                }
                 agents={workspace.profiles()}
                 modelOptions={models()}
                 threads={threads()}

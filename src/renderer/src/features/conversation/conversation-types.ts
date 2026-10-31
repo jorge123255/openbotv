@@ -1,3 +1,4 @@
+import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import type {
   AccountUsage,
   AgentApproval,
@@ -191,6 +192,8 @@ export interface ConversationProps {
   /** Opens the notification settings at a server, where the user changes the level of its agents. */
   onOpenNotificationSettings?: ((serverId: string, trigger: HTMLElement) => void) | undefined;
   agent: AgentProfile | undefined;
+  /** The host-derived mood shared with this agent's roster face. */
+  avatarMood?: AvatarMood | undefined;
   agents: AgentProfile[];
   /**
    * The agents that the composer offers for a mention. Absent means `agents`. A hidden agent gets no

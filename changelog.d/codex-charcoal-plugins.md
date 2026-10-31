@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- Share the runtime mood between the roster and chat character, including failed turns and recent replies.
+
 - Keep keyboard focus on the visible plugin row after reconnecting from Manage.
 - Keep a plugin in Manage while its first connection is in progress.
 - Keep generated mouth expressions with the animated face and inside its silhouette.

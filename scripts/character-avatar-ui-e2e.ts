@@ -111,6 +111,40 @@ try {
     "The roster New agent action opens the existing creation flow with character choices; cancel creates no bot.",
   );
 
+  await open("app--companion-turn-states");
+  await page.locator(".companion-stage").waitFor();
+  await page.locator(".startup-splash").waitFor({ state: "hidden" });
+  const editor = page.locator('.composer-editor-surface[contenteditable="true"]').first();
+  await editor.fill("Fail this offline fixture turn.");
+  await editor.press("Enter");
+  await page.locator('.roster-row-active [data-mood="failed"]').waitFor();
+  assert.equal(
+    await page.locator(".companion-stage [data-character]").getAttribute("data-mood"),
+    "failed",
+    "A failed turn must show the same failed character in chat and roster.",
+  );
+  assert.equal(await page.locator(".conversation-title [data-character]").getAttribute("data-mood"), "failed");
+  await page.screenshot({ path: resolve(output, "failed-turn-integration.png") });
+  report.cases.push(
+    "A failed turn through the real composer and host event bridge gives the chat character, title and roster the same failure mood.",
+  );
+  await editor.fill("Complete this offline fixture turn.");
+  await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+  await editor.press("Enter");
+  await page.locator('.roster-row-active [data-mood="responded"]').waitFor();
+  assert.equal(
+    await page.locator(".companion-stage [data-character]").getAttribute("data-mood"),
+    "responded",
+    "A completed unread reply must reach the chat character.",
+  );
+  await page.screenshot({ path: resolve(output, "reply-turn-integration.png") });
+  await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await page.locator('.roster-row-active [data-mood="idle"]').waitFor();
+  assert.equal(await page.locator(".companion-stage [data-character]").getAttribute("data-mood"), "idle");
+  report.cases.push(
+    "A completed reply shares the roster reply mood, and returning focus restores both characters to idle.",
+  );
+
   await open("identity-agentavatar--living-characters");
   await page.locator('[data-character="robot"]').waitFor();
   const mouths = new Set<string>();

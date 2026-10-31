@@ -82,6 +82,60 @@ export const CompanionWorkspace: Story = {
   ),
 };
 
+/** Real composer sends and host turn events, with no provider process. */
+export const CompanionTurnStates: Story = {
+  render: () => {
+    useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
+    return (
+      <OpenBotPlayground
+        options={{
+          agents: STORY_AGENT_SUMMARIES.map((agent) => ({
+            ...agent,
+            avatarSeed: `character:robot:${agent.avatarSeed}`,
+            updatedAt: new Date().toISOString(),
+          })),
+        }}
+        dependencies={{
+          createMock: (options) => {
+            const mock = createMockOpenBot(options);
+            mock.onMessageSent(({ agentId, text, turnId }) => {
+              const status = text.startsWith("Fail") ? "failed" : "completed";
+              queueMicrotask(() => {
+                const snapshot = mock.updateConversationSnapshot(agentId, (snapshot) => {
+                  snapshot.activeTurnId = null;
+                  snapshot.messages = [
+                    ...snapshot.messages,
+                    {
+                      id: `${turnId}-reply`,
+                      turnId,
+                      author: "assistant",
+                      source: "assistant",
+                      text: status === "failed" ? "Offline fixture turn failed." : "Offline fixture reply completed.",
+                      createdAt: new Date().toISOString(),
+                      status,
+                    },
+                  ];
+                });
+                mock.setQueueSnapshot(agentId, []);
+                mock.emitAgentEvent({
+                  type: "turn-completed",
+                  agentId,
+                  threadId: snapshot.threadId ?? `thread-${agentId}`,
+                  turnId,
+                  status,
+                });
+              });
+              return true;
+            });
+            return mock;
+          },
+          renderApp: () => <App />,
+        }}
+      />
+    );
+  },
+};
+
 /** The servers in a rail at the left of the sidebar, instead of the server menu. */
 export const ServerRailView: Story = {
   render: () => <SidebarStatePlayground compact={false} serverView="rail" />,
