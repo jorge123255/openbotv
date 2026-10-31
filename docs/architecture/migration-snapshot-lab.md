@@ -5,6 +5,12 @@ It is not a migration command or an application restore engine. No caller can se
 target or credential path. The entry point accepts no arguments and creates its own synthetic
 data under `.openbot-build/instance-migration-rehearsal/fixture-*`.
 
+Operational paths are private and frozen. The public `paths` getter exposes a `Readonly` inspection
+view; capture, restore and recursive disposal use only private roots. The regression check attempts
+harmless mutations only after confirming the view is frozen. If run against mutable code, any
+successful assignment is restored before an assertion or cleanup. It never calls disposal with
+an altered path, and it confirms normal disposal removes only the original generated root.
+
 Run `node --import tsx scripts/instance-migration-rehearsal-e2e.ts`. The fixed-code report is
 `.openbot-build/instance-migration-rehearsal/report.json`. The fixture directories are removed
 after each run. CI uploads the report, not the fixture databases or files.

@@ -1,6 +1,6 @@
 // Creates its own synthetic house. No input path, user profile, provider or network is accepted.
 import assert from "node:assert/strict";
-import { link, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect, Result } from "effect";
@@ -63,6 +63,26 @@ async function check(name: string, operation: () => Promise<void>): Promise<void
 
 try {
   assert.equal(process.argv.length, 2, "This lab accepts no inputs.");
+  await check("inspection-paths-cannot-redirect-owned-cleanup", async () => {
+    const lab = await create();
+    const view = lab.paths;
+    const originalBase = view.base;
+    assert.ok(Object.isFrozen(view));
+    const keys: ReadonlyArray<keyof typeof view> = ["base", "source", "snapshot", "target"];
+    for (const key of keys) {
+      const original = view[key];
+      const changed = Reflect.set(view, key, join(originalBase, `rejected-${key}`));
+      // Restore first if this regression is run on mutable code. Never dispose an altered root.
+      if (changed) assert.equal(Reflect.set(view, key, original), true);
+      assert.equal(changed, false);
+    }
+    const changed = Reflect.set(lab, "paths", { ...view, base: join(originalBase, "rejected-base") });
+    if (changed) assert.equal(Reflect.set(lab, "paths", view), true);
+    assert.equal(changed, false);
+    assert.equal(lab.paths.base, originalBase);
+    await Effect.runPromise(lab.dispose());
+    await assert.rejects(lstat(originalBase), { code: "ENOENT" });
+  });
   await check("requires-stopped-synthetic-source", async () => {
     const lab = await create();
     await reject(lab.capture(), "SOURCE_NOT_STOPPED");

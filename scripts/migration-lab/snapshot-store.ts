@@ -222,11 +222,19 @@ async function checkRelationships(root: string): Promise<number> {
 }
 
 export class SyntheticSnapshotLab {
-  readonly paths: { base: string; source: string; snapshot: string; target: string };
+  readonly #paths: Readonly<{ base: string; source: string; snapshot: string; target: string }>;
+  get paths() {
+    return this.#paths;
+  }
   #stopped = false;
   #manifestDigest: string | null = null;
   private constructor(base: string) {
-    this.paths = { base, source: join(base, "source"), snapshot: join(base, "snapshot"), target: join(base, "target") };
+    this.#paths = Object.freeze({
+      base,
+      source: join(base, "source"),
+      snapshot: join(base, "snapshot"),
+      target: join(base, "target"),
+    });
   }
 
   static readonly create = Effect.fn("SyntheticSnapshotLab.create")(function* () {
@@ -258,15 +266,15 @@ export class SyntheticSnapshotLab {
     Effect.tryPromise({
       try: async () => {
         if (!this.#stopped) throw new LabFailure({ code: "SOURCE_NOT_STOPPED" });
-        const before = await inventory(this.paths.source);
-        await checkRelationships(this.paths.source);
+        const before = await inventory(this.#paths.source);
+        await checkRelationships(this.#paths.source);
         const databases = before
           .filter((entry) => entry.kind === "file" && entry.path.endsWith(".db"))
-          .map((entry) => databaseInventory(this.paths.source, entry.path));
+          .map((entry) => databaseInventory(this.#paths.source, entry.path));
         const manifest: SnapshotManifest = {
           format: "openbot-synthetic-snapshot-lab",
           version: 1,
-          fixtureId: this.paths.base.split("/").at(-1) ?? "fixture",
+          fixtureId: this.#paths.base.split("/").at(-1) ?? "fixture",
           roots: [...ROOTS],
           entries: before,
           databases,
@@ -275,21 +283,21 @@ export class SyntheticSnapshotLab {
           pathStatus: "mapping-only-no-rewrite",
           fullMigrationComplete: false,
         };
-        await mkdir(this.paths.snapshot, { mode: 0o700 });
+        await mkdir(this.#paths.snapshot, { mode: 0o700 });
         try {
-          const tree = join(this.paths.snapshot, "tree");
+          const tree = join(this.#paths.snapshot, "tree");
           await mkdir(tree, { mode: 0o700 });
-          await this.#copy(this.paths.source, tree, before, fault === "copy-failure");
-          if (JSON.stringify(before) !== JSON.stringify(await inventory(this.paths.source)))
+          await this.#copy(this.#paths.source, tree, before, fault === "copy-failure");
+          if (JSON.stringify(before) !== JSON.stringify(await inventory(this.#paths.source)))
             throw new LabFailure({ code: "SOURCE_CHANGED" });
           if (JSON.stringify(before) !== JSON.stringify(await inventory(tree)))
             throw new LabFailure({ code: "INVENTORY_MISMATCH" });
           const bytes = JSON.stringify(manifest);
-          await writeFile(join(this.paths.snapshot, "manifest.json"), bytes, { mode: 0o600, flag: "wx" });
+          await writeFile(join(this.#paths.snapshot, "manifest.json"), bytes, { mode: 0o600, flag: "wx" });
           this.#manifestDigest = sha256(bytes);
           return manifest;
         } catch (error) {
-          await rm(this.paths.snapshot, { recursive: true, force: true });
+          await rm(this.#paths.snapshot, { recursive: true, force: true });
           throw error;
         }
       },
@@ -317,7 +325,7 @@ export class SyntheticSnapshotLab {
     Effect.tryPromise({
       try: async () => {
         if (!this.#manifestDigest) throw new LabFailure({ code: "NO_SNAPSHOT" });
-        const bytes = await readFile(join(this.paths.snapshot, "manifest.json"));
+        const bytes = await readFile(join(this.#paths.snapshot, "manifest.json"));
         let manifest: SnapshotManifest;
         try {
           manifest = Schema.decodeUnknownSync(Manifest)(JSON.parse(bytes.toString("utf8")));
@@ -326,21 +334,21 @@ export class SyntheticSnapshotLab {
         }
         for (const entry of manifest.entries) relativePath(entry.path);
         if (sha256(bytes) !== this.#manifestDigest) throw new LabFailure({ code: "SNAPSHOT_CHANGED" });
-        const tree = join(this.paths.snapshot, "tree");
+        const tree = join(this.#paths.snapshot, "tree");
         if (JSON.stringify(await inventory(tree)) !== JSON.stringify(manifest.entries))
           throw new LabFailure({ code: "INVENTORY_MISMATCH" });
         const databases = manifest.databases.map((item) => databaseInventory(tree, item.path));
         if (JSON.stringify(databases) !== JSON.stringify(manifest.databases))
           throw new LabFailure({ code: "DATABASE_INVALID" });
         const pathsVerified = await checkRelationships(tree);
-        if ((await readdir(this.paths.base)).includes("target")) throw new LabFailure({ code: "TARGET_NOT_EMPTY" });
-        const stage = await mkdtemp(join(this.paths.base, "stage-"));
+        if ((await readdir(this.#paths.base)).includes("target")) throw new LabFailure({ code: "TARGET_NOT_EMPTY" });
+        const stage = await mkdtemp(join(this.#paths.base, "stage-"));
         try {
           await this.#copy(tree, stage, manifest.entries);
           if (JSON.stringify(await inventory(stage)) !== JSON.stringify(manifest.entries))
             throw new LabFailure({ code: "INVENTORY_MISMATCH" });
           await checkRelationships(stage);
-          await rename(stage, this.paths.target);
+          await rename(stage, this.#paths.target);
         } finally {
           await rm(stage, { recursive: true, force: true });
         }
@@ -366,6 +374,6 @@ export class SyntheticSnapshotLab {
   );
 
   readonly dispose = Effect.fn("SyntheticSnapshotLab.dispose")(() =>
-    Effect.tryPromise({ try: () => rm(this.paths.base, { recursive: true, force: true }), catch: failure }),
+    Effect.tryPromise({ try: () => rm(this.#paths.base, { recursive: true, force: true }), catch: failure }),
   );
 }
