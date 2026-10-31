@@ -4,7 +4,7 @@
 
 **Plan:** None. A later plan can turn this spec into a checklist. This document does not implement the host.
 
-**Pull request:** Draft, on `cursor/isolated-local-vm-host-design-6e67`. This document does not mark that pull request ready. Merge and a rebuild need an explicit GO from George.
+**Pull request:** Draft [#52](https://github.com/jorge123255/openbotv/pull/52) on `cursor/isolated-local-vm-host-design-6e67`. This document does not mark that pull request ready. Merge and a rebuild need an explicit GO from George.
 
 ## Goal
 
