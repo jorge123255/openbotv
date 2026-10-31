@@ -128,6 +128,10 @@ settings components. The browser uses story-only injected calls; actual IPC trus
 separately. Publication tests kill owned writer child processes before/after the final link, race a
 publisher and inject sync failures. Native/full Electron startup, packaged builds, Windows storage,
 live providers, real credentials, a remote target and a full restored application are not tested.
+The browser check asserts no immutable-store update diagnostics. Select popups still emit the pinned
+Kobalte dismissable-layer effect-callback read diagnostic in development; a one-select fixture
+reproduces the dependency location. These diagnostics are recorded, not suppressed, and no dependency
+patch or version change is included.
 
 Reports and screenshots are under `.openbot-build/migration-assessment*-e2e/`. CI runs the narrow
 scripts after the branch targets a configured CI base. The normal CI workflow selects only PRs to

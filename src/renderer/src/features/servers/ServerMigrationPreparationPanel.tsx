@@ -1,6 +1,6 @@
 import type { DesktopPlatform } from "@openbot/contracts/ipc";
 import { MigrationPreparationView } from "@openbot/ui/features/migration/MigrationPreparationView";
-import { createMemo, onSettled, Show } from "solid-js";
+import { createMemo, onSettled, Show, untrack } from "solid-js";
 import type { MigrationAssessmentCalls } from "./migration-assessment-port";
 import { type MigrationPreparationCalls, migrationPreparationPort } from "./migration-preparation-port";
 import { createMigrationPreparationStore } from "./migration-preparation-store";
@@ -16,7 +16,8 @@ export function ServerMigrationPreparationPanel(
   props: ServerMigrationPreparationOptions & { platform: DesktopPlatform },
 ) {
   const canPrepare = () => props.platform !== "win32";
-  const store = createMigrationPreparationStore(props.calls ?? migrationPreparationPort(), canPrepare);
+  const calls = untrack(() => props.calls ?? migrationPreparationPort());
+  const store = createMigrationPreparationStore(calls, canPrepare);
   const assessmentPreparation = createMemo(() =>
     store.state.value?.plan?.status === "prepared" ? store.state.value : null,
   );

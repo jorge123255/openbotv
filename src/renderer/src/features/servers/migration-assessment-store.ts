@@ -7,7 +7,7 @@ import {
 } from "@openbot/contracts/ipc";
 import type { MigrationAssessmentDeclarationDraft } from "@openbot/ui/features/migration/MigrationAssessmentView";
 import { currentText } from "@openbot/ui/text";
-import { createStore } from "solid-js";
+import { createStore, reconcile, snapshot, untrack } from "solid-js";
 import type { MigrationAssessmentCalls } from "./migration-assessment-port";
 
 interface AssessmentViewState {
@@ -57,18 +57,26 @@ export function createMigrationAssessmentStore(
 
   function apply(value: MigrationAssessmentState): void {
     if (disposed) return;
-    setState((draft) => {
-      draft.value = value;
-      draft.ready = true;
-      if (value.applicability === "current" && value.assessment) {
-        const declaration = value.assessment.destination;
-        draft.declaration = {
-          ...declaration,
-          appVersion: declaration.appVersion ?? "",
-          schemaVersion: declaration.schemaVersion === null ? "" : String(declaration.schemaVersion),
-        };
-      }
-    });
+    const previous = untrack(() => snapshot(state));
+    const declaration = value.applicability === "current" ? value.assessment?.destination : null;
+    setState(
+      reconcile({
+        ...previous,
+        value,
+        ready: true,
+        declaration: declaration
+          ? {
+              platform: declaration.platform,
+              architecture: declaration.architecture,
+              appVersion: declaration.appVersion ?? "",
+              schemaVersion: declaration.schemaVersion === null ? "" : String(declaration.schemaVersion),
+              executor: declaration.executor,
+              dataRoot: declaration.dataRoot,
+              persistence: declaration.persistence,
+            }
+          : previous.declaration,
+      }),
+    );
   }
 
   async function run(busy: "loading" | "assessing", action: () => Promise<MigrationAssessmentState>) {

@@ -57,11 +57,18 @@ const makeAssessment = () =>
       }),
   });
 let assessment = makeAssessment();
-const report: { passed: boolean; cases: string[]; pageErrors: string[]; screenshots: string[] } = {
+const report: {
+  passed: boolean;
+  cases: string[];
+  pageErrors: string[];
+  screenshots: string[];
+  reactivity: { immutableUpdates: number; untrackedReads: number; untrackedDiagnostics: string[] };
+} = {
   passed: false,
   cases: [],
   pageErrors: [],
   screenshots: [],
+  reactivity: { immutableUpdates: 0, untrackedReads: 0, untrackedDiagnostics: [] },
 };
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
 try {
@@ -116,6 +123,23 @@ try {
   browser = await chromium.launch({ channel, headless: true });
   const page = await browser.newPage({ viewport: { width: 1100, height: 1000 }, reducedMotion: "reduce" });
   page.on("pageerror", (error) => report.pageErrors.push(error.stack ?? error.message));
+  page.on("console", (message) => {
+    const text = message.text();
+    if (text.includes("[IMMUTABLE_UPDATE_IN_STORE]")) report.reactivity.immutableUpdates++;
+    if (text.includes("[STRICT_READ_UNTRACKED]")) {
+      report.reactivity.untrackedReads++;
+      const owner = [...text.matchAll(/<([A-Za-z][A-Za-z0-9.]*)>/g)]
+        .map((match) => match[1])
+        .slice(-5)
+        .join(" > ");
+      const description = owner || (text.split("\n")[0] ?? text).slice(0, 240);
+      if (
+        !report.reactivity.untrackedDiagnostics.includes(description) &&
+        report.reactivity.untrackedDiagnostics.length < 8
+      )
+        report.reactivity.untrackedDiagnostics.push(description);
+    }
+  });
   await page.route("**/*", (route) => {
     const url = new URL(route.request().url());
     return ["http:", "https:"].includes(url.protocol) && url.origin !== target.origin
@@ -282,6 +306,7 @@ try {
   assert.equal(database.connection.prepare("SELECT count(*) AS total FROM projection_routine_runs").get()?.total, 0);
   await disabledMigration();
   assert.deepEqual(report.pageErrors, []);
+  assert.equal(report.reactivity.immutableUpdates, 0);
   report.cases.push(
     "Simulated Windows source disables assessment saves while reload works; source database/WAL and credential canary remain byte-identical and no routine run is created",
   );

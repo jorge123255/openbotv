@@ -1,6 +1,6 @@
 import type { MigrationPreparationDestinationKind, MigrationPreparationState } from "@openbot/contracts/ipc";
 import { currentText } from "@openbot/ui/text";
-import { createStore } from "solid-js";
+import { createStore, reconcile, snapshot, untrack } from "solid-js";
 import type { MigrationPreparationCalls } from "./migration-preparation-port";
 
 type MigrationPreparationBusy = "loading" | "preparing" | "cancelling" | null;
@@ -27,11 +27,15 @@ export function createMigrationPreparationStore(calls: MigrationPreparationCalls
 
   function apply(value: MigrationPreparationState): void {
     if (disposed) return;
-    setState((draft) => {
-      draft.value = value;
-      draft.ready = true;
-      if (value.plan) draft.destinationKind = value.plan.destinationKind;
-    });
+    const previous = untrack(() => snapshot(state));
+    setState(
+      reconcile({
+        ...previous,
+        value,
+        ready: true,
+        destinationKind: value.plan?.destinationKind ?? previous.destinationKind,
+      }),
+    );
   }
 
   async function run(busy: Exclude<MigrationPreparationBusy, null>, action: () => Promise<MigrationPreparationState>) {
