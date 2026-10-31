@@ -772,6 +772,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:muse-instructions-once
 
+      - name: Rehearse authenticated synthetic credential envelopes
+        if: ${{ !cancelled() }}
+        run: node --import tsx scripts/credential-portability-e2e.ts
+
       - name: Run the provider conformance E2E test
         if: ${{ !cancelled() }}
         run: bun run test:provider-conformance
@@ -846,6 +850,7 @@ jobs:
             .openbot-build/pi-steer-e2e/
             .openbot-build/muse-instructions-once-e2e/
             .openbot-build/provider-conformance-e2e/
+            .openbot-build/credential-portability-e2e/report.json
             .openbot-build/opencode-expired-key-e2e/
             .openbot-build/opencode-downgraded-session-e2e/
             .openbot-build/opencode-service-failure-e2e/
