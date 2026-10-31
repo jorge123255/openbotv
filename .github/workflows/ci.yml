@@ -137,6 +137,18 @@ jobs:
         if: env.CODE == 'true'
         run: bun run check:desktop:static
 
+      - name: Check catalog adapters and fallback text
+        if: ${{ !cancelled() && env.CODE == 'true' }}
+        run: bun scripts/i18n-catalog-parity-e2e.ts
+
+      - name: Upload catalog parity report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: i18n-catalog-parity-e2e
+          path: .openbot-build/i18n-catalog-parity-e2e/report.json
+          if-no-files-found: ignore
+
       - parallel:
           - name: Check translation catalogs
             if: env.CODE == 'true'
