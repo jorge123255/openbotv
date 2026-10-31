@@ -1,6 +1,6 @@
 import { request as httpRequest } from "node:http";
 import { request as httpsRequest } from "node:https";
-import { registerSecretValue } from "@openbot/logging";
+import { registerSecretValues } from "@openbot/logging";
 import { HermesGatewayFailure } from "./hermes-gateway-protocol";
 
 export type GatewayRoute =
@@ -93,7 +93,6 @@ export class HermesGatewayCookies {
         !/^(?:__Host-|__Secure-)?hermes_(?:session_(?:at|rt|provider)|webapp_signin)(?:_[A-Za-z0-9_-]+)?$/u.test(name)
       )
         continue;
-      registerSecretValue(value, { allowShort: true });
       const attrs = new Map(
         attributes.map((attribute) => {
           const index = attribute.indexOf("=");
@@ -115,8 +114,19 @@ export class HermesGatewayCookies {
         continue;
       const age = attrs.get("max-age");
       const expires = age === undefined ? Date.parse(attrs.get("expires") ?? "") : Date.now() + Number(age) * 1_000;
-      if (!value || !Number.isFinite(expires) || expires <= Date.now()) this.#cookies.delete(name);
-      else this.#cookies.set(name, { value, expires, path });
+      if (!value || !Number.isFinite(expires) || expires <= Date.now()) {
+        this.#cookies.delete(name);
+        continue;
+      }
+      const raw = unquoteCookie(value);
+      if (raw === null || /[^\x21-\x7e]/u.test(raw)) continue;
+      const providerHint = /hermes_session_provider(?:_|$)/u.test(name);
+      // Remote cookie input must not register short words in the process-wide redactor. Official
+      // AT/RT values and the 64-character Webapp binding exceed this floor. Short custom tokens
+      // are unsupported rather than accepted without redaction. The routing hint is not a secret.
+      if (!providerHint && raw.length < 16) continue;
+      if (!providerHint) registerSecretValues([value, raw]);
+      this.#cookies.set(name, { value, expires, path });
     }
   }
 
@@ -133,4 +143,15 @@ export class HermesGatewayCookies {
   clear(): void {
     this.#cookies.clear();
   }
+}
+
+/** Python http.cookies/SimpleCookie quoting used by Starlette: keep wire bytes for transport. */
+function unquoteCookie(value: string): string | null {
+  if (!value.startsWith('"')) return value.includes('"') ? null : value;
+  if (!value.endsWith('"') || value.length < 2) return null;
+  return value
+    .slice(1, -1)
+    .replace(/\\([0-3][0-7]{2}|.)/gu, (_match, escaped: string) =>
+      /^[0-3][0-7]{2}$/u.test(escaped) ? String.fromCharCode(Number.parseInt(escaped, 8)) : escaped,
+    );
 }

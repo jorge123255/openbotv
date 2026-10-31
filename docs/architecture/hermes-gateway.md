@@ -44,8 +44,13 @@ worked. It does not mean that JSON-RPC chat works. No JSON-RPC frame is sent.
 - Discovery sends and accepts no session cookie. Authenticated replies accept only host-only,
   HttpOnly Hermes session cookies with a matching path and valid expiry. HTTPS cookies must be
   Secure. The jar accepts the `__Host-`, `__Secure-` and gateway-suffixed Hermes names.
-- Passwords, cookie values and tickets are registered with the shared secret redactor. The adapter
-  writes no log. Typed failures contain a fixed code and no remote response, URL, headers or cause.
+- Cookie attributes, path and expiry are checked before secret registration. Accepted AT, RT and
+  binding values are registered in both their original wire form and their decoded raw form.
+  Starlette can quote the padded base64 that the password provider emits; transport keeps those
+  original wire bytes. Nonsecret provider routing hints are not registered. Secret cookies shorter
+  than 16 decoded characters are rejected, so a remote reply cannot register tiny words globally.
+  This floor supports the pinned bundled tokens; shorter custom-provider tokens are unsupported.
+- Passwords and tickets also use the shared secret redactor. The adapter writes no log. Typed failures contain a fixed code and no remote response, URL, headers or cause.
   Schema projection returns only profile names, optional display names and the default flag.
 - Requests have an eight-second deadline and a 1 MiB response limit. Socket admission has an
   eight-second deadline and a 64 KiB frame limit. All transport failures discard the local session.
@@ -66,10 +71,35 @@ them. The trusted certificate is passed only to a synthetic child process. No re
 user profile is read. The report is `.openbot-build/hermes-gateway-e2e/report.json`.
 The provider-fakes CI job runs this check and uploads the report.
 
-The tests cover password login, cookie rotation, profile projection, same-address account
-isolation, local sign-out/reconnect, expiry, rate limiting, socket refusal, a lost login response,
-malformed and oversized responses, invalid cookies, secret redaction, redirects, cancellation
-and valid/invalid TLS. Fixtures model the pinned source; no live Hermes server was tested.
+The tests cover password login, cookie rotation, profile projection, simultaneous accounts at the
+same address, local sign-out/reconnect, expiry, rate limiting, socket refusal, a lost login response,
+malformed and oversized responses, invalid cookies, secret redaction, redirects and cancellation.
+HTTPS and WSS certificate rejection are separate cases. Secure cookies at a proxy prefix and
+Host cookies at the gateway root both use the full gateway-suffixed cookie set.
+
+`scripts/hermes-gateway-cookie-fixture.ts` models the pinned basic provider's compact JSON,
+HMAC-SHA256 and padded URL-safe base64 token shape. It quotes padded values as Python SimpleCookie
+does, and sends AT, RT, provider and sign-in binding cookies together. It models the cookie
+middleware's two refresh paths: an expired AT still in the jar, and an AT evicted from the jar.
+The gateway serves the original request and returns replacement AT/RT/provider/binding cookies.
+The adapter keeps those replacements, keeps accounts separate, and makes no extra request.
+A rejected binding or final 401 clears local authentication. There is no client refresh endpoint
+or password replay. The fixture checks raw, wire and structured token redaction and proves that
+rejected cookies, short secret values and provider hints do not change unrelated log masking.
+
+The socket fixture enforces one-use tickets and TTL, refuses an expired ticket without replay,
+and supports cancellation before upgrade admission. It checks REST/WS Origin headers and exact
+proxy-prefix routing. The TLS fixture changes the server certificate after successful REST auth
+to prove that WSS rejects an untrusted certificate before the ticket header reaches the server.
+
+These fixtures model source behavior; they do not execute the pinned Python gateway. They do not
+prove live Hermes compatibility, cross-process refresh races, an actual reverse-proxy deployment,
+provider outages during refresh, or older/custom gateway versions. The pinned basic provider's
+stateless refresh token can remain valid after rotation; the fixture checks that this client uses
+the replacement, rather than claiming that Basic enforces one-use refresh tokens. A direct
+adversarial replay against a live server and server-side ticket TTL enforcement remain unverified.
+A transient refresh 503 currently discards the adapter's local session and requires explicit
+sign-in; cookie-preserving outage recovery is not implemented.
 
 ## Next stages
 

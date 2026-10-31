@@ -16,6 +16,12 @@ import { WebSocketServer } from "ws";
 import { HermesGatewayConnection } from "../src/main/hermes-gateway-connection";
 import type { HermesGatewayFailure } from "../src/main/hermes-gateway-protocol";
 
+import {
+  checkCookieSocketFailures,
+  checkQuotedCookieLifecycle,
+  checkRejectedCookieRedaction,
+} from "./hermes-gateway-cookie-fixture";
+
 const PASSWORD = "synthetic-password-only";
 const OUT = resolve(import.meta.dirname, "../.openbot-build/hermes-gateway-e2e");
 const checks: string[] = [];
@@ -39,6 +45,7 @@ interface Seen {
 }
 interface FixtureOptions {
   tls?: { key: string; cert: string };
+  tlsSocket?: { key: string; cert: string };
   authRequired?: boolean;
   passwordProvider?: boolean;
   redirect?: { route: string; target: string; code: number };
@@ -158,6 +165,7 @@ async function fixture(options: FixtureOptions = {}) {
       const ticket = randomBytes(32).toString("base64url");
       tickets.add(ticket);
       issuedTickets.push(ticket);
+      if (options.tlsSocket && "setSecureContext" in server) server.setSecureContext(options.tlsSocket);
       json({ ticket, ttl_seconds: 30 });
       return;
     }
@@ -401,27 +409,33 @@ async function tlsChecks() {
   try {
     const key = join(folder, "key.pem");
     const cert = join(folder, "cert.pem");
-    execFileSync(
-      "openssl",
-      [
-        "req",
-        "-x509",
-        "-newkey",
-        "rsa:2048",
-        "-nodes",
-        "-days",
-        "1",
-        "-subj",
-        "/CN=Hermes synthetic fixture",
-        "-addext",
-        "subjectAltName=IP:127.0.0.1",
-        "-keyout",
-        key,
-        "-out",
-        cert,
-      ],
-      { stdio: "ignore" },
-    );
+    const untrustedKey = join(folder, "untrusted-key.pem");
+    const untrustedCert = join(folder, "untrusted-cert.pem");
+    for (const [privateKey, certificate] of [
+      [key, cert],
+      [untrustedKey, untrustedCert],
+    ] as const)
+      execFileSync(
+        "openssl",
+        [
+          "req",
+          "-x509",
+          "-newkey",
+          "rsa:2048",
+          "-nodes",
+          "-days",
+          "1",
+          "-subj",
+          "/CN=Hermes synthetic fixture",
+          "-addext",
+          "subjectAltName=IP:127.0.0.1",
+          "-keyout",
+          privateKey,
+          "-out",
+          certificate,
+        ],
+        { stdio: "ignore" },
+      );
     const tls = { key: await readFile(key, "utf8"), cert: await readFile(cert, "utf8") };
     await withFixture({ tls }, async (gateway) => {
       const previous = process.env.NODE_TLS_REJECT_UNAUTHORIZED;
@@ -435,12 +449,18 @@ async function tlsChecks() {
         else process.env.NODE_TLS_REJECT_UNAUTHORIZED = previous;
       }
       // Node loads this fixture CA at process startup. This changes only the synthetic child process.
-      execFileSync("node", ["--import", "tsx", import.meta.filename, "--trusted-tls", key, cert], {
-        env: { ...process.env, NODE_EXTRA_CA_CERTS: cert },
-        stdio: "pipe",
-      });
+      execFileSync(
+        "node",
+        ["--import", "tsx", import.meta.filename, "--trusted-tls", key, cert, untrustedKey, untrustedCert],
+        {
+          env: { ...process.env, NODE_EXTRA_CA_CERTS: cert },
+          stdio: "pipe",
+        },
+      );
     });
-    checks.push("untrusted TLS fails despite process bypass; trusted HTTPS and WSS with Secure cookies pass");
+    checks.push(
+      "untrusted HTTPS and WSS certificates rejected; trusted Secure/Host cookie lifecycles and proxy Origin pass",
+    );
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
@@ -450,19 +470,40 @@ async function trustedTlsChild() {
   const key = process.argv[3];
   const cert = process.argv[4];
   assert.ok(key && cert);
+  const tls = { key: await readFile(key, "utf8"), cert: await readFile(cert, "utf8") };
+  await checkQuotedCookieLifecycle(tls);
+  await checkQuotedCookieLifecycle(tls, "");
+  await checkRejectedCookieRedaction(tls);
+  const untrustedKey = process.argv[5];
+  const untrustedCert = process.argv[6];
+  assert.ok(untrustedKey && untrustedCert);
   await withFixture(
-    { tls: { key: await readFile(key, "utf8"), cert: await readFile(cert, "utf8") } },
+    { tls, tlsSocket: { key: await readFile(untrustedKey, "utf8"), cert: await readFile(untrustedCert, "utf8") } },
     async (gateway) => {
       const client = await connect(gateway.url);
-      await Effect.runPromise(client.signInPassword("basic", "tls", PASSWORD));
-      assert.equal((await Effect.runPromise(client.listProfiles()))[0]?.name, "tls-profile");
+      await failure(client.signInPassword("basic", "tls", PASSWORD), "socket-rejected");
+      assert.ok(
+        gateway.seen.some((request) => request.path.endsWith("/api/auth/ws-ticket")),
+        "Trusted REST login completed.",
+      );
+      assert.ok(gateway.upgrades === 0, "The WSS certificate was rejected before sending the ticket header.");
     },
   );
 }
 
 try {
-  if (process.argv[2] === "--trusted-tls") await trustedTlsChild();
+  if (process.argv[2] === "--cookie-quoted") await checkQuotedCookieLifecycle();
+  else if (process.argv[2] === "--cookie-rejected") await checkRejectedCookieRedaction();
+  else if (process.argv[2] === "--trusted-tls") await trustedTlsChild();
   else {
+    await checkQuotedCookieLifecycle();
+    checks.push(
+      "quoted padded AT/RT raw and wire redaction; full suffixed cookie set; concurrent account and refresh isolation",
+    );
+    await checkRejectedCookieRedaction();
+    checks.push("rejected and short cookies and nonsecret provider hints cannot poison global redaction");
+    await checkCookieSocketFailures();
+    checks.push("expired ticket and interrupted socket admission have no replay or reconnect");
     await main();
     await tlsChecks();
     await mkdir(OUT, { recursive: true });
