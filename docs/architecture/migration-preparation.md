@@ -63,9 +63,11 @@ First-save publication currently refuses on Windows because this implementation 
 Windows directory-sync adapter. On Windows, the preparation panel shows this limitation and
 disables Save, Save a new preparation plan and destination choice. The renderer store also blocks
 the prepare call before IPC. Reload remains available, and an existing prepared plan can still be
-cancelled. The section waits for the app's typed platform metadata before it is exposed, so the
-settings shell's temporary display-platform fallback cannot enable saving. Destination type does
-not establish host support.
+cancelled. The section requires both typed app metadata and `appInfoLoadedFromHost` before it is
+exposed. The shared platform provider keeps its existing macOS/version-unavailable fallback when
+`getAppInfo` fails, but that fallback does not confirm the host or enable preparation. The gate
+observes the app-info signal before the host-confirmation flag so a successful load can reveal the
+section. Destination type does not establish host support.
 
 ## Verification and limits
 
@@ -92,6 +94,9 @@ provider, account, browser profile, credential store or live application is open
 Windows UI checks pass a synthetic Windows source platform to the real settings container and
 verify that neither empty nor cancelled plans can issue prepare IPC. Their database fixture runs
 on the test host; these checks do not exercise a native Windows journal adapter.
+Additional stories use the real `PlatformProvider`: a rejected `getAppInfo` keeps the existing
+fallback visible while preparation stays hidden without migration IPC; a controlled successful
+Windows reply reveals the section after confirmation and keeps Save disabled.
 
 Native Electron startup/packaging and the full application graph have not been exercised by this
 slice. The tests do not certify cross-platform data portability, full restore or production fencing.

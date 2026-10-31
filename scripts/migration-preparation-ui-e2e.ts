@@ -107,9 +107,11 @@ try {
   });
   let losePrepareResponse = false;
   let prepareRequests = 0;
+  let migrationRequests = 0;
   await page.exposeFunction(
     "__openbotMigrationPreparationInvoke",
     async (request: MigrationPreparationStoryRequest) => {
+      migrationRequests++;
       if (request.method === "prepare") prepareRequests++;
       const result =
         request.method === "getState"
@@ -259,6 +261,39 @@ try {
   await screenshot("windows-cancelled-plan-light");
   report.cases.push(
     "Simulated Windows source reloads a persisted cancelled plan and keeps Save a new preparation plan disabled without mutation IPC",
+  );
+  const requestsBeforeMetadataFailure = migrationRequests;
+  service = makeService(join(fixture, "rejected-metadata"));
+  url.searchParams.set("id", "settings-migration-preparation--host-metadata-rejected");
+  await page.goto(url.href);
+  await page.getByText("unavailable / darwin / host-unconfirmed", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("tab", { name: "Migration preparation", exact: true }).count(), 0);
+  assert.equal(await prepare.count(), 0);
+  assert.equal(migrationRequests, requestsBeforeMetadataFailure);
+  assert.equal((await readdir(fixture)).includes("rejected-metadata"), false);
+  await screenshot("rejected-host-metadata-fallback-light");
+  report.cases.push(
+    "Real PlatformProvider preserves its unavailable/darwin fallback after rejected getAppInfo while the host-confirmation gate hides preparation with zero migration IPC",
+  );
+  service = makeService(join(fixture, "confirmed-windows"));
+  const requestsBeforeConfirmation = migrationRequests;
+  url.searchParams.set("id", "settings-migration-preparation--host-metadata-windows-confirmed");
+  await page.goto(url.href);
+  await page.getByText("pending / pending / host-unconfirmed", { exact: true }).waitFor();
+  assert.equal(await page.getByRole("tab", { name: "Migration preparation", exact: true }).count(), 0);
+  assert.equal(migrationRequests, requestsBeforeConfirmation);
+  await page.getByRole("button", { name: "Resolve Windows host metadata", exact: true }).click();
+  await page.getByText("0.0.0-story / win32 / host-confirmed", { exact: true }).waitFor();
+  await page.getByRole("tab", { name: "Migration preparation", exact: true }).click();
+  await windowsNotice.waitFor();
+  await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"));
+  assert.equal(await prepare.isEnabled(), false);
+  assert.ok(migrationRequests > requestsBeforeConfirmation);
+  assert.equal(prepareRequests, requestsBeforeWindows);
+  assert.equal((await readdir(fixture)).includes("confirmed-windows"), false);
+  await screenshot("confirmed-windows-host-metadata-light");
+  report.cases.push(
+    "Real PlatformProvider transitions from pending to host-confirmed Windows metadata; preparation appears reactively, reads state, and keeps Save disabled without prepare IPC",
   );
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;
