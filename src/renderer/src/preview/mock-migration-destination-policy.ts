@@ -12,11 +12,20 @@ export function createMockMigrationDestinationPolicy(
 ): OpenBotDesktopApi["migrationDestinationPolicy"] {
   return {
     getState: async () => {
-      const before = await readPreparation();
+      const first = await readPreparation();
+      const before = {
+        revision: first.revision,
+        id: first.plan?.id,
+        status: first.plan?.status,
+        destinationKind: first.plan?.destinationKind,
+      };
       const after = await readPreparation();
       const plan = after.plan;
       const changed =
-        before.revision !== after.revision || before.plan?.id !== plan?.id || before.plan?.status !== plan?.status;
+        before.revision !== after.revision ||
+        before.id !== plan?.id ||
+        before.status !== plan?.status ||
+        before.destinationKind !== plan?.destinationKind;
       const applicable = plan?.status === "prepared" && plan.destinationKind === "docker-host";
       return decodeMigrationDestinationPolicyState({
         policy: MIGRATION_DESTINATION_POLICY,
