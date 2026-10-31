@@ -27,6 +27,7 @@ const Entry = Schema.Struct({
 const DatabaseInventory = Schema.Struct({
   path: text,
   schemaVersion: Schema.NullOr(count),
+  schemaSha256: digest,
   tables: Schema.Array(Schema.Struct({ name: text, rows: count, sha256: digest })),
 });
 
@@ -88,6 +89,8 @@ const FailureCode = Schema.Literals([
   "SHARED_OWNER_INVALID",
   "TARGET_NOT_EMPTY",
   "NO_SNAPSHOT",
+  "PATH_RELOCATION_UNSUPPORTED",
+  "PATH_PROOF_FAILED",
 ]);
 
 export class LabFailure extends Schema.TaggedError<LabFailure>()("LabFailure", { code: FailureCode }) {}
@@ -113,12 +116,4 @@ export function relativePath(path: string): void {
     throw new LabFailure({ code: "UNSAFE_PATH" });
   }
   if (!ROOTS.some((root) => root === parts[0])) throw new LabFailure({ code: "UNDECLARED_ROOT" });
-}
-
-export function mappedPath(path: string): string {
-  const prefix = "/synthetic-source/";
-  if (!path.startsWith(prefix)) throw new LabFailure({ code: "UNSAFE_PATH" });
-  const relative = path.slice(prefix.length);
-  relativePath(relative);
-  return relative;
 }

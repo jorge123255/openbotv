@@ -5,12 +5,12 @@ import { chmod, lstat, mkdir, mkdtemp, open, readdir, readFile, rename, rm, writ
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect, Schema } from "effect";
+import { normalizedRow, relativeStoredPath, relocateSyntheticDatabase } from "./path-relocation";
 import {
   CREDENTIALS,
   type InventoryEntry,
   LabFailure,
   Manifest,
-  mappedPath,
   ROOTS,
   relativePath,
   type SnapshotManifest,
@@ -92,7 +92,7 @@ async function inventory(root: string): Promise<InventoryEntry[]> {
   return entries;
 }
 
-function databaseInventory(root: string, path: string) {
+function databaseInventory(root: string, path: string, storedRoot?: string) {
   const db = new DatabaseSync(join(root, path), { readOnly: true, allowExtension: false });
   try {
     db.exec("PRAGMA trusted_schema=OFF");
@@ -103,13 +103,14 @@ function databaseInventory(root: string, path: string) {
     )
       throw new LabFailure({ code: "DATABASE_INVALID" });
     const names = Schema.decodeUnknownSync(Schema.Array(Schema.Struct({ name: Schema.String })))(
-      db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all(),
+      db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all(),
     );
     const tables = names.map(({ name }) => {
       if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(name)) throw new LabFailure({ code: "DATABASE_INVALID" });
       const rows = db
         .prepare(`SELECT * FROM "${name}"`)
         .all()
+        .map((row) => (storedRoot && path === "userdata/openbot.db" ? normalizedRow(db, name, row, storedRoot) : row))
         .map((row) => JSON.stringify(row))
         .sort();
       return { name, rows: rows.length, sha256: sha256(JSON.stringify(rows)) };
@@ -119,13 +120,16 @@ function databaseInventory(root: string, path: string) {
           db.prepare("SELECT max(version) AS version FROM schema_migrations").get(),
         ).version
       : null;
-    return { path, schemaVersion: version, tables };
+    const schemaSha256 = sha256(
+      JSON.stringify(db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema ORDER BY type,name,tbl_name").all()),
+    );
+    return { path, schemaVersion: version, schemaSha256, tables };
   } finally {
     db.close();
   }
 }
 
-async function checkRelationships(root: string): Promise<number> {
+async function checkRelationships(root: string, storedRoot = "/synthetic-source"): Promise<number> {
   const db = new DatabaseSync(join(root, "userdata/openbot.db"), { readOnly: true });
   let shared: DatabaseSync | null = null;
   let mapped = 0;
@@ -150,7 +154,7 @@ async function checkRelationships(root: string): Promise<number> {
         threadOwners.get(row.thread_id) !== row.agent_id
       )
         throw new LabFailure({ code: "RELATIONSHIP_INVALID" });
-      const stat = await lstat(join(root, mappedPath(agent.workspacePath)));
+      const stat = await lstat(join(root, relativeStoredPath(agent.workspacePath, storedRoot)));
       if (!stat.isDirectory()) throw new LabFailure({ code: "RELATIONSHIP_INVALID" });
       mapped++;
     }
@@ -170,7 +174,7 @@ async function checkRelationships(root: string): Promise<number> {
         threadOwners.get(stored.ownerThreadId) !== stored.ownerAgentId
       )
         throw new LabFailure({ code: "ATTACHMENT_INVALID" });
-      const bytes = await fileBytes(root, mappedPath(stored.path));
+      const bytes = await fileBytes(root, relativeStoredPath(stored.path, storedRoot));
       if (stored.size !== bytes.length || stored.sha256 !== sha256(bytes))
         throw new LabFailure({ code: "ATTACHMENT_INVALID" });
       canonical.set(stored.id, stored);
@@ -226,6 +230,7 @@ export class SyntheticSnapshotLab {
   get paths() {
     return this.#paths;
   }
+  #childBaseline: ReturnType<typeof databaseInventory> | null = null;
   #stopped = false;
   #manifestDigest: string | null = null;
   private constructor(base: string) {
@@ -246,6 +251,7 @@ export class SyntheticSnapshotLab {
         try {
           await mkdir(lab.paths.source, { mode: 0o700 });
           await writeSyntheticHouse(lab.paths.source);
+          lab.#childBaseline = databaseInventory(lab.paths.source, "child-server/openbot.db");
           return lab;
         } catch (error) {
           await rm(lab.paths.base, { recursive: true, force: true });
@@ -377,6 +383,110 @@ export class SyntheticSnapshotLab {
       catch: failure,
     }),
   );
+
+  readonly restoreRelocatedOffline = Effect.fn("SyntheticSnapshotLab.restoreRelocatedOffline")(
+    (
+      fault:
+        | "none"
+        | "during-transaction"
+        | "after-transform"
+        | "unexpected-edit"
+        | "unexpected-schema-edit"
+        | "unexpected-sequence-edit" = "none",
+    ) =>
+      Effect.tryPromise({
+        try: async () => {
+          const sourceBefore = JSON.stringify(await inventory(this.#paths.source));
+          const { manifest, tree } = await this.#verifiedSnapshot();
+          const snapshotBefore = JSON.stringify(await inventory(tree));
+          if ((await readdir(this.#paths.base)).includes("target")) throw new LabFailure({ code: "TARGET_NOT_EMPTY" });
+          const stage = await mkdtemp(join(this.#paths.base, "relocation-stage-"));
+          let published = false;
+          try {
+            await this.#copy(tree, stage, manifest.entries);
+            if (
+              JSON.stringify(databaseInventory(stage, "child-server/openbot.db")) !==
+              JSON.stringify(this.#childBaseline)
+            )
+              throw new LabFailure({ code: "PATH_RELOCATION_UNSUPPORTED" });
+            const scalarsChanged = await relocateSyntheticDatabase(
+              stage,
+              this.#paths.target,
+              fault === "during-transaction",
+            );
+            if (fault === "after-transform") throw new LabFailure({ code: "FIXTURE_IO" });
+            if (
+              fault === "unexpected-edit" ||
+              fault === "unexpected-schema-edit" ||
+              fault === "unexpected-sequence-edit"
+            ) {
+              const db = new DatabaseSync(join(stage, "userdata/openbot.db"));
+              try {
+                if (fault === "unexpected-edit")
+                  db.exec("UPDATE projection_threads SET title='unexpected fixture mutation'");
+                if (fault === "unexpected-schema-edit")
+                  db.exec("CREATE INDEX synthetic_unexpected ON projection_agents(model)");
+                if (fault === "unexpected-sequence-edit")
+                  db.exec("UPDATE sqlite_sequence SET seq=seq+100 WHERE name='orchestration_events'");
+              } finally {
+                db.close();
+              }
+            }
+            const normalized = manifest.databases.map((item) =>
+              databaseInventory(stage, item.path, this.#paths.target),
+            );
+            if (JSON.stringify(normalized) !== JSON.stringify(manifest.databases))
+              throw new LabFailure({ code: "PATH_PROOF_FAILED" });
+            const destination = await inventory(stage);
+            if (
+              destination.find((entry) => entry.path === "userdata/openbot.db")?.mode !==
+              manifest.entries.find((entry) => entry.path === "userdata/openbot.db")?.mode
+            )
+              throw new LabFailure({ code: "PATH_PROOF_FAILED" });
+            const unchanged = (entries: readonly InventoryEntry[]) =>
+              entries.filter((entry) => entry.path !== "userdata/openbot.db");
+            if (JSON.stringify(unchanged(destination)) !== JSON.stringify(unchanged(manifest.entries)))
+              throw new LabFailure({ code: "PATH_PROOF_FAILED" });
+            const pathsVerified = await checkRelationships(stage, this.#paths.target);
+            await rename(stage, this.#paths.target);
+            published = true;
+            await checkRelationships(this.#paths.target, this.#paths.target);
+            await this.#assertOriginals(sourceBefore, snapshotBefore, tree);
+            return {
+              syntheticOnly: true,
+              pathStatus: "synthetic-allowlist-relocated",
+              scalarsChanged,
+              pathsVerified,
+              destinationInventory: destination,
+              originalSnapshotRetained: true,
+              credentials: manifest.credentials,
+              fullAppStartupTested: false,
+              fullAppStartupBlocked: true,
+              duplicateExecutionProven: false,
+              fullMigrationComplete: false,
+              productionStartupPermitted: false,
+            };
+          } catch (error) {
+            // Only this lab's newly published target can be removed; no pre-existing target is accepted.
+            if (published) await rm(this.#paths.target, { recursive: true, force: true });
+            await this.#assertOriginals(sourceBefore, snapshotBefore, tree);
+            throw error;
+          } finally {
+            await rm(stage, { recursive: true, force: true });
+          }
+        },
+        catch: failure,
+      }),
+  );
+
+  async #assertOriginals(sourceBefore: string, snapshotBefore: string, tree: string): Promise<void> {
+    if (
+      sourceBefore !== JSON.stringify(await inventory(this.#paths.source)) ||
+      snapshotBefore !== JSON.stringify(await inventory(tree)) ||
+      sha256(await readFile(join(this.#paths.snapshot, "manifest.json"))) !== this.#manifestDigest
+    )
+      throw new LabFailure({ code: "PATH_PROOF_FAILED" });
+  }
 
   readonly dispose = Effect.fn("SyntheticSnapshotLab.dispose")(() =>
     Effect.tryPromise({ try: () => rm(this.#paths.base, { recursive: true, force: true }), catch: failure }),

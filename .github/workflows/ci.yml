@@ -720,6 +720,14 @@ jobs:
         if: ${{ !cancelled() }}
         run: node --import tsx scripts/instance-migration-rehearsal-e2e.ts
 
+      - name: Run the synthetic path relocation rehearsal
+        if: ${{ !cancelled() }}
+        run: node --import tsx scripts/instance-migration-path-e2e.ts
+
+      - name: Run the restricted synthetic projection reader
+        if: ${{ !cancelled() }}
+        run: node --import tsx scripts/instance-migration-projection-e2e.ts
+
       - name: Run the MCP proxy routing headers E2E test
         if: ${{ !cancelled() }}
         run: bun scripts/mcp-proxy-headers-e2e.ts
@@ -832,6 +840,8 @@ jobs:
             .openbot-build/acp-mcp-server-names-e2e/
             .openbot-build/mcp-bridge-shutdown-e2e/
             .openbot-build/instance-migration-rehearsal/report.json
+            .openbot-build/instance-migration-path-e2e/report.json
+            .openbot-build/instance-migration-projection-e2e/report.json
             .openbot-build/mcp-proxy-headers-e2e/
             .openbot-build/provider-shutdown-e2e/
             .openbot-build/instance-migration-writer-e2e/report.json
