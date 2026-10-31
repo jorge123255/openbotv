@@ -25,6 +25,7 @@ import { spawnAgentDatabaseHost } from "./agent-database-host-process";
 import { agentDisplayEnvironment, hasSeparateAgentDisplay } from "./agent-display";
 import { type AgentHostSettingsService, createAgentHostSettings } from "./agent-host-settings";
 import { type BrowserProfileService, createBrowserProfileService } from "./browser-profile-service";
+import { HermesGatewaySetupService } from "./hermes-gateway-setup-service";
 import { HostReleaseService, readInstallationMode } from "./host-release-service";
 import {
   CONTAINER_UPDATE_PATHS,
@@ -96,6 +97,7 @@ import {
   BrowserWindow,
   clipboard,
   desktopCapturer,
+  dialog,
   Notification,
   nativeImage,
   powerMonitor,
@@ -440,6 +442,7 @@ const TEARDOWN_ORDER = {
   browserDock: 42,
   browserView: 45,
   providerDetection: 48,
+  hermesGateways: 25,
   ollamaQuota: 49,
   providerRuntimes: 50,
   cuaDriver: 55,
@@ -621,6 +624,7 @@ export interface ApplicationServices {
   agentImport: AgentImportService;
   grokBotAccount: GrokBotAccountService;
   hermesImport: HermesImportService;
+  hermesGateways: HermesGatewaySetupService;
   instanceTransfer: InstanceTransferService;
   migrationPreparation: MigrationPreparationService;
   voice: VoiceTranscriptionService;
@@ -2289,6 +2293,28 @@ export async function createApplicationServices({
     () => serverTimezone.effective(),
     join(app.getPath("userData"), "agent-import-uploads"),
   );
+  const hermesGateways = new HermesGatewaySetupService({
+    path: join(app.getPath("userData"), "openbot-hermes-gateways-v1.json"),
+    openBrowser: (url) => shell.openExternal(url),
+    confirmRemember: async (url, profile) => {
+      const parent = windows.getMainWindow();
+      if (!parent || parent.isDestroyed()) return false;
+      const choice = await dialog.showMessageBox(parent, {
+        type: "question",
+        noLink: true,
+        defaultId: 1,
+        cancelId: 1,
+        buttons: [language.translate("settings.hermesGateways.rememberConfirm"), language.translate("common.cancel")],
+        message: language.translate("settings.hermesGateways.rememberTitle"),
+        detail: language.translate("settings.hermesGateways.rememberDetail", { url, profile }),
+      });
+      return choice.response === 0;
+    },
+  });
+  await Effect.runPromise(hermesGateways.load());
+  teardown.push(TEARDOWN_ORDER.hermesGateways, "Hermes gateway connections", () =>
+    Effect.runPromise(hermesGateways.close()),
+  );
   // Hermes profiles become agents through the same services; MCP servers through the MCP settings.
   const hermesImport = new HermesImportService(
     {
@@ -3316,6 +3342,7 @@ export async function createApplicationServices({
     agentImport,
     grokBotAccount,
     hermesImport,
+    hermesGateways,
     instanceTransfer,
     migrationPreparation,
     voice,

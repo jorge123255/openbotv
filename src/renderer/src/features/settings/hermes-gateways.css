@@ -1,0 +1,24 @@
+.hermes-gateways-tab {
+  container-type: inline-size;
+}
+
+.hermes-gateways-tab .ui-item-description,
+.hermes-gateways-tab .ui-item-title,
+.hermes-gateways-tab .ui-switch-description {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+@container (max-width: 32rem) {
+  .hermes-gateways-tab .ui-item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hermes-gateways-tab .ui-item-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+}

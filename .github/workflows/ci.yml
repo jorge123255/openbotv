@@ -750,7 +750,9 @@ jobs:
 
       - name: Run the Hermes gateway connection E2E test
         if: ${{ !cancelled() }}
-        run: node --import tsx scripts/hermes-gateway-e2e.ts
+        run: |
+          node --import tsx scripts/hermes-gateway-e2e.ts
+          node --import tsx scripts/hermes-gateway-setup-e2e.ts
 
       - name: Run the provider detection E2E test
         if: ${{ !cancelled() }}
@@ -840,6 +842,7 @@ jobs:
             .openbot-build/acp-session-open-timeout-e2e/
             .openbot-build/stream-stall-retry-e2e/
             .openbot-build/hermes-gateway-e2e/
+            .openbot-build/hermes-gateway-setup-e2e/
             .openbot-build/provider-detection-e2e/
             .openbot-build/acp-instructions-once-e2e/
             .openbot-build/grok-steer-e2e/
@@ -1045,6 +1048,7 @@ jobs:
           bun scripts/channel-send-retry-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/local-skill-sharing-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           node --import tsx scripts/migration-preparation-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          node --import tsx scripts/hermes-gateway-setup-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
 
       - name: Upload migration preparation UI evidence
         if: always()
@@ -1101,6 +1105,14 @@ jobs:
         with:
           name: channel-assignment-activity-e2e
           path: .openbot-build/channel-assignment-activity-e2e/
+          retention-days: 3
+
+      - name: Upload Hermes gateway setup fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: hermes-gateway-setup-ui-e2e
+          path: .openbot-build/hermes-gateway-setup-ui-e2e/
           retention-days: 3
 
   all-checks-pass:

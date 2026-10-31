@@ -1,8 +1,9 @@
 # Hermes remote gateway foundation
 
-This is an internal main-process adapter. It is not connected to the application service graph,
-IPC, settings or agent creation. No connection starts when OpenBot starts. The local Hermes
-importer is unchanged.
+This document describes the main-process foundation introduced in fork PR #44. The
+[setup layer](hermes-gateway-setup.md) adds desktop settings, a system-browser password broker and
+profile selection around it. The adapter starts no connection when OpenBot starts. The local
+Hermes importer is unchanged.
 
 ## Pinned protocol
 
@@ -20,7 +21,7 @@ Protocol sources:
 - [`hermes_cli/web_routers/profiles.py`](https://github.com/NousResearch/hermes-agent/blob/f30105a0b4b3d0c1baa6c464189755ccdbc1ac7f/hermes_cli/web_routers/profiles.py):
   the read-only profile list.
 
-The flow is `GET /api/status`, `GET /api/auth/providers`, JSON
+The cookie-based foundation flow is `GET /api/status`, `GET /api/auth/providers`, JSON
 `POST /auth/password-login`, cookie-authenticated `GET /api/auth/me` and `GET /api/profiles`,
 then `POST /api/auth/ws-ticket` and one socket upgrade to `/api/ws`.
 Provider name `basic` does **not** mean HTTP Basic authentication.
@@ -38,7 +39,8 @@ worked. It does not mean that JSON-RPC chat works. No JSON-RPC frame is sent.
   Tailscale HTTP exception is deferred. No VPN, proxy, firewall or DNS setting is changed.
 - Both HTTPS and WSS require certificate validation, even when the process has a TLS bypass
   environment variable. There is no adapter option to disable this check.
-- The HTTP adapter accepts six fixed routes. It follows no redirect, including 307 and 308.
+- The HTTP adapter accepts fixed discovery, login, identity, profile and ticket routes. The setup
+  layer adds the fixed native token exchange route. It follows no redirect, including 307 and 308.
   Credentials cannot move to another origin or proxy prefix. The login response's `next` URL
   is never followed. URL user information, queries, fragments and ambiguous paths are refused.
 - Discovery sends and accepts no session cookie. Authenticated replies accept only host-only,
@@ -106,14 +108,13 @@ adversarial replay against a live server and server-side ticket TTL enforcement 
 A transient refresh 503 currently discards the adapter's local session and requires explicit
 sign-in; cookie-preserving outage recovery is not implemented.
 
-## Next stages
+## Setup and remaining work
 
-1. Add a login and profile-selection flow with sender-validated IPC, localized errors and a
-   credential entry boundary that keeps secrets out of OpenBot's privileged renderer.
-2. Implement the advertised native OAuth PKCE flow through the gateway and system browser.
-   Add explicit cancellation, provider selection, state binding and refresh-rotation tests.
-3. Add profile-scoped JSON-RPC, session identity, streaming, approval handling and reconnect.
-   Preserve uncertain turn/approval state. Never replay these requests on reconnect.
-4. Add an explicit decision for session persistence, remote logout and trusted LAN/VPN HTTP.
+The [desktop setup layer](hermes-gateway-setup.md) implements password-provider sign-in through
+the pinned gateway's native PKCE broker and system browser. It adds explicit consent for address
+and profile metadata. It keeps native credentials in memory and does not start chat or create an
+agent. The direct cookie login remains covered by the foundation fixtures.
 
-These stages are unavailable in this PR. The adapter does not import or create a remote agent.
+OAuth providers, native refresh, profile-scoped JSON-RPC, chat sessions, streaming, approvals,
+automatic reconnect, credential persistence, remote revocation and remote HTTP exceptions remain
+deferred. A reconnect must never replay an uncertain turn or approval.

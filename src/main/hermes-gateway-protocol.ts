@@ -14,11 +14,32 @@ export class HermesGatewayFailure extends Schema.TaggedError<HermesGatewayFailur
     "unsupported-auth",
     "closed",
     "socket-rejected",
+    "cancelled",
+    "consent",
+    "storage",
+    "busy",
+    "profile",
+    "limit",
   ]),
 }) {}
 
 const ShortText = Schema.String.check(Schema.isMaxLength(256));
-export const GatewayStatus = Schema.Struct({ auth_required: Schema.Boolean });
+export const GatewayStatus = Schema.Struct({
+  auth_required: Schema.Boolean,
+  auth_flows: Schema.optionalKey(Schema.Array(Schema.String).check(Schema.isMaxLength(32))),
+});
+export const GatewayNativeTokens = Schema.Struct({
+  access_token: Schema.String.check(
+    Schema.isMinLength(16),
+    Schema.isMaxLength(16_384),
+    Schema.isPattern(/^[\x21-\x7e]+$/u),
+  ),
+  refresh_token: Schema.String.check(Schema.isPattern(/^$|^[\x21-\x7e]{16,16384}$/u)),
+  token_type: Schema.Literal("Bearer"),
+  expires_at: Schema.Finite,
+  provider: ShortText,
+  user_id: ShortText,
+});
 export const GatewayProviders = Schema.Struct({
   providers: Schema.Array(
     Schema.Struct({ name: ShortText, display_name: ShortText, supports_password: Schema.Boolean }),
@@ -27,7 +48,7 @@ export const GatewayProviders = Schema.Struct({
 export const GatewayIdentity = Schema.Struct({
   user_id: ShortText,
   provider: ShortText,
-  expires_at: Schema.Number,
+  expires_at: Schema.Finite,
 });
 export const GatewayProfiles = Schema.Struct({
   profiles: Schema.Array(
@@ -42,7 +63,7 @@ export const GatewayTicket = Schema.Struct({
 
 /** Require an explicit address. Never repair a URL that can hide credentials or change its route. */
 export function gatewayAddress(address: string): URL {
-  if (address.length > 2_048 || /[\s\\?#%]/u.test(address) || !/^https?:\/\//u.test(address))
+  if (address.length > 2_048 || /[^\x21-\x7e]|[\\?#%]/u.test(address) || !/^https?:\/\//u.test(address))
     throw new HermesGatewayFailure({ code: "invalid-address" });
   const url = new URL(address);
   if (url.username || url.password || /(?:^|\/)\.{1,2}(?:\/|$)/u.test(address.slice(address.indexOf("://") + 3)))

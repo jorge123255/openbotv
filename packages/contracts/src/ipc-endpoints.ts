@@ -308,6 +308,12 @@ import type {
   GrokBotSignInStart,
   GrokBotUsageSummary,
 } from "./ipc-grok-bot";
+import type {
+  HermesGatewaySetup,
+  ProbeHermesGatewayInput,
+  SelectHermesGatewayProfileInput,
+  SignInHermesGatewayInput,
+} from "./ipc-hermes-gateways";
 import type { ApplyHermesImportInput, HermesImportPreview } from "./ipc-hermes-import";
 import type { HiddenAgentsSnapshot, SetAgentHiddenInput } from "./ipc-hidden-agents";
 import type { HostAnalytics, HostAnalyticsInput } from "./ipc-host-analytics";
@@ -987,6 +993,14 @@ export const IPC_ENDPOINTS = {
   },
   // Local model servers and ACP agents on this computer. Main makes every request, and a scan sends
   // no key. A joined host is never scanned.
+  hermesGateways: {
+    list: request<undefined, HermesGatewaySetup[]>()("hermes-gateways:list"),
+    probe: request<ProbeHermesGatewayInput, HermesGatewaySetup[]>()("hermes-gateways:probe"),
+    signIn: request<SignInHermesGatewayInput, HermesGatewaySetup[]>()("hermes-gateways:sign-in"),
+    selectProfile: request<SelectHermesGatewayProfileInput, HermesGatewaySetup[]>()("hermes-gateways:select-profile"),
+    disconnect: request<string, HermesGatewaySetup[]>()("hermes-gateways:disconnect"),
+    forget: request<string, HermesGatewaySetup[]>()("hermes-gateways:forget"),
+  },
   providerDetection: {
     scanModelServers: request<undefined, DetectedModelServer[]>()("provider-detection:scan-model-servers"),
     discoverModels: request<DiscoverModelsInput, DiscoverModelsResult>()("provider-detection:discover-models"),
@@ -1936,6 +1950,7 @@ export const IPC_GROUP_PATHS = {
   customProviders: "customProviders",
   ollamaQuota: "ollamaQuota",
   providerDetection: "providerDetection",
+  hermesGateways: "hermesGateways",
   customAgents: "customAgents",
   acpRegistry: "acpRegistry",
   providerAdmin: "providerAdmin",

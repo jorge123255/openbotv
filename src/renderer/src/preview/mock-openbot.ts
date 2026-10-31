@@ -193,6 +193,7 @@ import { createMockBrowser, type MockBrowserOptions } from "./mock-browser";
 import { createMockChannels, type MockChannelSeed } from "./mock-channels";
 import { createMockEvents } from "./mock-events";
 import { createMockGitHubConnector } from "./mock-github-connector";
+import { createMockHermesGateways } from "./mock-hermes-gateways";
 import { createMockHostTimezone } from "./mock-host-timezone";
 import { createMockHostUpdate, type MockHostUpdateOptions } from "./mock-host-update";
 import { createMockHostedServers } from "./mock-hosted-servers";
@@ -1636,6 +1637,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         ),
     },
     // Preview reaches no local server, so a scan finds nothing and a model list is empty.
+    hermesGateways: createMockHermesGateways(),
     providerDetection: {
       scanModelServers: async () => [],
       scanAgents: async () => [],
