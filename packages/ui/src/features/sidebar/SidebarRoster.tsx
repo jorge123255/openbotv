@@ -12,7 +12,6 @@ import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
 import {
   partitionRoster,
-  ROSTER_CATEGORY_HUE,
   ROSTER_FILTERS,
   type RosterEntry,
   type RosterEntrySource,
@@ -72,6 +71,7 @@ function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number 
   const state = () => props.agentStates[rowProps.entry.id];
   const needsYou = () => state()?.kind === "waiting";
   const mood = (): AvatarMood => (rowProps.entry.asleep ? "asleep" : (props.agentMoods[rowProps.entry.id] ?? "idle"));
+  const motion = () => (!rowProps.entry.asleep && props.activeAgentId === rowProps.entry.id ? "always" : "idle");
   const copy = () => {
     const current = agent();
     return current ? rosterCopy(current, state(), t, format) : "";
@@ -109,12 +109,7 @@ function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number 
             <span class="roster-avatar">
               <span class="roster-ring roster-ring-outer" aria-hidden="true" />
               <span class="roster-ring" aria-hidden="true" />
-              <AgentAvatar
-                agent={current()}
-                hue={ROSTER_CATEGORY_HUE[rowProps.entry.category]}
-                mood={mood()}
-                motion="idle"
-              />
+              <AgentAvatar agent={current()} mood={mood()} motion={motion()} />
               <Show when={needsYou()}>
                 <span class="roster-ask" aria-hidden="true">
                   ?

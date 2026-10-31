@@ -53,6 +53,8 @@ export function SidebarAgentRow(rowProps: { agent: AgentProfile; waiting?: boole
   // mood inside an effect, where a memo cannot be created.
   const mood = () => (rowProps.userHidden ? "asleep" : (props.agentMoods[rowProps.agent.id] ?? "idle"));
   const hiddenLabel = () => (rowProps.userHidden ? `${t("sidebar.hidden.title")}. ` : "");
+  const motion = () =>
+    !rowProps.userHidden && props.activeAgentId === rowProps.agent.id && mood() !== "asleep" ? "always" : "idle";
   const draggable = () => layoutMutable() && !props.compact && !rowProps.waiting && !rowProps.userHidden;
   const wait = () => {
     const current = state();
@@ -97,7 +99,7 @@ export function SidebarAgentRow(rowProps: { agent: AgentProfile; waiting?: boole
         }}
       >
         <span class="agent-row-avatar">
-          <AgentAvatar agent={rowProps.agent} motion="idle" mood={mood()} />
+          <AgentAvatar agent={rowProps.agent} motion={motion()} mood={mood()} />
           <SidebarAgentIndicator state={state} />
         </span>
         <span class="agent-row-copy">

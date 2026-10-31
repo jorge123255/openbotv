@@ -2156,9 +2156,10 @@ textarea {
 }
 
 .agent-row-active {
-  --agent-avatar-outline: var(--openbot-bg-surface);
+  --agent-avatar-outline: var(--openbot-transparent);
 
-  background: var(--openbot-bg-surface);
+  background: var(--openbot-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
 }
 
 .agent-row-avatar {
@@ -2432,6 +2433,15 @@ textarea {
   stroke-linejoin: round;
   paint-order: stroke fill;
   vector-effect: non-scaling-stroke;
+}
+
+.agent-avatar-bloub {
+  position: relative;
+}
+
+.agent-avatar-bloub > .agent-avatar-mouth {
+  position: absolute;
+  pointer-events: none;
 }
 
 /* A photo has no silhouette to stroke, so the same ring is an outline on its circle. */

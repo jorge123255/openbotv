@@ -75,12 +75,11 @@
   --openbot-text-dim-on-light: rgba(255, 255, 255, 0.4);
   --openbot-border-on-light: rgba(255, 255, 255, 0.16);
 
-  /* The same hue 210 as the dark accent. The fill keeps its value, so a button looks the same
-     in both themes; text and hover go darker for contrast (accent-text 5.3:1 on the canvas). */
-  --openbot-accent-hover: #006ad4;
-  --openbot-accent-text: #0064c8;
-  --openbot-accent-soft: rgba(0, 124, 247, 0.12);
-  --openbot-accent-strong: rgba(0, 124, 247, 0.26);
+  /* Darker violet text keeps the light theme readable. */
+  --openbot-accent-hover: #6750c4;
+  --openbot-accent-text: #674db9;
+  --openbot-accent-soft: rgba(119, 98, 217, 0.12);
+  --openbot-accent-strong: rgba(119, 98, 217, 0.26);
 
   /* Chart series: darker steps of the dark-palette hues, so each series reads on white.
      Not yet checked with the dataviz palette validator in light mode. */

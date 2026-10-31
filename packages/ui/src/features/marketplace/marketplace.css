@@ -1,5 +1,60 @@
 /* The Marketplace window: agents, apps and skills, and a page for each. Tokens only. */
 
+/* Plugins keeps the catalog and the existing connection pages in one place. */
+.marketplace-plugins {
+  min-width: 0;
+}
+
+.marketplace-plugins .ui-sliding-tabs-content:not([data-selected]) {
+  display: none;
+}
+
+.marketplace-plugin-note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--openbot-space-3);
+  margin: var(--openbot-space-6) 0;
+  padding: var(--openbot-space-4);
+  border: 1px solid var(--openbot-border-strong);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+}
+
+.marketplace-plugin-note > svg,
+.marketplace-plugin-create-option > svg {
+  width: var(--openbot-icon-lg);
+  height: var(--openbot-icon-lg);
+  flex: 0 0 auto;
+  color: var(--openbot-accent-text);
+}
+
+.marketplace-plugin-note p,
+.marketplace-plugin-create-option p {
+  margin: 0;
+}
+
+.marketplace-plugin-create {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--openbot-space-4);
+  margin-bottom: var(--openbot-space-6);
+}
+
+.marketplace-plugin-create-option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-6);
+  border: 1px solid var(--openbot-border-strong);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+}
+
+.marketplace-plugin-create-option .ui-button {
+  margin-top: auto;
+}
+
 /* ---------------------------------------------------------------- window */
 
 /* A page of the window: the window card draws the surface, the line and the corner. */

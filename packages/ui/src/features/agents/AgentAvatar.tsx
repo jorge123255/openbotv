@@ -402,7 +402,47 @@ function GeneratedAvatar(props: {
           {avatar()}
         </Show>
       </AvatarRings>
+      <AvatarMouth mood={props.mood} />
     </span>
+  );
+}
+
+// Bloub draws eyes but has no mouth API. This custom SVG is part of the face,
+// not an icon. It shares the viewBox and optical offset of the generated avatar.
+// Image avatars keep their original artwork and never receive this layer.
+function AvatarMouth(props: { mood: AvatarMood }) {
+  const path = () => {
+    switch (props.mood) {
+      case "failed":
+        return "M -16 41 Q 0 24 16 41";
+      case "working":
+      case "connecting":
+        return "M -12 34 Q 0 39 12 34";
+      case "waiting":
+        return "M -6 34 C -6 24 6 24 6 34 C 6 44 -6 44 -6 34";
+      case "asleep":
+        return "M -10 35 Q 0 38 10 35";
+      case "responded":
+        return "M -21 28 Q 0 58 21 28 Z";
+      default:
+        return "M -18 31 Q 0 51 18 31";
+    }
+  };
+  return (
+    <svg
+      class="agent-avatar-mouth"
+      viewBox={`${-DEMI_VIEWBOX} ${-DEMI_VIEWBOX} ${DEMI_VIEWBOX * 2} ${DEMI_VIEWBOX * 2}`}
+      aria-hidden="true"
+    >
+      <path
+        d={path()}
+        fill="none"
+        stroke="var(--openbot-logo-eye)"
+        stroke-width="6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
   );
 }
 

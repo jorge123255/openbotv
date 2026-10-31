@@ -91,18 +91,18 @@
 
   @variant dark {
     /* biome-ignore lint/suspicious/noDuplicateCustomProperties: Theme variants intentionally share semantic token names. */
-    --openbot-bg-canvas: #1a1a1a;
+    --openbot-bg-canvas: #19191f;
     --openbot-task-card-bg: #1c1c1e;
     --openbot-bg-native-canvas: #141414;
     --openbot-bg-native-sidebar: #141414;
-    --openbot-bg-sidebar: #1a1a1a;
-    --openbot-bg-surface: #212121;
-    --openbot-bg-surface-raised: #242424;
-    --openbot-bg-control: #212121;
-    --openbot-bg-control-active: #2a2a2a;
-    --openbot-bg-overlay: rgba(26, 26, 26, 0.92);
-    --openbot-border: rgba(255, 255, 255, 0.035);
-    --openbot-border-strong: rgba(255, 255, 255, 0.045);
+    --openbot-bg-sidebar: #15151b;
+    --openbot-bg-surface: #23232d;
+    --openbot-bg-surface-raised: #292934;
+    --openbot-bg-control: #23232d;
+    --openbot-bg-control-active: #30303d;
+    --openbot-bg-overlay: rgba(25, 25, 31, 0.92);
+    --openbot-border: rgba(255, 255, 255, 0.065);
+    --openbot-border-strong: rgba(255, 255, 255, 0.11);
     --openbot-text-primary: #ffffff;
     --openbot-text-secondary: #dcdcdc;
     --openbot-text-muted: #979797;
@@ -112,8 +112,8 @@
     --openbot-text-on-status: #07130c;
     --openbot-action: #f0f0f0;
     --openbot-action-foreground: #141414;
-    --openbot-accent: #007cf7;
-    --openbot-accent-text: #42a0ff;
+    --openbot-accent: #7762d9;
+    --openbot-accent-text: #b9a6ff;
     --openbot-logo-production: #d6adf2;
     --openbot-logo-eye: #040007;
     --openbot-success: #31cf76;
