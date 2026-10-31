@@ -8,8 +8,8 @@ import { GROK_BOT_CURSOR_CLIENT_VERSION } from "./grok-bot-gateway";
 /**
  * BotAI sends a turn with `InferenceService.Stream` (`aiserver.v1.InferenceService`) and the sand
  * access token. The JSON fields match `buildStreamRequest` in
- * `source/packages/chat-inference-proto/converters.ts`. A text part with `isFinal` is the end of
- * the part and carries no extra text, as `ProtoPromptExecutor.protoResponseToStreamParts` does.
+ * `source/packages/chat-inference-proto/converters.ts`. An empty text part with `isFinal` ends the part and carries no extra text, as
+ * `ProtoPromptExecutor.protoResponseToStreamParts` does. A final part that still has text is kept.
  *
  * Headers match `createSandInferenceInterceptor` in
  * `source/shared/node/cursor-backend/cursor-inference.ts`, including `x-cursor-checksum` from
@@ -196,9 +196,13 @@ export async function readGrokBotInference(input: {
       const parsed = takeConnectMessages(pending);
       pending = parsed.rest;
       for (const message of parsed.messages) emitStreamMessage(message, input.onEvent);
+      // The end-stream flag finishes the RPC. Waiting for the HTTP body to close left the turn
+      // running after the assistant text had already arrived.
+      if (parsed.ended) return;
     }
   } finally {
     reader.releaseLock();
+    await response.body.cancel().catch(() => undefined);
   }
 }
 
@@ -221,13 +225,14 @@ function emitStreamMessage(message: unknown, onEvent: (event: GrokBotStreamEvent
     onEvent({ kind: "thinking", text: thinking.text });
   }
   const text = isDynamicRecord(message.textPart) ? message.textPart : null;
-  if (!text || text.isFinal === true) return;
-  if (typeof text.text === "string" && text.text.length > 0) onEvent({ kind: "text", text: text.text });
+  if (!text || typeof text.text !== "string" || text.text.length === 0) return;
+  onEvent({ kind: "text", text: text.text });
 }
 
 function takeConnectMessages(bytes: Uint8Array<ArrayBufferLike>): {
   messages: unknown[];
   rest: Uint8Array<ArrayBufferLike>;
+  ended: boolean;
 } {
   const messages: unknown[] = [];
   let offset = 0;
@@ -245,11 +250,11 @@ function takeConnectMessages(bytes: Uint8Array<ArrayBufferLike>): {
       if (isDynamicRecord(json) && json.error != null) {
         throw new Error(`${sourceText("error.provider.grokBotTurnFailed")} (${connectErrorText(json.error)})`);
       }
-      return { messages, rest: new Uint8Array(0) };
+      return { messages, rest: new Uint8Array(0), ended: true };
     }
     messages.push(json);
   }
-  return { messages, rest: bytes.subarray(offset) };
+  return { messages, rest: bytes.subarray(offset), ended: false };
 }
 
 function concatBytes(
@@ -276,7 +281,7 @@ function connectErrorText(error: unknown): string {
 }
 
 /** Connect server-streaming requires an enveloped body: 1 flag byte + 4-byte BE length + JSON. */
-export function encodeConnectEnvelope(message: unknown): Uint8Array<ArrayBuffer> {
+function encodeConnectEnvelope(message: unknown): Uint8Array<ArrayBuffer> {
   const payload = new TextEncoder().encode(JSON.stringify(message));
   const out = new Uint8Array(5 + payload.length);
   new DataView(out.buffer).setUint32(1, payload.length);

@@ -4,9 +4,9 @@ import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { BrowserTab } from "@openbot/contracts/ipc";
-import { redactText } from "@openbot/logging";
+import { redactText, registerSecretValue } from "@openbot/logging";
 import { Deferred, Effect, Fiber } from "effect";
-import { app, BrowserWindow, type WebContents, webContents } from "electron";
+import { app, BrowserWindow, nativeImage, type WebContents, webContents } from "electron";
 import { z } from "zod";
 import type { BrowserOperationError } from "../src/backend/browser-effects";
 import { BrowserHost } from "../src/backend/browser-host";
@@ -195,6 +195,169 @@ async function main(): Promise<void> {
       "Original catalog lacks fill_fields.",
     );
     recordCases("original-deferred-catalog");
+
+    phase("compact-results");
+    const compact = await open();
+    const first = firstField(compact);
+    const target = { kind: "ref", ref: first.ref, revision: compact.snapshot.revision };
+    const compactCounts = commandCounts(compact.contents);
+    const status = await call("type", { tabId: compact.tab.id, target, text: "compact-one" });
+    const statusData = z.object({ tabId: z.string(), revision: z.number(), url: z.string() }).parse(json(status));
+    assert(status.success && statusData.revision === compact.snapshot.revision, "Input did not keep the last refs.");
+    assert(compactCounts.snapshot() === 0, "Default input read a full snapshot.");
+    const repeated = await call("type", { tabId: compact.tab.id, target, text: "compact-two" });
+    assert(repeated.success && compactCounts.snapshot() === 0, "A second input could not use the inspected ref.");
+    const explicit = await call("type", { tabId: compact.tab.id, target, text: "compact-three", snapshot: true });
+    const explicitSnapshot = snapshotSchema.parse(json(explicit));
+    assert(
+      explicit.success && explicitSnapshot.revision > compact.snapshot.revision,
+      "Opt-in snapshot did not refresh refs.",
+    );
+    assert(compactCounts.snapshot() === 1, "Opt-in snapshot was not read exactly once.");
+    compactCounts.restore();
+    await drain(compact.contents);
+    assert(
+      recorded(compact.id).every((event) => event.trusted && !event.submitted),
+      "Compact input was untrusted or submitted.",
+    );
+    const toolText = (result: DynamicToolResult) =>
+      result.contentItems.map((item) => (item.type === "inputText" ? item.text : "")).join("\n");
+    const statusBytes = Buffer.byteLength(toolText(status));
+    const fullResultBytes = Buffer.byteLength(toolText(explicit));
+    assert(statusBytes < fullResultBytes / 2, "Default action text did not shrink against an explicit snapshot.");
+    const structured = await runCauseEffect(host.snapshot(compact.tab.id));
+    const lines = await call("snapshot", { tabId: compact.tab.id, image: "never" });
+    z.object({ elements: z.array(z.string()).min(8) }).parse(JSON.parse(toolText(lines)));
+    const lineSnapshotBytes = Buffer.byteLength(toolText(lines));
+    const structuredSnapshotBytes = Buffer.byteLength(JSON.stringify(structured));
+    assert(lineSnapshotBytes < structuredSnapshotBytes, "Element lines did not shrink the same fixture snapshot.");
+    const current = snapshotSchema.parse(json(lines));
+    const currentRef = current.elements.find((element) => element.name === "Field 1")?.ref;
+    assert(currentRef, "Current fixture ref missing.");
+    let currentTarget = { kind: "ref", ref: currentRef, revision: current.revision };
+    const syntheticSecret = "synthetic-browser-status-secret-729104";
+    registerSecretValue(syntheticSecret);
+    await compact.contents.executeJavaScript(
+      `document.title = 'Status ${syntheticSecret}'; document.querySelector('#f1').setAttribute('aria-label', '${syntheticSecret}')`,
+      false,
+    );
+    const metadataSnapshot = await runCauseEffect(host.snapshot(compact.tab.id));
+    const metadataRef = metadataSnapshot.elements.find((element) => element.value === "compact-three")?.ref;
+    assert(metadataRef, "Changed metadata target missing from fresh snapshot.");
+    const metadataStatus = await call("type", {
+      tabId: compact.tab.id,
+      target: { kind: "ref", ref: metadataRef, revision: metadataSnapshot.revision },
+      text: "metadata-check",
+    });
+    assert(metadataStatus.success, `Status metadata input failed: ${redactText(toolText(metadataStatus))}`);
+    assert(
+      metadataStatus.success && !toolText(metadataStatus).includes(syntheticSecret),
+      "Status metadata exposed a registered secret.",
+    );
+    await compact.contents.executeJavaScript(
+      "document.title = ''; document.querySelector('#f1').removeAttribute('aria-label')",
+      false,
+    );
+    const restored = await runCauseEffect(host.snapshot(compact.tab.id));
+    const restoredRef = restored.elements.find((element) => element.name === "Field 1")?.ref;
+    assert(restoredRef, "Restored fixture target missing.");
+    currentTarget = { kind: "ref", ref: restoredRef, revision: restored.revision };
+    await compact.contents.executeJavaScript(
+      `console.error('compact-status-marker password=${syntheticSecret}')`,
+      false,
+    );
+    const errorStatus = await call("type", { tabId: compact.tab.id, target: currentTarget, text: "compact-four" });
+    assert(
+      errorStatus.success && toolText(errorStatus).includes("compact-status-marker"),
+      "Status missed a new error.",
+    );
+    assert(!toolText(errorStatus).includes(syntheticSecret), "Status exposed a registered secret.");
+    const laterStatus = await call("type", { tabId: compact.tab.id, target: currentTarget, text: "compact-five" });
+    assert(
+      laterStatus.success && !toolText(laterStatus).includes("compact-status-marker"),
+      "Status repeated an error.",
+    );
+    const firstHistory = await call("snapshot", { tabId: compact.tab.id, image: "never" });
+    const nextHistory = await call("snapshot", { tabId: compact.tab.id, image: "never" });
+    assert(toolText(firstHistory).includes("compact-status-marker"), "Status consumed the snapshot's error history.");
+    assert(!toolText(nextHistory).includes("compact-status-marker"), "A second snapshot repeated delivered history.");
+    assert(!toolText(firstHistory).includes(syntheticSecret), "Snapshot history exposed a registered secret.");
+    await compact.contents.executeJavaScript(
+      "(() => { const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 160; canvas.style.display = 'block'; document.body.appendChild(canvas); canvas.getContext('2d').fillRect(0, 0, 100, 100); })()",
+      false,
+    );
+    const visual = await call("snapshot", { tabId: compact.tab.id, image: "auto" });
+    const reusedImage = await call("snapshot", { tabId: compact.tab.id, image: "auto" });
+    const forcedImage = await call("snapshot", { tabId: compact.tab.id, image: "always" });
+    const imageOf = (result: DynamicToolResult) => {
+      const image = result.contentItems.find((item) => item.type === "inputImage");
+      assert(image?.type === "inputImage", "Expected fixture image missing.");
+      return nativeImage.createFromDataURL(image.imageUrl).getSize();
+    };
+    assert(
+      visual.success && visual.contentItems.some((item) => item.type === "inputImage"),
+      "Visual page lacked an image.",
+    );
+    assert(
+      reusedImage.success && reusedImage.contentItems.every((item) => item.type !== "inputImage"),
+      "Auto snapshot repeated a current full-page image.",
+    );
+    assert(
+      forcedImage.success && forcedImage.contentItems.some((item) => item.type === "inputImage"),
+      "Explicit image did not override reuse.",
+    );
+    const forced = snapshotSchema.parse(json(forcedImage));
+    const clipRef = forced.elements.find((element) => element.name === "Field 1")?.ref;
+    assert(clipRef, "Clip target missing.");
+    const clippedImage = await call("screenshot", { tabId: compact.tab.id, ref: clipRef });
+    const pageSize = imageOf(forcedImage);
+    const clipSize = imageOf(clippedImage);
+    assert(
+      clippedImage.success && clipSize.width < pageSize.width / 2 && clipSize.height < pageSize.height / 2,
+      "Element image was not clipped.",
+    );
+    const afterClip = await call("snapshot", { tabId: compact.tab.id, image: "auto" });
+    assert(
+      afterClip.contentItems.some((item) => item.type === "inputImage"),
+      "Element clip was reused as a full-page image.",
+    );
+    const invalidClip = await call("screenshot", { tabId: compact.tab.id, ref: "unknown-ref" });
+    assert(
+      !invalidClip.success && invalidClip.contentItems.every((item) => item.type !== "inputImage"),
+      "Unknown ref fell back to a full-page image.",
+    );
+    await compact.contents.executeJavaScript("console.warn('compact-image-history-marker')", false);
+    const capturePage = compact.contents.capturePage.bind(compact.contents);
+    compact.contents.capturePage = () => Promise.reject(new Error("Synthetic image capture failure."));
+    try {
+      const failedImage = await call("snapshot", { tabId: compact.tab.id, image: "always" });
+      assert(!failedImage.success, "Synthetic image failure was not reported.");
+    } finally {
+      compact.contents.capturePage = capturePage;
+    }
+    const retainedHistory = await call("snapshot", { tabId: compact.tab.id, image: "never" });
+    assert(
+      toolText(retainedHistory).includes("compact-image-history-marker"),
+      "Failed image capture consumed undelivered history.",
+    );
+    const compactResults = { statusBytes, fullResultBytes, lineSnapshotBytes, structuredSnapshotBytes };
+    recordCases(
+      "compact-status-no-snapshot",
+      "inspected-refs-reused",
+      "explicit-snapshot-refreshes-refs",
+      "compact-element-lines",
+      "new-errors-only",
+      "compact-errors-secret-redaction",
+    );
+    recordCases("compact-metadata-secret-redaction");
+    recordCases(
+      "current-image-reuse",
+      "explicit-image-override",
+      "element-image-bounds",
+      "unknown-image-ref-refused",
+      "failed-image-retains-history",
+    );
+    await close(compact.tab.id);
 
     phase("ordinary-form");
     const ordinary = await open();
@@ -535,6 +698,7 @@ async function main(): Promise<void> {
         chromium: process.versions.chrome,
       },
       cases,
+      compactResults,
       warmupPairs: 3,
       measuredPairs: samples.length,
       samples,

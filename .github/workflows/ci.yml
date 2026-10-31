@@ -176,14 +176,34 @@ jobs:
               sudo apt-get update
               sudo apt-get install --no-install-recommends --yes xvfb
 
+      - name: Run compact browser results and safe form E2E
+        run: xvfb-run -a bun scripts/browser-fill-fields-e2e.ts
+
+      - name: Run browser card protection E2E
+        if: ${{ !cancelled() }}
+        run: xvfb-run -a bun scripts/browser-card-smoke.ts
+
       - name: Run the browser smoke test
+        if: ${{ !cancelled() }}
         run: xvfb-run -a bun run test:browser
 
       - name: Run the agent browser session E2E
+        if: ${{ !cancelled() }}
         run: xvfb-run -a bun run test:browser-agent-session
 
       - name: Run the browser steps E2E
+        if: ${{ !cancelled() }}
         run: xvfb-run -a bun run test:browser-steps
+
+      - name: Upload browser safety reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: browser-safety-reports
+          path: |
+            .openbot-build/browser-fill-fields-e2e/
+            .openbot-build/browser-card-smoke/
+          if-no-files-found: ignore
 
   tests-desktop:
     # ubuntu-latest gives 4 vCPUs, so vitest runs 3 workers and the job is

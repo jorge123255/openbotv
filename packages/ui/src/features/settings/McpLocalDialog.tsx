@@ -48,20 +48,22 @@ export function McpLocalDialog(props: McpLocalDialogProps) {
     >
       <div class="mcp-connect-card">
         <div class="mcp-connect-row">
-          <h3 class="mcp-local-heading">{t("mcp.local.stepsTitle", { name: props.subject.name })}</h3>
-          <Show when={docs()}>
-            {(page) => (
-              <Button
-                class="mcp-connect-docs"
-                type="button"
-                variant="link"
-                onClick={() => props.onOpenUrl?.(page().url)}
-              >
-                {page().label}
-                <ExternalLink aria-hidden="true" />
-              </Button>
-            )}
-          </Show>
+          <div class="mcp-local-heading-row">
+            <h3 class="mcp-local-heading">{t("mcp.local.stepsTitle", { name: props.subject.name })}</h3>
+            <Show when={docs()}>
+              {(page) => (
+                <Button
+                  class="mcp-connect-docs"
+                  type="button"
+                  variant="link"
+                  onClick={() => props.onOpenUrl?.(page().url)}
+                >
+                  {page().label}
+                  <ExternalLink aria-hidden="true" />
+                </Button>
+              )}
+            </Show>
+          </div>
           <ol class="mcp-local-steps">
             <For each={props.flow.steps}>{(step) => <li>{step}</li>}</For>
           </ol>

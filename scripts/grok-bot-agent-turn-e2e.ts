@@ -38,6 +38,10 @@ const report = {
   tool: false,
   image: false,
   transcript: false,
+  heldOpen: false,
+  failedHttp: false,
+  failedAuth: false,
+  stopped: false,
 };
 
 function readBody(request: IncomingMessage): Promise<string> {
@@ -63,6 +67,7 @@ let createCalls = 0;
 const streamBodies: string[] = [];
 const streamAuth: string[] = [];
 const streamChecksums: string[] = [];
+const heldResponses: ServerResponse[] = [];
 
 const server = createServer((request, response: ServerResponse) => {
   void (async () => {
@@ -117,6 +122,34 @@ const server = createServer((request, response: ServerResponse) => {
       assert.equal(request.headers["connect-protocol-version"], "1");
       assert.equal(request.headers["x-cursor-client-type"], "sand");
       assert.equal(request.headers["content-type"], "application/connect+json");
+      if (body.includes("status-415")) {
+        response.writeHead(415, { "content-type": "text/plain" });
+        response.end("Unsupported Media Type");
+        return;
+      }
+      if (body.includes("status-auth")) {
+        response.writeHead(200, { "content-type": "application/connect+json" });
+        response.end(
+          Buffer.concat([
+            connectFrame({ textPart: { text: "partial", isFinal: false } }),
+            connectFrame({ error: { code: "unauthenticated", message: "Error" } }),
+          ]),
+        );
+        return;
+      }
+      if (body.includes("hold-open")) {
+        response.writeHead(200, { "content-type": "application/connect+json" });
+        response.write(
+          Buffer.concat([connectFrame({ textPart: { text: "Held reply", isFinal: true } }), connectFrame({}, 0x02)]),
+        );
+        heldResponses.push(response);
+        return;
+      }
+      if (body.includes("status-hang")) {
+        response.writeHead(200, { "content-type": "application/connect+json" });
+        heldResponses.push(response);
+        return;
+      }
       const toolFollowUp = body.includes("toolContent");
       const toolRequest = body.includes("use-tool") && !toolFollowUp;
       response.writeHead(200, { "content-type": "application/connect+json" });
@@ -389,6 +422,84 @@ try {
   assert.equal((await readFile(machinePath, "utf8")).trim(), MACHINE);
   report.createdOnce = createCalls === 1;
 
+  const terminalNotes: Array<{ method: string; params: unknown }> = [];
+  client.on("notification", (notification) => terminalNotes.push(notification));
+  const waitForTerminal = (text: string, status: string) =>
+    new Promise<void>((ready, reject) => {
+      const timer = setTimeout(() => reject(new Error(`${text} turn did not finish`)), 2_000);
+      const done = () => {
+        const completed = terminalNotes.find((note) => {
+          if (note.method !== "turn/completed" || !isDynamicRecord(note.params)) return false;
+          const turnRecord = note.params.turn;
+          if (!isDynamicRecord(turnRecord) || turnRecord.status !== status) return false;
+          const error = turnRecord.error;
+          if (status === "failed") {
+            return isDynamicRecord(error) && typeof error.message === "string" && error.message.includes(text);
+          }
+          return true;
+        });
+        if (!completed) return;
+        clearTimeout(timer);
+        client.off("notification", done);
+        ready();
+      };
+      client.on("notification", done);
+      done();
+    });
+
+  await Effect.runPromise(
+    client.request(
+      "turn/start",
+      { threadId: started.thread.id, model: "default", input: [{ type: "text", text: "status-415" }] },
+      decodeTurnResponse,
+    ),
+  );
+  await waitForTerminal("HTTP 415", "failed");
+  report.failedHttp = true;
+
+  await Effect.runPromise(
+    client.request(
+      "turn/start",
+      { threadId: started.thread.id, model: "default", input: [{ type: "text", text: "status-auth" }] },
+      decodeTurnResponse,
+    ),
+  );
+  await waitForTerminal("unauthenticated: Error", "failed");
+  report.failedAuth = true;
+
+  const heldBefore = heldResponses.length;
+  await Effect.runPromise(
+    client.request(
+      "turn/start",
+      { threadId: started.thread.id, model: "default", input: [{ type: "text", text: "hold-open" }] },
+      decodeTurnResponse,
+    ),
+  );
+  await waitForTerminal("hold-open", "completed");
+  const heldText = terminalNotes
+    .filter((note) => note.method === "item/agentMessage/delta" || note.method === "item/completed")
+    .map((note) => {
+      if (!isDynamicRecord(note.params)) return "";
+      if (typeof note.params.delta === "string") return note.params.delta;
+      const item = note.params.item;
+      return isDynamicRecord(item) && typeof item.text === "string" ? item.text : "";
+    })
+    .join("");
+  const held = heldResponses[heldBefore];
+  report.heldOpen = heldText.includes("Held reply") && held !== undefined;
+  assert.equal(report.heldOpen, true);
+
+  await Effect.runPromise(
+    client.request(
+      "turn/start",
+      { threadId: started.thread.id, model: "default", input: [{ type: "text", text: "status-hang" }] },
+      decodeTurnResponse,
+    ),
+  );
+  await Effect.runPromise(client.stop());
+  await waitForTerminal("status-hang", "interrupted");
+  report.stopped = true;
+
   const limits = await Effect.runPromise(again.request("account/rateLimits/read", {}, (value) => value));
   const primary = isDynamicRecord(limits) && isDynamicRecord(limits.rateLimits) ? limits.rateLimits.primary : undefined;
   report.usage = isDynamicRecord(primary) && primary.usedPercent === 41;
@@ -397,6 +508,9 @@ try {
   await Effect.runPromise(again.stop());
   report.passed = true;
 } finally {
+  for (const heldResponse of heldResponses) {
+    if (!heldResponse.writableEnded) heldResponse.end();
+  }
   await new Promise<void>((ready, reject) => server.close((error) => (error ? reject(error) : ready())));
   mkdirSync(OUT, { recursive: true });
   writeFileSync(join(OUT, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

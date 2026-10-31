@@ -1,6 +1,7 @@
 import { TRANSLATED_LOCALES, type TranslatedLocale } from "@openbot/i18n";
 import { installPointerFocusGuard } from "@openbot/ui/pointer-focus";
 import type { Preview } from "storybook-solidjs-vite";
+import { mount as mountSolidStory } from "storybook-solidjs-vite/renderer/solid-next";
 import { StaticI18nProvider } from "../src/renderer/src/i18n-context";
 import "../src/renderer/src/styles.css";
 import "./preview.css";
@@ -12,6 +13,20 @@ function isTranslatedLocale(value: unknown): value is TranslatedLocale {
 }
 
 const preview: Preview = {
+  // The Solid 2 renderer queues args and globals before it calls renderToCanvas.
+  // Let that update commit before a story first reads or spreads its props.
+  // Keep the framework's mount so controls, remounts and cleanup still use its store.
+  mount: (context) => {
+    const renderToCanvas = context.renderToCanvas;
+    return mountSolidStory(
+      Object.assign(context, {
+        renderToCanvas: async () => {
+          await Promise.resolve();
+          await renderToCanvas();
+        },
+      }),
+    );
+  },
   // The toolbar switches every story's text, so a translation can be read in its real layout.
   globalTypes: {
     locale: {

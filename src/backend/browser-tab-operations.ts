@@ -1,4 +1,5 @@
 import type { BrowserDiagnosticEntry, BrowserSnapshot, BrowserTarget } from "@openbot/contracts/ipc";
+import { redactText } from "@openbot/logging";
 import { Context, Deferred, Effect, Fiber } from "effect";
 import type { BrowserPageStatus, SnapshotReadResult } from "./browser-cdp";
 import { type BrowserOperationError, browserFailure, browserSync } from "./browser-effects";
@@ -198,8 +199,8 @@ export const readActionStatus: ActionResultReader<BrowserActionStatus> = Effect.
     // A page can put a typed card value in an error message, as in a snapshot.
     const errors = tab.diagnostics.takeStatusErrors().map((entry) => ({
       ...entry,
-      message: tab.engine.scrubText(entry.message),
-      ...(entry.url === undefined ? {} : { url: tab.engine.scrubText(entry.url) }),
+      message: redactText(tab.engine.scrubText(entry.message)),
+      ...(entry.url === undefined ? {} : { url: redactText(tab.engine.scrubText(entry.url)) }),
     }));
     return { tabId: tab.id, revision: tab.revision, ...page, ...(errors.length > 0 ? { errors } : {}) };
   },
