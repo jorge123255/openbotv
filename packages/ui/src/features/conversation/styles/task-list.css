@@ -396,6 +396,89 @@
   --task-list-play-state: paused;
 }
 
+/*
+ * The Tasks card in the comment flow. It is as wide as an agent bubble, opaque, and larger than the
+ * compact list. The open card names the progress in a footer, so the header does not show a fraction.
+ */
+.task-list-plan {
+  --task-list-glyph: var(--openbot-icon-md);
+
+  width: min(100%, 720px);
+  background: var(--openbot-task-card-bg);
+}
+
+.task-list-plan .task-list-header {
+  padding: var(--openbot-space-4) var(--openbot-space-6);
+  font-size: var(--openbot-text-lg);
+}
+
+.task-list-plan .task-list-title {
+  font-size: var(--openbot-text-xl);
+  line-height: var(--openbot-leading-xl);
+}
+
+.task-list-plan .task-list-items {
+  padding-inline: var(--openbot-space-6);
+}
+
+.task-list-plan[data-open] .task-list-items {
+  padding-bottom: 0;
+}
+
+.task-list-plan .task-list-item {
+  gap: var(--openbot-space-4);
+  padding-block: var(--openbot-space-2);
+}
+
+.task-list-plan .task-list-item-label {
+  font-size: var(--openbot-text-lg);
+  line-height: var(--openbot-leading-lg);
+}
+
+.task-list-plan .task-list-item-mark {
+  height: var(--openbot-leading-lg);
+}
+
+.task-list-plan[data-open] .task-list-count[data-kind="fraction"] {
+  display: none;
+}
+
+/* The grid child. The list and the footer collapse together. */
+.task-list-panel-body {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.task-list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3) var(--openbot-space-6) var(--openbot-space-6);
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-md);
+  line-height: var(--openbot-leading-md);
+}
+
+.task-list-working {
+  flex: 0 0 auto;
+  color: var(--openbot-success-text);
+  font-size: var(--openbot-text-lg);
+  font-weight: var(--openbot-weight-semibold);
+  line-height: var(--openbot-leading-lg);
+}
+
+/* A channel comment has a face. The card starts where the bubble starts. */
+.chat-plan-row-authored {
+  --message-author-face-size: var(--openbot-space-8);
+  --message-author-column: calc(var(--message-author-face-size) + var(--openbot-space-1));
+}
+
+.chat-plan-row-authored .task-list-plan {
+  width: min(720px, calc(100% - var(--message-author-column) - var(--openbot-space-2)));
+  margin-inline-start: calc(var(--message-author-column) + var(--openbot-space-2));
+}
+
 @media (prefers-reduced-motion: reduce) {
   .task-list-donut-value,
   .task-list-chevron,

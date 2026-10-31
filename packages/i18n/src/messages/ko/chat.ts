@@ -93,6 +93,7 @@ export const messages = {
   "chat.trace.expand": "{name}의 단계 보기",
   "chat.awaiting.title": "답변 대기 중",
   "chat.awaiting.subtasks": "하위 작업 대기 중",
+  "chat.awaiting.subtasksLabel": "하위 작업",
   "chat.awaiting.count": "{done}/{total}",
   "chat.awaiting.summary": "답변 {total}개 중 {done}개 도착",
   "chat.awaiting.state.asked": "요청함",

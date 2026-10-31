@@ -407,6 +407,7 @@ export function ConversationComposer() {
                 <AwaitingReplies
                   items={awaitingReplies()}
                   title={channel ? t("chat.awaiting.subtasks") : undefined}
+                  countLabel={channel ? t("chat.awaiting.subtasksLabel") : undefined}
                   onDismiss={dismissAwaitingReplies}
                   onOpenAgent={props.onSelectAgent}
                   // A channel's rows are its sub-tasks, not queued replies.

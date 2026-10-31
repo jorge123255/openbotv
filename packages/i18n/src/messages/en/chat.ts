@@ -92,6 +92,7 @@ export const messages = defineMessages("chat", {
   "chat.trace.expand": "Show the steps of {name}",
   "chat.awaiting.title": "Waiting for replies",
   "chat.awaiting.subtasks": "Waiting for sub-tasks",
+  "chat.awaiting.subtasksLabel": "Sub-tasks",
   "chat.awaiting.count": "{done}/{total}",
   "chat.awaiting.summary": "{done} of {total} replies in",
   "chat.awaiting.state.asked": "Asked",

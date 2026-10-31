@@ -905,12 +905,13 @@ export function ConversationTimeline() {
                 }
                 if (untrack(() => initialMessage.kind === "plan")) {
                   // A plan has no bubble, reactions or time: it is the agent's live checklist.
+                  // The card sits under the comment, on the same line as the bubble.
                   const plan = () => message()?.plan ?? initialMessage.plan;
                   return (
                     <div
                       data-index={virtualRow.index}
                       ref={messageVirtualizer.measureElement}
-                      class="virtual-chat-row"
+                      class={["virtual-chat-row", "chat-plan-row", channel ? "chat-plan-row-authored" : undefined]}
                       style={{
                         transform: messageVirtualizer.isVirtualized()
                           ? `translateY(${virtualRow.start - messageVirtualizer.scrollMargin()}px)`

@@ -485,8 +485,8 @@
   background-size: 300% 100%;
   background-clip: text;
   color: transparent;
-  font-size: var(--openbot-text-sm);
-  line-height: 20px;
+  font-size: var(--openbot-text-md);
+  line-height: var(--openbot-leading-lg);
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;

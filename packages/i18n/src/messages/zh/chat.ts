@@ -93,6 +93,7 @@ export const messages = {
   "chat.trace.expand": "显示 {name} 的步骤",
   "chat.awaiting.title": "等待回复",
   "chat.awaiting.subtasks": "等待子任务",
+  "chat.awaiting.subtasksLabel": "子任务",
   "chat.awaiting.count": "{done}/{total}",
   "chat.awaiting.summary": "已收到 {done} / {total} 个回复",
   "chat.awaiting.state.asked": "已询问",
