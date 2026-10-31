@@ -86,6 +86,7 @@ import { marketplaceAgentIpcHandlers } from "./ipc/marketplace-agent-handlers";
 import { mcpServerIpcHandlers } from "./ipc/mcp-server-handlers";
 import { memoryIpcHandlers } from "./ipc/memory-handlers";
 import { messagingIpcHandlers } from "./ipc/messaging-handlers";
+import { migrationPreparationIpcHandlers } from "./ipc/migration-preparation-handlers";
 import { notificationIpcHandlers } from "./ipc/notification-handlers";
 import { ollamaQuotaIpcHandlers } from "./ipc/ollama-quota-handlers";
 import { onePasswordConnectorIpcHandlers } from "./ipc/onepassword-connector-handlers";
@@ -633,6 +634,7 @@ function registerIpcHandlers({
   grokBotAccount,
   hermesImport,
   instanceTransfer,
+  migrationPreparation,
   voice,
   speech,
   elevenLabsSpeech,
@@ -747,6 +749,7 @@ function registerIpcHandlers({
         ? join(process.resourcesPath, "agent-import")
         : resolve(__dirname, "../../resources/agent-import"),
     }),
+    ...migrationPreparationIpcHandlers({ migrationPreparation }),
     ...instanceTransferIpcHandlers({
       instanceTransfer,
       remoteServers,

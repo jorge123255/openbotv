@@ -198,6 +198,7 @@ import { createMockHostUpdate, type MockHostUpdateOptions } from "./mock-host-up
 import { createMockHostedServers } from "./mock-hosted-servers";
 import { createMockLicense } from "./mock-license";
 import { createMockMessaging } from "./mock-messaging";
+import { createMockMigrationPreparation } from "./mock-migration-preparation";
 import { createMockOnePasswordConnector } from "./mock-onepassword-connector";
 import { createMockProviderRuntimes, type MockProviderRuntimeOptions } from "./mock-provider-runtimes";
 import { mockRoutineCalendar } from "./mock-routine-calendar";
@@ -3175,6 +3176,19 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       },
       discardHermes: async () => undefined,
     },
+    migrationPreparation: createMockMigrationPreparation(() => {
+      const conversations = [...Object.values(snapshots), ...taskConversations.values()];
+      const messages = conversations.flatMap((conversation) => conversation.messages);
+      return {
+        agents: agents.length,
+        conversations: conversations.filter((conversation) => conversation.threadId !== null).length,
+        messages: messages.length,
+        attachments: new Set(
+          messages.flatMap((message) => message.attachments?.map((attachment) => attachment.id) ?? []),
+        ).size,
+        routines: [...routines.values()].reduce((total, records) => total + records.length, 0),
+      };
+    }),
     instanceTransfer: {
       summary: async () =>
         clone({

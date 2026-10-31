@@ -253,6 +253,7 @@ import {
   decodeMessagingOverviewReply,
   decodeTelegramOverviewReply,
 } from "./messaging-decoding";
+import { decodeMigrationPreparationStateForRenderer } from "./migration-preparation-decoding";
 import { decodeOllamaQuota } from "./ollama-quota-decoding";
 import { decodeProviderRuntimeSnapshot } from "./provider-runtime";
 import { decodeRoutineFlowCanvas, decodeRoutineFlowLink } from "./routine-flow-decoding";
@@ -1098,6 +1099,11 @@ const openbotApi: OpenBotDesktopApi = {
     openComputer: decodeGrokBotComputer,
     handBackComputer: decodeGrokBotComputer,
     account: decodeGrokBotAccountEvent,
+  }),
+  migrationPreparation: bridgeGroup(IPC_ENDPOINTS.migrationPreparation, {
+    getState: decodeMigrationPreparationStateForRenderer,
+    prepare: decodeMigrationPreparationStateForRenderer,
+    cancel: decodeMigrationPreparationStateForRenderer,
   }),
   instanceTransfer: bridgeGroup(IPC_ENDPOINTS.instanceTransfer, {
     summary: decodeInstanceTransferSummary,

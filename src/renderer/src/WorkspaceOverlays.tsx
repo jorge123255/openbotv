@@ -41,6 +41,7 @@ import {
   hostedUpsellRoutineCreated,
 } from "./features/servers/hosted-server-upsell-controller";
 import { mcpToolRuntimeNote } from "./features/servers/mcp-servers";
+import { migrationPreparationHostConfirmed } from "./features/servers/migration-preparation-platform";
 import { useServerActions } from "./features/servers/server-actions";
 import { remoteMcpSignIn, serverCanAdminister, serverSupportsCapability } from "./features/servers/server-capabilities";
 import { useServerSelection } from "./features/servers/server-selection";
@@ -821,6 +822,11 @@ function ServerSettings() {
               : serverCanAdminister(server(), "instance-transfer-v1")
                 ? {}
                 : undefined
+          }
+          migrationPreparation={
+            server().kind === "local" && migrationPreparationHostConfirmed(platform)
+              ? { calls: appPort().migrationPreparation }
+              : undefined
           }
           // The feed listens on this computer, so a calendar app on another one cannot read it.
           routineFeed={

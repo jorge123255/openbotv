@@ -249,6 +249,8 @@ import {
 import { McpOAuthStore } from "./mcp-oauth-store";
 import { MemoryReviewPreferenceStore } from "./memory-review-preference-store";
 import { MessagingCredentialStore } from "./messaging-credential-store";
+import { MigrationPreparationService } from "./migration-preparation";
+import { readMigrationPreparationInventory } from "./migration-preparation-inventory";
 import { NotificationPreferenceStore } from "./notification-preference-store";
 import { OllamaQuotaService } from "./ollama-quota-service";
 import { OnePasswordConnectorService } from "./onepassword-connector-service";
@@ -620,6 +622,7 @@ export interface ApplicationServices {
   grokBotAccount: GrokBotAccountService;
   hermesImport: HermesImportService;
   instanceTransfer: InstanceTransferService;
+  migrationPreparation: MigrationPreparationService;
   voice: VoiceTranscriptionService;
   speech: VoiceSpeechService;
   elevenLabsSpeech: VoiceElevenLabsSpeech;
@@ -2306,6 +2309,11 @@ export async function createApplicationServices({
     join(app.getPath("userData"), HERMES_IMPORT_LINKS_FILE),
     () => serverTimezone.effective(),
   );
+  // No IO on startup. Preparation observes existing projection counts only when requested.
+  const migrationPreparation = new MigrationPreparationService({
+    userDataPath: app.getPath("userData"),
+    readInventory: () => readMigrationPreparationInventory(() => store.database.connection),
+  });
   // The same owners the Settings screens write through, so an import has their checks and restarts.
   const instanceTransfer = new InstanceTransferService({
     agents: service,
@@ -3309,6 +3317,7 @@ export async function createApplicationServices({
     grokBotAccount,
     hermesImport,
     instanceTransfer,
+    migrationPreparation,
     voice,
     speech,
     elevenLabsSpeech,

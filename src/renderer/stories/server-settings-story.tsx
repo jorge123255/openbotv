@@ -1,8 +1,9 @@
-import type { HostReleaseStatus, HostUpdateStatus } from "@openbot/contracts/ipc";
-import { onSettled, snapshot } from "solid-js";
+import type { HostReleaseStatus, HostUpdateStatus, OpenBotDesktopApi } from "@openbot/contracts/ipc";
+import { createMemo, onSettled, snapshot } from "solid-js";
 import { fn } from "storybook/test";
 import { ServerSettingsModal, type ServerSettingsModalProps } from "../src/features/servers/ServerSettingsModal";
 import { STORY_HOST_STATUS, STORY_INVITES, STORY_PRESENCE, STORY_SERVERS } from "../src/preview/fixtures";
+import { injectedMigrationPreparationCalls } from "./migration-preparation-calls";
 import { createMockOpenBot } from "./mock-openbot";
 import { SettingsPageStory } from "./settings-page-story";
 
@@ -51,6 +52,7 @@ export function ServerSettingsStory(props: {
   settings: Omit<ServerSettingsModalProps, "page">;
   hostUpdate?: HostUpdateStatus;
   hostRelease?: HostReleaseStatus;
+  migrationPreparationCalls?: OpenBotDesktopApi["migrationPreparation"];
 }) {
   const previous = window.openbot;
   // Storybook passes the args as a store, and the mock copies its options with `structuredClone`.
@@ -61,13 +63,22 @@ export function ServerSettingsStory(props: {
     ...(props.hostRelease ? { hostRelease: props.hostRelease } : {}),
   });
   window.openbot = mock.api;
+  const migrationPreparationCalls = props.migrationPreparationCalls ?? injectedMigrationPreparationCalls();
+  const migrationPreparation = createMemo(() => {
+    const options = props.settings.migrationPreparation;
+    return options
+      ? { ...options, ...(migrationPreparationCalls ? { calls: migrationPreparationCalls } : {}) }
+      : undefined;
+  });
   onSettled(() => () => {
     mock.dispose();
     window.openbot = previous;
   });
   return (
     <SettingsPageStory title="Server settings">
-      {(page) => <ServerSettingsModal {...props.settings} page={page()} />}
+      {(page) => (
+        <ServerSettingsModal {...props.settings} migrationPreparation={migrationPreparation()} page={page()} />
+      )}
     </SettingsPageStory>
   );
 }
