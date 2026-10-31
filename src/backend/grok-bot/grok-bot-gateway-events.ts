@@ -2,14 +2,14 @@ import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import type { GrokBotGatewaySession } from "./grok-bot-account";
 
 /** BotAI `GATEWAY_EVENTS_PATH` in `source/shared/gateway-wire.ts`. */
-export const GROK_BOT_EVENTS_PATH = "/events";
+const GROK_BOT_EVENTS_PATH = "/events";
 /** BotAI `SSE_STALL_TIMEOUT_MS`. A quiet stream is stalled, not finished. */
-export const GROK_BOT_SSE_STALL_MS = 35_000;
+const GROK_BOT_SSE_STALL_MS = 35_000;
 /** BotAI `SSE_CONNECT_TIMEOUT_MS`. */
 export const GROK_BOT_SSE_CONNECT_MS = 15_000;
 /** BotAI `SSE_RECONNECT_MIN_MS` / `SSE_RECONNECT_MAX_MS`. */
-export const GROK_BOT_SSE_RECONNECT_MIN_MS = 1_000;
-export const GROK_BOT_SSE_RECONNECT_MAX_MS = 10_000;
+const GROK_BOT_SSE_RECONNECT_MIN_MS = 1_000;
+const GROK_BOT_SSE_RECONNECT_MAX_MS = 10_000;
 
 export interface GrokBotGatewayEvent {
   readonly channel: string;
@@ -17,7 +17,7 @@ export interface GrokBotGatewayEvent {
 }
 
 /** One SSE block from the sand gateway. A comment such as `:ping` is not an event. */
-export function decodeGatewayEventBlock(block: string): GrokBotGatewayEvent | null {
+function decodeGatewayEventBlock(block: string): GrokBotGatewayEvent | null {
   const data = block
     .split("\n")
     .filter((line) => line.startsWith("data:"))
@@ -34,7 +34,7 @@ export function decodeGatewayEventBlock(block: string): GrokBotGatewayEvent | nu
 }
 
 /** Bytes from `GET /events`, split on a blank line the way BotAI's `SseBlockDecoder` splits them. */
-export function createSseBlockDecoder(onBlock: (block: string) => void): (chunk: string) => void {
+function createSseBlockDecoder(onBlock: (block: string) => void): (chunk: string) => void {
   let buffer = "";
   return (chunk: string) => {
     buffer += chunk.replaceAll("\r\n", "\n");
@@ -67,13 +67,13 @@ export function sleepWithSignal(ms: number, signal: AbortSignal): Promise<void> 
 }
 
 /** BotAI reconnect backoff: 1s, then double, cap 10s, plus up to 30% jitter. */
-export function gatewayReconnectDelayMs(attempt: number, random: () => number = Math.random): number {
+function gatewayReconnectDelayMs(attempt: number, random: () => number = Math.random): number {
   const exponent = Math.max(0, attempt - 1);
   const base = Math.min(GROK_BOT_SSE_RECONNECT_MAX_MS, GROK_BOT_SSE_RECONNECT_MIN_MS * 2 ** exponent);
   return Math.round(base + base * 0.3 * random());
 }
 
-export function grokBotEventsUrl(gatewayUrl: string): string {
+function grokBotEventsUrl(gatewayUrl: string): string {
   return `${gatewayUrl.replace(/\/+$/u, "")}${GROK_BOT_EVENTS_PATH}`;
 }
 

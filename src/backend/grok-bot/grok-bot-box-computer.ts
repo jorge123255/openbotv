@@ -14,12 +14,12 @@ import { Effect } from "effect";
  * runs at a time. A failure comes back as an error result. It does not throw.
  */
 
-export const BOX_CUA_DRIVER_PATH_ENV = "SAND_CUA_DRIVER_PATH";
-export const BOX_CUA_SOCKET_ENV = "SAND_CUA_SOCKET";
-export const BOX_CUA_SESSION_ENV = "SAND_CUA_SESSION";
-export const DEFAULT_BOX_CUA_DRIVER_PATH = "/usr/local/libexec/botai/cua-driver";
-export const DEFAULT_BOX_CUA_SOCKET = "/run/user/1000/botai-cua.sock";
-export const DEFAULT_BOX_CUA_SESSION = "botai-box";
+const BOX_CUA_DRIVER_PATH_ENV = "SAND_CUA_DRIVER_PATH";
+const BOX_CUA_SOCKET_ENV = "SAND_CUA_SOCKET";
+const BOX_CUA_SESSION_ENV = "SAND_CUA_SESSION";
+const DEFAULT_BOX_CUA_DRIVER_PATH = "/usr/local/libexec/botai/cua-driver";
+const DEFAULT_BOX_CUA_SOCKET = "/run/user/1000/botai-cua.sock";
+const DEFAULT_BOX_CUA_SESSION = "botai-box";
 
 const OUTPUT_LIMIT = 4 * 1024 * 1024;
 const CALL_TIMEOUT_MS = 20_000;
@@ -98,7 +98,7 @@ export interface GrokBotBoxComputerRequest {
   readonly actions: readonly GrokBotBoxComputerAction[];
 }
 
-export interface GrokBotBoxComputerSuccess {
+interface GrokBotBoxComputerSuccess {
   readonly actionCount: number;
   readonly durationMs: number;
   readonly screenshot?: string;

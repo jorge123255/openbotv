@@ -96,7 +96,7 @@ export const readGrokBotComputer = Effect.fn("GrokBotGateway.computerStatus")(fu
 });
 
 /** BotAI `ensureForeverBox {}`: creates or wakes the sand computer (what "Open computer" does). */
-export const ensureGrokBotComputer = Effect.fn("GrokBotGateway.computerEnsure")(function* (
+const ensureGrokBotComputer = Effect.fn("GrokBotGateway.computerEnsure")(function* (
   store: GrokBotAccountStore,
   options: GrokBotGatewayCallOptions,
 ) {
