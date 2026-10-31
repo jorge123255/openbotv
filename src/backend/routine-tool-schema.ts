@@ -5,7 +5,7 @@ import { WEBHOOK_EVENT_TYPE_MAX_LENGTH, WEBHOOK_FILTERS_LIMIT } from "./webhook-
 
 const ROUTINE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-const routineTimeSchema = z.string().regex(ROUTINE_TIME_PATTERN).describe("Local time in HH:mm format.");
+const routineTimeSchema = z.string().regex(ROUTINE_TIME_PATTERN).describe("Local HH:mm time.");
 const routineDaySelectionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("every-day") }).strict(),
   z.object({ kind: z.literal("days-of-week"), days: z.array(z.number().int().min(0).max(6)).min(1) }).strict(),
@@ -56,9 +56,7 @@ export const routineScheduleZodSchema = z
         time: routineTimeSchema,
       })
       .strict()
-      .describe(
-        "One run at this local date and time, such as a reminder. The routine then pauses and does not repeat.",
-      ),
+      .describe("One run at this local date and time (e.g. a reminder), then pause; no repeat."),
   ])
   .describe("Routine schedule. Weekdays use 0 for Sunday through 6 for Saturday; clock values use HH:mm local time.");
 
@@ -67,7 +65,7 @@ export const routineScheduleZodSchema = z
  * that leans on the chat ("check the mail as before") leaves the run without the way to do it.
  */
 export const ROUTINE_INSTRUCTION_RULE =
-  "Each run starts a new session that sees only the newest chat messages, so write an instruction that a reader with no chat can follow. Name the service and the tool to use, such as openbot_browser for a website with the site and its signed-in tab, or the MCP tool or teammate. Also name the account, the steps, what to report and where, and when to report nothing. Do not write 'as before' or refer to the chat.";
+  "Each run has a new session with only the newest chat messages. Write self-contained instructions: service; tool (e.g. openbot_browser for a website, with site and signed-in tab, or MCP tool or teammate); account; steps; what and where to report; when to report nothing. Do not write 'as before' or refer to the chat.";
 
 export const routineInstructionZodSchema = z
   .string()
@@ -78,13 +76,13 @@ export const routineInstructionZodSchema = z
 export const routineLimitPolicyZodSchema = z
   .enum(ROUTINE_LIMIT_POLICIES)
   .describe(
-    "What a run does while the agent's provider account is at its usage limit: wait runs it after the reset, skip drops it. New routines use wait. A one-time schedule always uses wait.",
+    "At the provider account's usage limit: wait runs after reset; skip drops the run. New routines use wait; one-time schedules always wait.",
   );
 
 export const routineMissedPolicyZodSchema = z
   .enum(ROUTINE_MISSED_POLICIES)
   .describe(
-    "What the routine does with occurrences that came due while OpenBot or its server was off: skip records and drops them, run-once runs the newest one when OpenBot starts and records the others. When a routine is created with no value, a one-time schedule uses run-once and other schedules use skip. An update with no value keeps the saved policy.",
+    "Occurrences due while OpenBot or its server was off: skip records and drops them; run-once runs the newest at startup and records the rest. On create, omission means run-once for a one-time schedule and skip otherwise. On update, omission keeps the saved policy.",
   );
 
 export const webhookEventTypeZodSchema = z
