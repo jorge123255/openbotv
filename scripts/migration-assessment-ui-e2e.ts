@@ -201,6 +201,8 @@ try {
   await screenshot("before-offline-assessment-dark");
   await save.click();
   await page.getByText("Insufficient information", { exact: true }).waitFor();
+  await page.getByRole("heading", { name: "Source metadata", exact: true }).waitFor();
+  await page.getByText("Source platform", { exact: true }).waitFor();
   let state = await Effect.runPromise(assessment.getState());
   assert.equal(state.revision, 1);
   assert.equal(state.assessment?.inventory.categories.length, 29);
@@ -343,7 +345,8 @@ try {
   assert.equal(await page.getByRole("button", { name: "Reload assessment", exact: true }).isEnabled(), false);
   assert.equal(assessmentCalls, callsBeforeWindows);
   assert.equal(await hash(retained), retainedHash);
-  assert.equal(await page.getByText("Metadata comparison", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("heading", { name: "Source metadata", exact: true }).count(), 0);
+  assert.equal(await page.getByText("Source platform", { exact: true }).count(), 0);
   await screenshot("windows-existing-assessment-unavailable-light");
   const wire = JSON.stringify(state) + (await page.locator("body").innerText());
   assert.equal(wire.includes("PRIVATE_"), false);
