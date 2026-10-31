@@ -33,7 +33,12 @@ import {
   storyWebhook,
   todayAt,
 } from "./workflow-story-data";
-import { STORY_ALL_FEATURES, WorkflowInAppStory, WorkflowStory } from "./workflow-story-host";
+import {
+  STORY_ALL_FEATURES,
+  WorkflowInAppStory,
+  WorkflowStarterRegressionStory,
+  WorkflowStory,
+} from "./workflow-story-host";
 
 const TASK = "Check competitor sites, changelogs and launch posts since yesterday";
 const RESULT = AGENT_RESULT;
@@ -102,6 +107,11 @@ export const EmptyCanvas: Story = {
       workflows={[{ id: "untitled", title: "Untitled workflow", graph: { nodes: [], edges: [], strokes: [] } }]}
     />
   ),
+};
+
+export const StarterRegression: Story = {
+  name: "Starter interaction regression",
+  render: () => <WorkflowStarterRegressionStory />,
 };
 
 export const ApprovalStarter: Story = {
