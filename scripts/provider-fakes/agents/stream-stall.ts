@@ -2,6 +2,8 @@
 // - `drop-once` fails the first prompt with a socket reset, then answers.
 // - `overload-once` fails the first prompt as an overloaded engine, then answers.
 // - `auth` fails every prompt as a sign-in error.
+// - `auth-code` uses the auth-required code with a transient-looking message.
+// - `auth-text` names authentication in an internal-error response.
 // - `drop-after-text` sends answer text, then fails the stream. A retry would send it again.
 // - `drop-always` fails every prompt with a socket reset.
 // - `stall-once` sends nothing until `session/cancel`, then fails that prompt. The next prompt answers.
@@ -38,7 +40,8 @@ function promptText(params: AcpParams): string {
 }
 
 function failStream(peer: AcpPeer, request: AcpRequest, message: string): void {
-  peer.fail(request, { code: -32000, message });
+  // -32000 is ACP authRequired. A fake transport failure uses internalError instead.
+  peer.fail(request, { code: -32603, message });
 }
 
 function releaseStall(sessionId: string): void {
@@ -51,7 +54,7 @@ function releaseStall(sessionId: string): void {
     `${JSON.stringify({
       jsonrpc: "2.0",
       id: request.id,
-      error: { code: -32000, message: "The operation was aborted" },
+      error: { code: -32800, message: "The operation was aborted" },
     })}\n`,
   );
 }
@@ -90,7 +93,14 @@ serveFakeAcpAgent(
         failStream(peer, request, "The engine is currently overloaded");
         return;
       }
-      if (text === "auth") {
+      if (text === "auth" || text === "auth-code") {
+        peer.fail(request, {
+          code: -32000,
+          message: text === "auth" ? "authentication required" : "socket hang up",
+        });
+        return;
+      }
+      if (text === "auth-text") {
         failStream(peer, request, "authentication required");
         return;
       }

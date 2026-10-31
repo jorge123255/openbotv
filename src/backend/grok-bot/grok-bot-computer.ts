@@ -11,12 +11,12 @@ import type { GrokBotVncProxy } from "./grok-bot-account";
  * rides in the viewer URL and in the `x-anyrun-network-token` header of every viewer request.
  */
 
-export const SAND_BOX_PRIMARY_NOVNC_PORT = 6080;
-export const SAND_BOX_FORK_NOVNC_PORT = 6081;
+const SAND_BOX_PRIMARY_NOVNC_PORT = 6080;
+const SAND_BOX_FORK_NOVNC_PORT = 6081;
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost"]);
 const WAKE = "resume_lower_s=900&resume_upper_s=18000";
 
-export type GrokBotComputerPhase = "off" | "starting" | "sleeping" | "local" | "running" | "pulling";
+type GrokBotComputerPhase = "off" | "starting" | "sleeping" | "local" | "running" | "pulling";
 
 /** Main-process view. `vncUrl` carries the network token and never goes to the renderer. */
 export interface GrokBotComputerStatus {
@@ -105,7 +105,7 @@ export function parseGrokBotComputerStatus(value: unknown, proxy: GrokBotVncProx
 }
 
 /** https only, no credentials in the URL. A loopback screen is never opened from OpenBot. */
-export function isAllowedViewerUrl(value: string): boolean {
+function isAllowedViewerUrl(value: string): boolean {
   let url: URL;
   try {
     url = new URL(value);
