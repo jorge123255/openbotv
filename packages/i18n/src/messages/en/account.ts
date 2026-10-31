@@ -8,6 +8,44 @@ export const messages = defineMessages("account", {
   "account.menu.updateFailed": "Could not update OpenBot.",
   "account.menu.signOutFailed": "Could not sign out.",
   "account.usage.title": "Usage",
+  "account.usage.native.title": "{name} usage",
+  "account.usage.native.description":
+    "Account quota reported by a local CLI. This does not show session tokens or context usage.",
+  "account.usage.native.reported": "Reported account quota · approximate display",
+  "account.usage.native.stale": "Stale · refresh to read current quota",
+  "account.usage.native.source":
+    "Kimi CLI local API snapshot. Account checks are separate from the quota read and are not atomic. Percentages are rounded for display. No automatic warnings or model changes use this reading.",
+  "account.usage.native.changed":
+    "The account or server changed. The reading was cleared. Connect again to confirm the source.",
+  "account.usage.native.unsupported":
+    "This experimental API is verified for Kimi CLI 2.3.3 only. The server version is not supported.",
+  "account.usage.native.unsafe": "The local server has authentication disabled. An authenticated server is required.",
+  "account.usage.native.devinGap":
+    "Devin can show account quota in its native /usage screen. This integration has no verified structured quota source. Session statistics cannot fill these rings.",
+  "account.usage.native.checked": "Last checked: {time}. The provider measurement time is not reported.",
+  "account.usage.native.used": "{window}: approximately {percent} used",
+  "account.usage.native.windowUnknown": "{window}: quota unavailable",
+  "account.usage.native.resetUnknown": "A reset time was not reported for every window.",
+  "account.usage.native.wallet":
+    "Extra Usage balance: {amount} {currency}. Purchased credit is separate from plan quota.",
+  "account.usage.native.monthCode":
+    "Monthly code share: approximately {percent} of the monthly quota. This is a breakdown, not an extra allowance.",
+  "account.usage.native.ring": "{name} account quota, {status}",
+  "account.usage.native.setup":
+    "Start the Kimi web server yourself, then enter its local port and bearer token. OpenBot does not start a server or create a login.",
+  "account.usage.native.permissions":
+    "The bearer token also permits Kimi session, file and terminal access. Share it only with a trusted app. OpenBot uses it only for quota and account checks, keeps it in process memory, and does not save it.",
+  "account.usage.native.port": "Local port (127.0.0.1)",
+  "account.usage.native.endpoint": "Source: Kimi CLI at 127.0.0.1:{port}, using the CLI's signed-in account.",
+  "account.usage.native.token": "Kimi web bearer token",
+  "account.usage.native.consent": "Allow this quota check to refresh the CLI's existing sign-in if needed.",
+  "account.usage.native.timeout":
+    "A check can take 15 seconds. Closing or disconnecting cannot undo a sign-in refresh already started by Kimi. Reads are limited to once a minute and never run in the background.",
+  "account.usage.native.connect": "Connect and read",
+  "account.usage.native.read": "Read quota",
+  "account.usage.native.disconnect": "Disconnect",
+  "account.usage.native.failed":
+    "Could not read account quota. Check the server, token and existing sign-in, then try again.",
   "account.usage.grokBot": "Grok Bot",
   "account.usage.grokBot.included": "Included",
   "account.usage.grokBot.onDemandLabel": "On demand · {used} of {limit}",

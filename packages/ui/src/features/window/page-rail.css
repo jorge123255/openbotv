@@ -1,6 +1,45 @@
 /* The page rail at the left of the window, on desktop and on the web. The window styles place it in
  * the window grid. The window buttons of macOS sit at the top of the rail, in the top row. Other
  * windows can show the OpenBot logo there. */
+.native-cli-usage-mark {
+  display: grid;
+  place-items: center;
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-semibold);
+}
+
+.native-cli-usage-details,
+.native-cli-usage-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--openbot-space-3);
+}
+
+.native-cli-usage-details p {
+  margin: 0;
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-sm);
+}
+
+.native-cli-usage-dialog {
+  width: min(460px, calc(100vw - var(--openbot-space-8)));
+  max-height: calc(100vh - var(--openbot-space-8));
+  padding: var(--openbot-space-6);
+  overflow: auto;
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-sidebar);
+  color: var(--openbot-text-primary);
+}
+
+.native-cli-usage-consent,
+.native-cli-usage-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-3);
+}
+
 .window-rail {
   position: relative;
   display: flex;

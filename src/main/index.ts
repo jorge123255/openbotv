@@ -77,6 +77,7 @@ import { hostAdminIpcHandlers } from "./ipc/host-admin-handlers";
 import { hostedServerIpcHandlers } from "./ipc/hosted-server-handlers";
 import { hostedSiteIpcHandlers } from "./ipc/hosted-site-handlers";
 import { instanceTransferIpcHandlers } from "./ipc/instance-transfer-handlers";
+import { kimiCliUsageIpcHandlers } from "./ipc/kimi-cli-usage-handlers";
 import { licenseIpcHandlers } from "./ipc/license-handlers";
 import { localServerIpcHandlers } from "./ipc/local-server-handlers";
 import { macAutomationIpcHandlers } from "./ipc/mac-automation-handlers";
@@ -621,6 +622,7 @@ function registerIpcHandlers({
   events,
   customProviderChanges,
   ollamaQuota,
+  kimiCliUsage,
   customAgentChanges,
   acpRegistry,
   providerDetection,
@@ -725,6 +727,7 @@ function registerIpcHandlers({
     ...localServerIpcHandlers({ localServers }),
     ...customProviderIpcHandlers(customProviderChanges),
     ...ollamaQuotaIpcHandlers({ ollamaQuota }),
+    ...kimiCliUsageIpcHandlers({ kimiCliUsage }),
     ...customAgentIpcHandlers(customAgentChanges),
     ...acpRegistryIpcHandlers(acpRegistry, remoteServers),
     ...providerDetectionIpcHandlers({ detection: providerDetection, settings: providerDetectionSettings }),

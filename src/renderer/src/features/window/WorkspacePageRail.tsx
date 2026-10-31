@@ -1,8 +1,11 @@
 import { isUpdateActivePhase } from "@openbot/contracts/ipc";
 import { AGENT_TASKS_CAPABILITY } from "@openbot/contracts/team-protocol/agent-tasks-v1";
+import { NativeCliUsageDialog } from "@openbot/ui/features/account/NativeCliUsageDialog";
+import { nativeCliUsageRows } from "@openbot/ui/features/account/native-cli-usage-view";
 import { type SidebarView, sidebarRailPage } from "@openbot/ui/features/sidebar/sidebar-types";
 import { PageRail, type PageRailPage } from "@openbot/ui/features/window/PageRail";
 import { useText } from "@openbot/ui/text";
+import { createSignal, Show } from "solid-js";
 import { appPort } from "../../app-port";
 import { useLayout } from "../../layout";
 import { usePlatform } from "../../platform";
@@ -13,6 +16,7 @@ import { useServers } from "../servers/servers-context";
 import { useSettings } from "../settings/settings-context";
 import { useUpdates } from "../updates/updates-context";
 import { useWhatsNew } from "../updates/whats-new-context";
+import { useNativeCliUsage } from "../usage/native-cli-usage-context";
 import { usePlanLimitRows } from "../usage/plan-limit-rows";
 import { RailHelpMenu } from "./RailHelpMenu";
 import { useWindowPage } from "./window-page-context";
@@ -47,6 +51,11 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   const { customAgentUsage } = useCustomAgents();
   /** The custom agents run on this computer, so a joined server does not show their usage. */
   const localAgentUsage = () => (activeServer()?.kind === "local" ? customAgentUsage() : []);
+  const nativeUsage = useNativeCliUsage();
+  const [nativeOpen, setNativeOpen] = createSignal<"kimi" | "devin" | null>(null);
+  const nativeRows = () => nativeCliUsageRows(nativeUsage.state.reading, nativeUsage.state.now, text);
+  const nativeRow = () =>
+    activeServer()?.kind === "local" ? nativeRows().find((row) => row.id === nativeOpen()) : undefined;
   /** The compact sidebar has no footer, so the update island does not show. The Settings button then marks the update. */
   const updateNotice = () => {
     const phase = updates.status().phase;
@@ -64,32 +73,54 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
     return page === "server-settings" ? null : page;
   };
   return (
-    <PageRail
-      hidden={props.hidden}
-      current={current()}
-      pinned={layout.railPinned()}
-      onPinChange={layout.setRailPinned}
-      usageRows={usageRows()}
-      openUrl={(url) => void appPort().openUrl(url)}
-      customAgentUsage={localAgentUsage()}
-      onAgents={() => showSidebarView("agents")}
-      onRoutines={() => showSidebarView("routines")}
-      // A joined server without workflows shows its notice on the page.
-      onWorkflows={() => windowPage.openWorkflows(null)}
-      onSchedule={windowPage.openSchedule}
-      onTasks={tasksAvailable() ? windowPage.openTasks : undefined}
-      onUsage={windowPage.openUsage}
-      onMarketplace={() => setSkillsMarketplaceOpen(true)}
-      onSettings={(button) => (updateNotice() ? openAppSettings(button, "updates") : windowPage.openSettings(button))}
-      settingsNotice={updateNotice()}
-      logo={logo()}
-      help={
-        <RailHelpMenu
-          version={whatsNew.state.version}
-          onOpenWhatsNew={whatsNew.reopen}
-          onOpenLink={(destination) => void appPort().openExternal(destination)}
-        />
-      }
-    />
+    <>
+      <PageRail
+        hidden={props.hidden}
+        current={current()}
+        pinned={layout.railPinned()}
+        onPinChange={layout.setRailPinned}
+        usageRows={usageRows()}
+        openUrl={(url) => void appPort().openUrl(url)}
+        customAgentUsage={localAgentUsage()}
+        nativeUsage={
+          activeServer()?.kind === "local"
+            ? { rows: nativeRows(), now: nativeUsage.state.now, onOpen: setNativeOpen }
+            : undefined
+        }
+        onAgents={() => showSidebarView("agents")}
+        onRoutines={() => showSidebarView("routines")}
+        // A joined server without workflows shows its notice on the page.
+        onWorkflows={() => windowPage.openWorkflows(null)}
+        onSchedule={windowPage.openSchedule}
+        onTasks={tasksAvailable() ? windowPage.openTasks : undefined}
+        onUsage={windowPage.openUsage}
+        onMarketplace={() => setSkillsMarketplaceOpen(true)}
+        onSettings={(button) => (updateNotice() ? openAppSettings(button, "updates") : windowPage.openSettings(button))}
+        settingsNotice={updateNotice()}
+        logo={logo()}
+        help={
+          <RailHelpMenu
+            version={whatsNew.state.version}
+            onOpenWhatsNew={whatsNew.reopen}
+            onOpenLink={(destination) => void appPort().openExternal(destination)}
+          />
+        }
+      />
+      <Show when={nativeRow()}>
+        {(row) => (
+          <NativeCliUsageDialog
+            row={row()}
+            snapshot={nativeUsage.state.reading}
+            now={nativeUsage.state.now}
+            busy={nativeUsage.state.busy}
+            error={nativeUsage.state.error}
+            onConnect={(input) => void nativeUsage.connect(input)}
+            onRead={() => void nativeUsage.read()}
+            onDisconnect={() => void nativeUsage.disconnect()}
+            onClose={() => setNativeOpen(null)}
+          />
+        )}
+      </Show>
+    </>
   );
 }

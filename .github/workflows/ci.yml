@@ -976,6 +976,8 @@ jobs:
           bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/ollama-quota-e2e.ts
           bun scripts/ollama-quota-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
+          bun scripts/kimi-cli-usage-e2e.ts
+          bun scripts/native-cli-usage-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
         env:
           STORYBOOK_DISABLE_TELEMETRY: "1"
           OPENBOT_STORYBOOK_PORT: "6006"
@@ -996,6 +998,8 @@ jobs:
           path: |
             .openbot-build/ollama-quota-e2e/
             .openbot-build/ollama-quota-ui-e2e/
+            .openbot-build/kimi-cli-usage-e2e/
+            .openbot-build/native-cli-usage-ui-e2e/
           retention-days: 3
 
   all-checks-pass:

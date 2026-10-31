@@ -244,6 +244,7 @@ import {
   decodeGrokBotUsageSummary,
 } from "./grok-bot-decoding";
 import { decodeHostReleaseStatusFromMain } from "./host-release-decoding";
+import { decodeKimiCliUsage } from "./kimi-cli-usage-decoding";
 import { decodeMacAutomationResults } from "./mac-automation-decoding";
 import {
   decodeAddOrchestratorReply,
@@ -949,6 +950,12 @@ const openbotApi: OpenBotDesktopApi = {
     read: decodeOllamaQuota,
     dismiss: decodeVoid,
     changed: decodeVoid,
+  }),
+  kimiCliUsage: bridgeGroup(IPC_ENDPOINTS.kimiCliUsage, {
+    get: decodeKimiCliUsage,
+    connect: decodeKimiCliUsage,
+    read: decodeKimiCliUsage,
+    disconnect: decodeKimiCliUsage,
   }),
   customProviders: bridgeGroup(IPC_ENDPOINTS.customProviders, {
     list: decodeCustomProviders,

@@ -5,11 +5,11 @@ import { createSignal, For, onCleanup, Show } from "solid-js";
 import { useText } from "../../text";
 import {
   type AccountUsageProviderRow,
-  type AccountUsageWindowRow,
   accountUsageRowKey,
   accountUsageRowLabel,
   formatUsageResetIn,
 } from "./account-usage-view";
+import type { NativeCliUsageWindowRow } from "./native-cli-usage-view";
 
 /** The reset countdown shows minutes, so a half-minute tick keeps it current. */
 const RESET_CLOCK_MS = 30_000;
@@ -109,7 +109,7 @@ export function AccountUsageDetails(props: {
 }
 
 /** The limit windows of one account: a bar, the amount left and the time to the reset of each. */
-export function AccountUsageWindowList(props: { windows: readonly AccountUsageWindowRow[]; now: number }) {
+export function AccountUsageWindowList(props: { windows: readonly NativeCliUsageWindowRow[]; now: number }) {
   const text = useText();
   const { t } = text;
   return (
@@ -119,10 +119,15 @@ export function AccountUsageWindowList(props: { windows: readonly AccountUsageWi
           <span class="account-usage-window" data-usage-tone={usageWindow.tone}>
             <span class="account-usage-window-label">{usageWindow.label}</span>
             <span class="account-usage-window-bar" aria-hidden="true">
-              <span class="account-usage-window-fill" style={{ "inline-size": `${usageWindow.remainingPercent}%` }} />
+              <span
+                class="account-usage-window-fill"
+                style={{ "inline-size": `${usageWindow.remainingPercent ?? 0}%` }}
+              />
             </span>
             <strong class="account-usage-window-remaining">
-              {text.format.percent(usageWindow.remainingPercent / 100)}
+              {usageWindow.remainingPercent === null
+                ? t("account.usage.value.unavailable")
+                : text.format.percent(usageWindow.remainingPercent / 100)}
             </strong>
             <span
               class="account-usage-window-reset"

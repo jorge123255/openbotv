@@ -16,9 +16,12 @@ import {
 } from "@openbot/ui";
 import { AccountUsageDetails } from "@openbot/ui/features/account/AccountUsageDetails";
 import { type AccountUsageProviderRow, accountUsageRowKey } from "@openbot/ui/features/account/account-usage-view";
+import { NativeCliUsageDetails } from "@openbot/ui/features/account/NativeCliUsageDetails";
+import type { NativeCliUsageRailRow } from "@openbot/ui/features/account/native-cli-usage-view";
 import { useText } from "@openbot/ui/text";
 import { Dynamic, type JSX } from "@solidjs/web";
 import { createMemo, createSignal, For, Show } from "solid-js";
+import { UsageRingGraphic } from "./UsageRingGraphic";
 
 /** One rail button. Its name shows as a tooltip, unless it has a `card`: the card shows instead. */
 function RailButton(props: {
@@ -59,9 +62,6 @@ function RailButton(props: {
   );
 }
 
-/** Two tracks in a 34px box, with 4.5px between their centers. */
-const RING = { size: 34, stroke: 2.25, spacing: 4.5 };
-
 /**
  * The limits of one provider as concentric rings: the outer ring is the longest window, the inner
  * ring the shortest. Each arc shows how much is left, in the tone of that window. The hover card
@@ -88,7 +88,6 @@ function UsageRings(props: {
   const ringRow = () =>
     rows().reduce((lowest, row) => ((row.remainingPercent ?? 100) < (lowest.remainingPercent ?? 100) ? row : lowest));
   const windows = () => [...ringRow().ringWindows].reverse().slice(0, 2);
-  const outerRadius = (RING.size - RING.stroke) / 2;
   return (
     <RailButton
       label={label()}
@@ -113,35 +112,25 @@ function UsageRings(props: {
       class="window-rail-usage"
       onClick={props.onOpen}
     >
-      <svg class="window-rail-usage-ring" viewBox={`0 0 ${RING.size} ${RING.size}`} fill="none" aria-hidden="true">
-        <For each={windows()} keyed={false}>
-          {(window, index) => (
-            <g>
-              <circle
-                class="window-rail-usage-track"
-                cx={RING.size / 2}
-                cy={RING.size / 2}
-                r={outerRadius - index * RING.spacing}
-                stroke-width={RING.stroke}
-              />
-              <Show when={window().remainingPercent > 0}>
-                <circle
-                  class="window-rail-usage-arc"
-                  data-usage-tone={window().tone}
-                  cx={RING.size / 2}
-                  cy={RING.size / 2}
-                  r={outerRadius - index * RING.spacing}
-                  stroke-width={RING.stroke}
-                  stroke-linecap="round"
-                  pathLength={100}
-                  stroke-dasharray={`${window().remainingPercent} 100`}
-                />
-              </Show>
-            </g>
-          )}
-        </For>
-      </svg>
+      <UsageRingGraphic windows={windows()} />
       <ProviderLogo provider={props.row.provider} class="window-rail-usage-logo" />
+    </RailButton>
+  );
+}
+
+function NativeUsageRings(props: { row: NativeCliUsageRailRow; now: number; onOpen: () => void }) {
+  const { t } = useText();
+  return (
+    <RailButton
+      class="window-rail-usage"
+      label={t("account.usage.native.ring", { name: props.row.name, status: props.row.status })}
+      onClick={props.onOpen}
+      card={() => <NativeCliUsageDetails row={props.row} now={props.now} />}
+    >
+      <UsageRingGraphic windows={props.row.windows.slice(0, 2).reverse()} />
+      <span class="window-rail-usage-logo native-cli-usage-mark" aria-hidden="true">
+        {props.row.id === "kimi" ? "K" : "D"}
+      </span>
     </RailButton>
   );
 }
@@ -210,6 +199,10 @@ export interface PageRailProps {
   openUrl?: ((url: string) => void) | undefined;
   /** The answers of the custom agents on this computer that have a usage prompt. Absent on the web. */
   customAgentUsage?: readonly CustomAgentUsageRailRow[] | undefined;
+  /** Local CLI quota display only. Unknown readings keep neutral tracks. Absent on web/remote. */
+  nativeUsage?:
+    | { rows: readonly NativeCliUsageRailRow[]; now: number; onOpen: (id: "kimi" | "devin") => void }
+    | undefined;
   onAgents: () => void;
   /** Absent when the server has no routines. */
   onRoutines?: (() => void) | undefined;
@@ -409,6 +402,15 @@ export function PageRail(props: PageRailProps) {
         <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
           {(ring) => (
             <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} openUrl={props.openUrl} />
+          )}
+        </For>
+        <For each={props.nativeUsage?.rows ?? []} keyed={(row) => row.id}>
+          {(row) => (
+            <NativeUsageRings
+              row={row()}
+              now={props.nativeUsage?.now ?? 0}
+              onOpen={() => props.nativeUsage?.onOpen(row().id)}
+            />
           )}
         </For>
         <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>

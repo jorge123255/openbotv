@@ -210,6 +210,7 @@ import { loadIngressQueueKey } from "./ingress-queue-key";
 import { InstanceTransferService } from "./instance-transfer-service";
 import { InterfaceSizeService } from "./interface-size-service";
 import { prepareToolRuntimeForTest } from "./ipc/mcp-server-handlers";
+import { KimiCliUsageService } from "./kimi-cli-usage-service";
 import { LanguageService } from "./language-service";
 import { localRoutineFeedDocument } from "./local-routine-calendar";
 import { type LocalServerChildEnvironment, startLocalServerChild } from "./local-server-child";
@@ -437,6 +438,7 @@ const TEARDOWN_ORDER = {
   browserView: 45,
   providerDetection: 48,
   ollamaQuota: 49,
+  kimiCliUsage: 49,
   providerRuntimes: 50,
   cuaDriver: 55,
   /** Before the remote servers: each child detaches from its entry when it stops. */
@@ -607,6 +609,7 @@ export interface ApplicationServices {
   serverMode: ServerMode | null;
   customProviders: CustomProviderStore;
   ollamaQuota: OllamaQuotaService;
+  kimiCliUsage: KimiCliUsageService;
   customProviderChanges: CustomProviderChanges;
   customAgentChanges: CustomAgentChanges;
   acpRegistry: AcpRegistry;
@@ -2205,6 +2208,8 @@ export async function createApplicationServices({
     models: () => service.listModels(),
   });
   teardown.push(TEARDOWN_ORDER.ollamaQuota, "Ollama quota reads", () => ollamaQuota.dispose());
+  const kimiCliUsage = new KimiCliUsageService();
+  teardown.push(TEARDOWN_ORDER.kimiCliUsage, "Kimi CLI usage reads", () => kimiCliUsage.dispose());
   const customProviderChanges = createCustomProviderChanges({
     service,
     customProviders,
@@ -3274,6 +3279,7 @@ export async function createApplicationServices({
     customProviders,
     customProviderChanges,
     ollamaQuota,
+    kimiCliUsage,
     customAgentChanges,
     acpRegistry,
     providerDetection,

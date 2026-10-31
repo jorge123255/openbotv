@@ -93,6 +93,20 @@ The account service also sends an event when it makes a new account (with the ap
 and when it saves the first website visit of an account. A payment event and a revenue event include
 that first visit when the account has one.
 
+## Optional native CLI quota display
+
+The desktop Kimi CLI ring can connect to an existing authenticated Kimi web server on IPv4 loopback.
+You enter its local port and bearer token. This token also permits Kimi sessions, files and
+terminal access. OpenBot uses only fixed quota, account and metadata GET routes, keeps the token
+in main-process memory with log redaction, and does not save it. Each read needs your consent
+because Kimi can refresh its existing sign-in and contact its account service. There is no
+background quota polling. OpenBot does not launch a CLI, read credential files, create a login,
+grant trust or submit a model prompt. Disconnect drops the connection; it does not revoke the token
+at the server or undo a refresh already started by Kimi. No token or raw account identity is sent
+to the renderer, exports or analytics. Quota values remain local. The experimental display is
+separate from send limits, warnings and model changes. Devin quota is unavailable in this
+integration. See [native CLI usage](docs/native-cli-usage.md) for the source and account-binding limits.
+
 ## AI conversation context
 
 When a provider session is replaced, OpenBot sends a bounded excerpt of the current conversation

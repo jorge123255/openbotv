@@ -319,6 +319,7 @@ import type {
   InstanceTransferResult,
   InstanceTransferSummary,
 } from "./ipc-instance-transfer";
+import type { ConnectKimiCliUsageInput, KimiCliUsageSnapshot } from "./ipc-kimi-cli-usage";
 import type { MachineAlertSettings, MachineMetrics } from "./ipc-machine-resources";
 import type {
   AgentPublicationPreview,
@@ -962,6 +963,12 @@ export const IPC_ENDPOINTS = {
     read: request<string, OllamaQuotaSnapshot | null>()("ollama-quota:read"),
     dismiss: request<string, void>()("ollama-quota:dismiss"),
     changed: event<undefined>()("ollama-quota:changed"),
+  },
+  kimiCliUsage: {
+    get: request<undefined, KimiCliUsageSnapshot>()("kimi-cli-usage:get"),
+    connect: request<ConnectKimiCliUsageInput, KimiCliUsageSnapshot>()("kimi-cli-usage:connect"),
+    read: request<{ allowRefresh: true }, KimiCliUsageSnapshot>()("kimi-cli-usage:read"),
+    disconnect: request<undefined, KimiCliUsageSnapshot>()("kimi-cli-usage:disconnect"),
   },
   // Local model servers and ACP agents on this computer. Main makes every request, and a scan sends
   // no key. A joined host is never scanned.
@@ -1901,6 +1908,7 @@ export const IPC_GROUP_PATHS = {
   skills: "skills",
   customProviders: "customProviders",
   ollamaQuota: "ollamaQuota",
+  kimiCliUsage: "kimiCliUsage",
   providerDetection: "providerDetection",
   customAgents: "customAgents",
   acpRegistry: "acpRegistry",
