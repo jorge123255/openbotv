@@ -1,3 +1,4 @@
+import { avatarCharacter } from "@openbot/brand/bloub-avatar";
 import { agentProviderDescriptor, agentProviderName, foreignProvider } from "@openbot/contracts/agent-providers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
@@ -93,6 +94,7 @@ import {
 } from "solid-js";
 import { useText } from "../../text";
 import { AVATAR_HUE_LABEL } from "../agents/avatar-hue-label";
+import { CharacterChoices } from "../agents/CharacterChoices";
 import { SERVER_NOTIFICATION_LEVEL_LABELS } from "../servers/ServerActionItems";
 import { type AgentFolderCalls, AgentFoldersPage, AgentFoldersRow, createAgentFolders } from "./AgentFolders";
 import { AgentNewChatDialog } from "./AgentNewChatDialog";
@@ -1121,64 +1123,73 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                       </span>
                     </Button>
                     <div class="avatar-editor-divider" />
-                    <div class="avatar-editor-heading">
-                      <span>{t("agentSettings.avatar.generatedFace")}</span>
-                      <div class="avatar-editor-actions">
-                        <Show when={draft.avatar.seed !== props.agent.id}>
+                    <CharacterChoices
+                      seed={draft.avatar.seed}
+                      hue={draft.avatar.hue}
+                      hasImage={!!avatarUrl()}
+                      disabled={draft.avatar.uploadBusy}
+                      onSelect={(seed) => void selectGeneratedAvatar(seed)}
+                    />
+                    <Show when={avatarCharacter(draft.avatar.seed).kind === "shape"}>
+                      <div class="avatar-editor-heading">
+                        <span>{t("agentSettings.avatar.generatedFace")}</span>
+                        <div class="avatar-editor-actions">
+                          <Show when={draft.avatar.seed !== props.agent.id}>
+                            <IconButton
+                              variant="outline"
+                              type="button"
+                              label={t("agentSettings.avatar.resetToId")}
+                              onClick={() => {
+                                setDraft((state) => {
+                                  state.avatar.candidateSeed = props.agent.id;
+                                  state.avatar.batch = 0;
+                                });
+                                void selectGeneratedAvatar(props.agent.id);
+                              }}
+                            >
+                              <RotateCcw aria-hidden="true" />
+                            </IconButton>
+                          </Show>
                           <IconButton
                             variant="outline"
                             type="button"
-                            label={t("agentSettings.avatar.resetToId")}
-                            onClick={() => {
+                            label={t("agentSettings.avatar.newSet")}
+                            onClick={() =>
                               setDraft((state) => {
-                                state.avatar.candidateSeed = props.agent.id;
-                                state.avatar.batch = 0;
-                              });
-                              void selectGeneratedAvatar(props.agent.id);
-                            }}
-                          >
-                            <RotateCcw aria-hidden="true" />
-                          </IconButton>
-                        </Show>
-                        <IconButton
-                          variant="outline"
-                          type="button"
-                          label={t("agentSettings.avatar.newSet")}
-                          onClick={() =>
-                            setDraft((state) => {
-                              state.avatar.candidateSeed = state.avatar.seed;
-                              state.avatar.batch += 1;
-                            })
-                          }
-                        >
-                          <RefreshCw aria-hidden="true" />
-                        </IconButton>
-                      </div>
-                    </div>
-                    <fieldset class="avatar-face-grid" aria-label={t("agentSettings.avatar.faces")}>
-                      <For each={avatarCandidates()}>
-                        {(seed, index) => (
-                          <Button
-                            variant="ghost"
-                            type="button"
-                            class={[
-                              "avatar-face-choice",
-                              { "avatar-choice-selected": !avatarUrl() && draft.avatar.seed === seed },
-                            ]}
-                            aria-label={
-                              !avatarUrl() && draft.avatar.seed === seed
-                                ? t("agentSettings.avatar.selected")
-                                : t("agentSettings.avatar.option", { number: index() + 1 })
+                                state.avatar.candidateSeed = state.avatar.seed;
+                                state.avatar.batch += 1;
+                              })
                             }
-                            aria-pressed={!avatarUrl() && draft.avatar.seed === seed ? "true" : "false"}
-                            data-cuelume-tap="select"
-                            onClick={() => void selectGeneratedAvatar(seed)}
                           >
-                            <AgentAvatar seed={seed} hue={draft.avatar.hue} />
-                          </Button>
-                        )}
-                      </For>
-                    </fieldset>
+                            <RefreshCw aria-hidden="true" />
+                          </IconButton>
+                        </div>
+                      </div>
+                      <fieldset class="avatar-face-grid" aria-label={t("agentSettings.avatar.faces")}>
+                        <For each={avatarCandidates()}>
+                          {(seed, index) => (
+                            <Button
+                              variant="ghost"
+                              type="button"
+                              class={[
+                                "avatar-face-choice",
+                                { "avatar-choice-selected": !avatarUrl() && draft.avatar.seed === seed },
+                              ]}
+                              aria-label={
+                                !avatarUrl() && draft.avatar.seed === seed
+                                  ? t("agentSettings.avatar.selected")
+                                  : t("agentSettings.avatar.option", { number: index() + 1 })
+                              }
+                              aria-pressed={!avatarUrl() && draft.avatar.seed === seed ? "true" : "false"}
+                              data-cuelume-tap="select"
+                              onClick={() => void selectGeneratedAvatar(seed)}
+                            >
+                              <AgentAvatar seed={seed} hue={draft.avatar.hue} />
+                            </Button>
+                          )}
+                        </For>
+                      </fieldset>
+                    </Show>
                     <div class="avatar-editor-divider" />
                     <div class="avatar-editor-heading">
                       <span>{t("agentSettings.avatar.color")}</span>

@@ -28,7 +28,7 @@ declare global {
 
 const OUT = resolve(import.meta.dirname, "../.openbot-build/appearance");
 // The canvas of each palette, as tokens.css and tokens-light.css give it.
-const CANVAS = { dark: "#19191f", light: "#f5f5f6" } as const;
+const CANVAS = { dark: "#0b121d", light: "#f5f5f6" } as const;
 const LABEL = {
   system: en["settings.appearance.theme.system"],
   light: en["settings.appearance.theme.light"],

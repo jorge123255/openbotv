@@ -29,6 +29,7 @@ export const messages = defineMessages("sidebar", {
   "sidebar.view.roster": "Bots",
   "sidebar.view.agents": "Agents",
   "sidebar.view.routines": "Routines",
+  "sidebar.roster.activeCount": "Active bots ({count})",
   "sidebar.roster.title": "Bots",
   "sidebar.roster.filterLabel": "Bot categories",
   "sidebar.roster.filter.all": "All",

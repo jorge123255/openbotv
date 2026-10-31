@@ -2520,6 +2520,7 @@ textarea {
    past its body: 316 units drawn over the 200 the image fills, so the layer is
    158% of the avatar box and sits (158% - 100%) / 2 outside it on each side. */
 .agent-avatar > .agent-avatar-arcs {
+  pointer-events: none;
   position: absolute;
   inset: -29%;
   width: auto;

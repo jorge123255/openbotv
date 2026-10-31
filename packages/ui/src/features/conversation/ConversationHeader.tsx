@@ -1,4 +1,6 @@
-import { Badge, Button, Clock3, Lock } from "@openbot/ui";
+import { avatarCharacter } from "@openbot/brand/bloub-avatar";
+import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
+import { Badge, Bot, Button, Clock3, Lock } from "@openbot/ui";
 import { ProviderModelPicker } from "@openbot/ui/components/ProviderModelPicker";
 import type { AgentProfile } from "@openbot/ui/data";
 import { AgentAvatar } from "@openbot/ui/features/agents/AgentAvatar";
@@ -7,10 +9,11 @@ import { RemoteDesktopIcon } from "@openbot/ui/features/conversation/Conversatio
 import { SidePanelToggle, type SidePanelToggleProps } from "@openbot/ui/features/conversation/SidePanel";
 import { useText } from "@openbot/ui/text";
 import type { ComponentProps, JSX } from "@solidjs/web";
-import { Show } from "solid-js";
+import { createSignal, Show } from "solid-js";
 
 export interface ConversationHeaderProps {
   agent: AgentProfile | null | undefined;
+  mood?: AvatarMood;
   /** The title of a chat that has no one agent, such as a channel. It shows when `agent` is missing. */
   title?: JSX.Element | undefined;
   modelPicker: ComponentProps<typeof ProviderModelPicker>;
@@ -48,81 +51,114 @@ export interface ConversationHeaderRemoteControl {
 
 export function ConversationHeader(props: ConversationHeaderProps) {
   const { t } = useText();
+  const [characterExpanded, setCharacterExpanded] = createSignal(true);
+  const hasCharacter = () =>
+    props.agent && !props.agent.avatarUrl && avatarCharacter(props.agent.avatarSeed).kind !== "shape";
   const titleTab = () => (props.titleSelected === undefined ? undefined : "");
   const titleSelected = () => (props.titleSelected ? "" : undefined);
   return (
-    <header class="window-drag conversation-header">
-      <div class="conversation-heading-group">
-        <Show when={props.agent} fallback={props.title}>
-          {(agent) => (
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              class="conversation-title no-drag"
-              data-tab={titleTab()}
-              data-selected={titleSelected()}
-              aria-label={props.onOpenChat ? t("conversation.header.mainChat") : t("conversation.header.settings")}
-              onPointerEnter={() => props.onOpenChat || props.onSettingsIntent()}
-              onFocus={() => props.onOpenChat || props.onSettingsIntent()}
-              onClick={() => (props.onOpenChat ?? props.onOpenSettings)()}
-            >
-              <AgentAvatar agent={agent()} />
-              <span class="conversation-title-copy">
-                <h1>{agent().name}</h1>
-                <Show when={agent().description}>
-                  <span>{agent().description}</span>
-                </Show>
+    <>
+      <header class="window-drag conversation-header">
+        <div class="conversation-heading-group">
+          <Show when={props.agent} fallback={props.title}>
+            {(agent) => (
+              <Button
+                variant="ghost"
+                size="sm"
+                type="button"
+                class="conversation-title no-drag"
+                data-tab={titleTab()}
+                data-selected={titleSelected()}
+                aria-label={props.onOpenChat ? t("conversation.header.mainChat") : t("conversation.header.settings")}
+                onPointerEnter={() => props.onOpenChat || props.onSettingsIntent()}
+                onFocus={() => props.onOpenChat || props.onSettingsIntent()}
+                onClick={() => (props.onOpenChat ?? props.onOpenSettings)()}
+              >
+                <AgentAvatar agent={agent()} mood={props.mood} />
+                <span class="conversation-title-copy">
+                  <h1>{agent().name}</h1>
+                  <Show when={agent().description}>
+                    <span>{agent().description}</span>
+                  </Show>
+                </span>
+              </Button>
+            )}
+          </Show>
+          <Show when={props.agent && agentAccessLockLabel(props.agent, t)}>
+            {(label) => (
+              <span class="conversation-access-lock" role="img" aria-label={label()} title={label()}>
+                <Lock aria-hidden="true" />
               </span>
-            </Button>
-          )}
-        </Show>
-        <Show when={props.agent && agentAccessLockLabel(props.agent, t)}>
-          {(label) => (
-            <span class="conversation-access-lock" role="img" aria-label={label()} title={label()}>
-              <Lock aria-hidden="true" />
-            </span>
-          )}
-        </Show>
-        {props.threads}
-      </div>
-      <div class="conversation-header-actions no-drag">
-        <Show when={props.agent && props.pendingModel}>
-          {(change) => {
-            const detail = () => t("conversation.header.modelNextTurnDetail", change());
-            return (
-              <Badge variant="info-light" class="conversation-model-pending" role="status" title={detail()}>
-                <Clock3 aria-hidden="true" />
-                {t("conversation.header.modelNextTurn")}
-                <span class="sr-only">{detail()}</span>
-              </Badge>
-            );
-          }}
-        </Show>
-        <Show when={props.agent}>
-          <ProviderModelPicker {...props.modelPicker} />
-        </Show>
-        <Show when={props.remoteControl}>
-          {(control) => (
+            )}
+          </Show>
+          {props.threads}
+        </div>
+        <div class="conversation-header-actions no-drag">
+          <Show when={hasCharacter()}>
             <Button
-              variant="ghost"
               type="button"
-              class="header-panel-toggle remote-desktop-button"
-              aria-label={t(control().active ? "conversation.header.resumeRemote" : "conversation.header.openRemote")}
-              aria-expanded={control().visible ? "true" : "false"}
-              disabled={!control().enabled}
-              onClick={(event) => control().onOpen(event.currentTarget)}
-              data-cuelume-tap="open"
+              variant="ghost"
+              class="header-panel-toggle"
+              aria-label={t(
+                characterExpanded() ? "agentSettings.avatar.hideCharacter" : "agentSettings.avatar.showCharacter",
+              )}
+              aria-expanded={characterExpanded() ? "true" : "false"}
+              onClick={() => setCharacterExpanded((value) => !value)}
             >
-              <RemoteDesktopIcon />
-              <Show when={control().active}>
-                <span class="remote-desktop-button-dot" aria-hidden="true" />
-              </Show>
+              <Bot aria-hidden="true" />
             </Button>
-          )}
-        </Show>
-        <Show when={props.sidePanel}>{(sidePanel) => <SidePanelToggle {...sidePanel()} />}</Show>
-      </div>
-    </header>
+          </Show>
+          <Show when={props.agent && props.pendingModel}>
+            {(change) => {
+              const detail = () => t("conversation.header.modelNextTurnDetail", change());
+              return (
+                <Badge variant="info-light" class="conversation-model-pending" role="status" title={detail()}>
+                  <Clock3 aria-hidden="true" />
+                  {t("conversation.header.modelNextTurn")}
+                  <span class="sr-only">{detail()}</span>
+                </Badge>
+              );
+            }}
+          </Show>
+          <Show when={props.agent}>
+            <ProviderModelPicker {...props.modelPicker} />
+          </Show>
+          <Show when={props.remoteControl}>
+            {(control) => (
+              <Button
+                variant="ghost"
+                type="button"
+                class="header-panel-toggle remote-desktop-button"
+                aria-label={t(control().active ? "conversation.header.resumeRemote" : "conversation.header.openRemote")}
+                aria-expanded={control().visible ? "true" : "false"}
+                disabled={!control().enabled}
+                onClick={(event) => control().onOpen(event.currentTarget)}
+                data-cuelume-tap="open"
+              >
+                <RemoteDesktopIcon />
+                <Show when={control().active}>
+                  <span class="remote-desktop-button-dot" aria-hidden="true" />
+                </Show>
+              </Button>
+            )}
+          </Show>
+          <Show when={props.sidePanel}>{(sidePanel) => <SidePanelToggle {...sidePanel()} />}</Show>
+        </div>
+      </header>
+      <Show when={hasCharacter() && characterExpanded() && props.agent}>
+        {(agent) => (
+          <section class="companion-stage" aria-label={t("agentSettings.avatar.character")}>
+            <AgentAvatar agent={agent()} mood={props.mood} motion="always" followPointer />
+            <div class="companion-stage-copy">
+              <strong>{agent().name}</strong>
+              <span>{t("agentSettings.avatar.characterHint")}</span>
+              <Button type="button" size="sm" variant="outline" onClick={props.onOpenSettings}>
+                {t("agentSettings.avatar.edit")}
+              </Button>
+            </div>
+          </section>
+        )}
+      </Show>
+    </>
   );
 }

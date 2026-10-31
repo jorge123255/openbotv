@@ -102,6 +102,7 @@ export function ConversationHeader() {
   return (
     <SharedConversationHeader
       agent={props.agent}
+      mood={props.approval || props.prompt ? "waiting" : working() ? "working" : "idle"}
       title={channel ? <channel.HeaderTitle onOpenSettings={() => setActiveRightPanel("settings")} /> : undefined}
       onSettingsIntent={() => void loadAgentSettingsPanel()}
       onOpenSettings={() => setActiveRightPanel("settings")}

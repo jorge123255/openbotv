@@ -2,7 +2,7 @@ import { defineMessages } from "../../message";
 
 export const messages = defineMessages("app", {
   // The app shell, shared state, and shared controls without a feature of their own.
-  "app.loading": "Loading OpenBot",
+  "app.loading": "Loading BotAI",
   "app.leftPanel.resize": "Resize left sidebar",
   "app.host.thisMac": "This Mac",
   "app.host.thisComputer": "This computer",
@@ -49,7 +49,7 @@ export const messages = defineMessages("app", {
   "app.standingApproval.title": "Always allow {name}?",
   "app.standingApproval.titleUnnamed": "Always allow this agent?",
   // The page rail and the settings page of the desktop window.
-  "app.rail.brand": "OpenBot",
+  "app.rail.brand": "BotAI",
   "app.rail.label": "Pages",
   "app.rail.website": "OpenBot website",
   "app.rail.agents": "Agents",

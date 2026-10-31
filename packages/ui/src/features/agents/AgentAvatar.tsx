@@ -8,6 +8,7 @@ import {
   POSES,
   RAYON,
 } from "@norbert_bodziony/bloub";
+import { avatarCharacter } from "@openbot/brand/bloub-avatar";
 import {
   type AvatarMood,
   avatarMoodIsBusy,
@@ -21,6 +22,7 @@ import { createEffect, createMemo, createSignal, createUniqueId, For, onSettled,
 import { type AvatarMotion, bloubAvatarProfile, type SupportedAvatarSilhouetteId } from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
 import { createPointerGaze } from "./avatar-pointer-gaze";
+import { CharacterAvatar } from "./CharacterAvatar";
 
 // Cap avatar animation at 30fps: uncapped bloub clocks measured 30% renderer / 24% GPU
 // for two visible avatars. The shape is 24-40px, so the eye cannot see the difference.
@@ -77,6 +79,7 @@ interface AgentAvatarProps {
 
 export function AgentAvatar(props: AgentAvatarProps) {
   const seed = () => props.seed ?? props.agent?.avatarSeed ?? "agent";
+  const character = createMemo(() => avatarCharacter(seed()));
   const hue = () => (props.hue !== undefined ? props.hue : (props.agent?.avatarHue ?? null));
   const motion = () => props.motion ?? "hover";
   const url = () => (props.url !== undefined ? props.url : (props.agent?.avatarUrl ?? null));
@@ -102,19 +105,35 @@ export function AgentAvatar(props: AgentAvatarProps) {
     <Show
       when={url() && !imageFailed()}
       fallback={
-        <GeneratedAvatar
-          seed={seed()}
-          hue={hue()}
-          motion={motion()}
-          mood={mood()}
-          cycleOffset={props.cycleOffset}
-          animationOffset={props.animationOffset}
-          shape={props.shape}
-          followPointer={props.followPointer === true}
-          breathe={breathe()}
-          class={className()}
-          style={style()}
-        />
+        <Show
+          when={character().kind === "shape"}
+          fallback={
+            <CharacterAvatar
+              kind={character().kind === "orb" ? "orb" : "robot"}
+              seed={character().seed}
+              hue={hue()}
+              motion={motion()}
+              mood={mood()}
+              followPointer={props.followPointer === true}
+              class={className()}
+              style={props.style}
+            />
+          }
+        >
+          <GeneratedAvatar
+            seed={seed()}
+            hue={hue()}
+            motion={motion()}
+            mood={mood()}
+            cycleOffset={props.cycleOffset}
+            animationOffset={props.animationOffset}
+            shape={props.shape}
+            followPointer={props.followPointer === true}
+            breathe={breathe()}
+            class={className()}
+            style={style()}
+          />
+        </Show>
       }
     >
       <span

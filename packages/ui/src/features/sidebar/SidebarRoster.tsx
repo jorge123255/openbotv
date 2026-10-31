@@ -4,7 +4,7 @@
  */
 
 import type { AppFormat, AppTextKey, AppTranslate } from "@openbot/i18n";
-import { AudioLines, Button, LabelTooltip, LabelTooltipTrigger } from "@openbot/ui";
+import { AudioLines, Button, LabelTooltip, LabelTooltipTrigger, Plus } from "@openbot/ui";
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import type { AvatarMood } from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
@@ -234,10 +234,15 @@ export function SidebarRoster() {
       aria-label={t("sidebar.roster.title")}
       onScroll={scrollFades.measure}
     >
-      <h2 class="roster-heading">
-        <span class="roster-live" aria-hidden="true" />
-        {t("sidebar.roster.title")}
-      </h2>
+      <div class="roster-header">
+        <h2 class="roster-heading">{t("sidebar.roster.title")}</h2>
+        <Show when={props.createSupported !== false}>
+          <Button type="button" size="sm" class="roster-create" onClick={props.onCreateAgent}>
+            <Plus aria-hidden="true" />
+            {t("sidebar.new.agent")}
+          </Button>
+        </Show>
+      </div>
       <fieldset class="roster-filters" aria-label={t("sidebar.roster.filterLabel")}>
         <For each={ROSTER_FILTERS}>
           {(category) => (
@@ -266,6 +271,12 @@ export function SidebarRoster() {
           </Show>
         }
       >
+        <Show when={shown().active.length > 0}>
+          <h3 class="roster-active-head">
+            <span class="roster-live" aria-hidden="true" />
+            {t("sidebar.roster.activeCount", { count: shown().active.length })}
+          </h3>
+        </Show>
         <For each={shown().active}>
           {(entry) => <RosterRow entry={entry} rising={rising().has(entry.id)} now={now()} />}
         </For>

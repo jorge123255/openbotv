@@ -91,16 +91,16 @@
 
   @variant dark {
     /* biome-ignore lint/suspicious/noDuplicateCustomProperties: Theme variants intentionally share semantic token names. */
-    --openbot-bg-canvas: #19191f;
-    --openbot-task-card-bg: #1c1c1e;
+    --openbot-bg-canvas: #0b121d;
+    --openbot-task-card-bg: #142031;
     --openbot-bg-native-canvas: #141414;
     --openbot-bg-native-sidebar: #141414;
-    --openbot-bg-sidebar: #15151b;
-    --openbot-bg-surface: #23232d;
-    --openbot-bg-surface-raised: #292934;
-    --openbot-bg-control: #23232d;
-    --openbot-bg-control-active: #30303d;
-    --openbot-bg-overlay: rgba(25, 25, 31, 0.92);
+    --openbot-bg-sidebar: #0c1420;
+    --openbot-bg-surface: #142031;
+    --openbot-bg-surface-raised: #1c2a40;
+    --openbot-bg-control: #142031;
+    --openbot-bg-control-active: #25334c;
+    --openbot-bg-overlay: rgba(11, 18, 29, 0.94);
     --openbot-border: rgba(255, 255, 255, 0.065);
     --openbot-border-strong: rgba(255, 255, 255, 0.11);
     --openbot-text-primary: #ffffff;
@@ -112,7 +112,7 @@
     --openbot-text-on-status: #07130c;
     --openbot-action: #f0f0f0;
     --openbot-action-foreground: #141414;
-    --openbot-accent: #7762d9;
+    --openbot-accent: #7545e7;
     --openbot-accent-text: #b9a6ff;
     --openbot-logo-production: #d6adf2;
     --openbot-logo-eye: #040007;

@@ -12,12 +12,40 @@
   align-items: center;
   gap: var(--openbot-space-2);
   margin: 0;
-  padding: var(--openbot-space-1) var(--openbot-space-3) var(--openbot-space-2);
+  padding: 0;
   color: var(--openbot-text-primary);
   font-size: var(--openbot-text-3xl);
   font-weight: var(--openbot-weight-semibold);
 }
 
+.roster-header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--openbot-space-2);
+  padding: var(--openbot-space-1) var(--openbot-space-3) var(--openbot-space-2);
+}
+.roster-create {
+  background: var(--openbot-accent);
+  color: var(--openbot-text-on-accent);
+}
+.roster-create:hover:not(:disabled) {
+  background: var(--openbot-accent-hover);
+}
+.roster-create svg {
+  width: var(--openbot-icon-sm);
+  height: var(--openbot-icon-sm);
+}
+.roster-active-head {
+  display: flex;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  margin: var(--openbot-space-2) var(--openbot-space-3);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-sm);
+  font-weight: var(--openbot-weight-medium);
+}
 .roster-live {
   width: var(--openbot-space-2);
   height: var(--openbot-space-2);
@@ -211,9 +239,12 @@
 }
 
 .roster-status-short {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: var(--openbot-leading-sm);
 }
 
 .roster-tooltip {
@@ -301,6 +332,8 @@
   animation-delay: 0.3s;
 }
 
+.sidebar-compact .roster-header,
+.sidebar-compact .roster-active-head,
 .sidebar-compact .roster-heading,
 .sidebar-compact .roster-filters,
 .sidebar-compact .roster-copy,

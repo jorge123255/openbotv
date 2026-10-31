@@ -1,10 +1,11 @@
-import { avatarCandidateSeeds, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
+import { avatarCandidateSeeds, avatarCharacterSeed, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
 import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import { Button, Input } from "@openbot/ui";
 import { avatarImageDataUrl, normalizeAvatarFile } from "@openbot/ui/avatar-image";
+import { createStaticAvatarSvg } from "@openbot/ui/bloub-avatar";
 import { AgentAvatar } from "@openbot/ui/features/agents/AgentAvatar";
 import { TeamPersonAvatar } from "@openbot/ui/features/team/TeamPersonAvatar";
-import { createSignal, createStore, For, Show } from "solid-js";
+import { createSignal, createStore, For, onSettled, Show } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { STORY_AGENTS, STORY_PRESENCE } from "./fixtures";
 
@@ -270,5 +271,71 @@ export const SilhouetteFaces: AgentStory = {
         </div>
       </div>
     );
+  },
+};
+
+/** New optional characters alongside the unchanged generated identity, with live state controls. */
+export const LivingCharacters: AgentStory = {
+  render: () => {
+    const [mood, setMood] = createSignal<AvatarMood>("idle");
+    return (
+      <div class="grid gap-6 p-8">
+        <div class="flex gap-3">
+          {AVATAR_MOODS.map((entry) => (
+            <Button aria-pressed={mood() === entry ? "true" : "false"} onClick={() => setMood(entry)}>
+              {entry}
+            </Button>
+          ))}
+        </div>
+        <div class="flex gap-8">
+          {(["shape", "robot", "orb"] as const).map((kind) => (
+            <section aria-label={kind} class="grid justify-items-center gap-3">
+              <AgentAvatar
+                seed={avatarCharacterSeed("chief", kind) ?? "chief"}
+                hue={245}
+                mood={mood()}
+                motion="always"
+                followPointer
+                style={{ width: "180px", height: "180px" }}
+              />
+              <small>{kind}</small>
+            </section>
+          ))}
+        </div>
+      </div>
+    );
+  },
+};
+
+function StaticCharacterPreview(props: { seed: string }) {
+  let host!: HTMLSpanElement;
+  onSettled(() => {
+    let active = true;
+    queueMicrotask(() => {
+      if (active) host.replaceChildren(createStaticAvatarSvg(props.seed, 245));
+    });
+    return () => {
+      active = false;
+      host.replaceChildren();
+    };
+  });
+  return <span class="agent-avatar" ref={host} style={{ width: "96px", height: "96px" }} />;
+}
+
+export const StaticCharacters: AgentStory = {
+  render: () => (
+    <div class="flex gap-8 p-8">
+      <StaticCharacterPreview seed="character:robot:chief" />
+      <StaticCharacterPreview seed="character:orb:chief" />
+    </div>
+  ),
+};
+
+export const CharacterImage: AgentStory = {
+  args: {
+    seed: "character:robot:chief",
+    url: "data:image/gif;base64,R0lGODlhCAAIAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQADAAAACwAAAAACAAIAAAIDwABCBxIsKDBgwgTKkwYEAAh+QQBDAABACwAAAAACAAIAIEAgAAAAAAAAAAAAAAIDwABCBxIsKDBgwgTKkwYEAAh+QQBDAABACwAAAAACAAIAIEAAP8AAAAAAAAAAAAIDwABCBxIsKDBgwgTKkwYEAA7",
+    motion: "always",
+    style: { width: "96px", height: "96px" },
   },
 };

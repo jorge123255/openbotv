@@ -1,3 +1,4 @@
+import { avatarCharacter } from "@openbot/brand/bloub-avatar";
 import { agentProviderDescriptor } from "@openbot/contracts/agent-providers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type {
@@ -20,6 +21,7 @@ import { currentText, useText } from "../../text";
 import { prefersReducedMotion } from "../../utils";
 import { AgentAvatar } from "./AgentAvatar";
 import { AVATAR_HUE_LABEL } from "./avatar-hue-label";
+import { CharacterChoices } from "./CharacterChoices";
 import { InstructionsLimit, instructionsTooLong } from "./InstructionsLimit";
 
 export interface FirstAgentDraft {
@@ -422,32 +424,40 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
             </div>
           </fieldset>
 
-          <fieldset class="first-agent-avatar-fieldset first-agent-face-fieldset" disabled={props.submitting}>
-            <legend class="sr-only">{t("agent.setup.face")}</legend>
-            <div class="first-agent-face-options">
-              <For each={FIRST_AGENT_AVATAR_SEEDS}>
-                {(seed, index) => (
-                  <Button
-                    variant="ghost"
-                    type="button"
-                    size="sm"
-                    class="first-agent-face-choice"
-                    aria-label={t("agent.setup.faceOption", { number: index() + 1 })}
-                    aria-pressed={props.value.avatarSeed === seed ? "true" : "false"}
-                    data-cuelume-tap="select"
-                    onClick={() => updateDraft({ avatarSeed: seed })}
-                  >
-                    <AgentAvatar
-                      seed={seed}
-                      hue={props.value.avatarHue}
-                      motion="idle"
-                      animationOffset={index() * 0.16}
-                    />
-                  </Button>
-                )}
-              </For>
-            </div>
-          </fieldset>
+          <CharacterChoices
+            seed={props.value.avatarSeed}
+            hue={props.value.avatarHue}
+            disabled={props.submitting}
+            onSelect={(avatarSeed) => updateDraft({ avatarSeed })}
+          />
+          <Show when={avatarCharacter(props.value.avatarSeed).kind === "shape"}>
+            <fieldset class="first-agent-avatar-fieldset first-agent-face-fieldset" disabled={props.submitting}>
+              <legend class="sr-only">{t("agent.setup.face")}</legend>
+              <div class="first-agent-face-options">
+                <For each={FIRST_AGENT_AVATAR_SEEDS}>
+                  {(seed, index) => (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      size="sm"
+                      class="first-agent-face-choice"
+                      aria-label={t("agent.setup.faceOption", { number: index() + 1 })}
+                      aria-pressed={props.value.avatarSeed === seed ? "true" : "false"}
+                      data-cuelume-tap="select"
+                      onClick={() => updateDraft({ avatarSeed: seed })}
+                    >
+                      <AgentAvatar
+                        seed={seed}
+                        hue={props.value.avatarHue}
+                        motion="idle"
+                        animationOffset={index() * 0.16}
+                      />
+                    </Button>
+                  )}
+                </For>
+              </div>
+            </fieldset>
+          </Show>
 
           <div class="first-agent-fields">
             <Field label={t("agent.setup.name")} required>

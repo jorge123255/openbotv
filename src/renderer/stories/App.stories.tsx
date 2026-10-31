@@ -61,6 +61,27 @@ export const RosterWorkspace: Story = {
   ),
 };
 
+/** The optional character style in the real shell, with original IDs, seeds and hue retained. */
+export const CompanionWorkspace: Story = {
+  render: () => (
+    <SidebarStatePlayground
+      compact={false}
+      options={{
+        agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+          ...agent,
+          avatarSeed:
+            index === 0
+              ? `character:robot:${agent.avatarSeed}`
+              : index === 1
+                ? `character:orb:${agent.avatarSeed}`
+                : agent.avatarSeed,
+          updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
+        })),
+      }}
+    />
+  ),
+};
+
 /** The servers in a rail at the left of the sidebar, instead of the server menu. */
 export const ServerRailView: Story = {
   render: () => <SidebarStatePlayground compact={false} serverView="rail" />,

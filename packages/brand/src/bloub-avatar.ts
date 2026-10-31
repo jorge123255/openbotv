@@ -6,7 +6,7 @@ import {
   SHAPES,
   type ShapeId,
 } from "@norbert_bodziony/bloub";
-import type { AvatarHue } from "@openbot/contracts/ipc";
+import { type AvatarHue, isAvatarSeed } from "@openbot/contracts/ipc";
 
 export type SupportedAvatarSilhouetteId = Exclude<ShapeId, "goutte">;
 
@@ -54,7 +54,29 @@ export const AVATAR_HUE_OPTIONS: ReadonlyArray<{
 // Hues 100 and 280 stay valid for stored agents, but draw the same color as 150 and 245.
 export const AVATAR_HUE_CHOICES = AVATAR_HUE_OPTIONS.filter((option) => option.hue !== 100 && option.hue !== 280);
 
+/** A character uses the existing opaque avatar identity field; no saved agent is rewritten. */
+export type AvatarCharacter = "shape" | "robot" | "orb";
+const CHARACTER_PREFIX = "character:";
+
+export function avatarCharacter(seed: string): { kind: AvatarCharacter; seed: string } {
+  for (const kind of ["robot", "orb"] as const) {
+    const prefix = `${CHARACTER_PREFIX}${kind}:`;
+    if (seed.startsWith(prefix) && isAvatarSeed(seed.slice(prefix.length))) {
+      return { kind, seed: seed.slice(prefix.length) };
+    }
+  }
+  return { kind: "shape", seed };
+}
+
+/** Retain the base identity so returning to Shapes restores its exact silhouette and expression. */
+export function avatarCharacterSeed(seed: string, kind: AvatarCharacter): string | null {
+  const base = avatarCharacter(seed).seed;
+  const next = kind === "shape" ? base : `${CHARACTER_PREFIX}${kind}:${base}`;
+  return isAvatarSeed(next) ? next : null;
+}
+
 export function bloubAvatarProfile(seed: string, hue: AvatarHue | null): BloubAvatarProfile {
+  seed = avatarCharacter(seed).seed;
   const storedSilhouette = requiredItem(SHAPES, stableIndex(`${seed}:shape`, SHAPES.length)).id;
   const silhouette =
     storedSilhouette === UNSUPPORTED_AVATAR_SILHOUETTE
