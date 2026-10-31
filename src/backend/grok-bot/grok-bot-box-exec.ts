@@ -22,15 +22,15 @@ import type {
  * The literal word `local` is never accepted.
  */
 
-export const BOX_EXEC_DAEMON_HOST = "127.0.0.1";
-export const BOX_EXEC_DAEMON_PORT = 1337;
+const BOX_EXEC_DAEMON_HOST = "127.0.0.1";
+const BOX_EXEC_DAEMON_PORT = 1337;
 export const BOX_EXEC_DAEMON_AUTH_TOKEN_ENV = "SAND_BOX_EXEC_DAEMON_AUTH_TOKEN";
 /** BotAI's old loopback default. This server rejects it on every host. */
 const FORBIDDEN_BOX_EXEC_AUTH_TOKEN = "local";
 
 const BODY_LIMIT = 1024 * 1024;
 
-export class GrokBotBoxExecFailed extends Schema.TaggedError<GrokBotBoxExecFailed>()("GrokBotBoxExecFailed", {
+class GrokBotBoxExecFailed extends Schema.TaggedError<GrokBotBoxExecFailed>()("GrokBotBoxExecFailed", {
   cause: Schema.Defect(),
 }) {}
 
@@ -44,7 +44,7 @@ export interface GrokBotBoxExecOptions {
   readonly environment?: NodeJS.ProcessEnv;
 }
 
-export function isLoopbackHost(host: string): boolean {
+function isLoopbackHost(host: string): boolean {
   return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]" || host.startsWith("127.");
 }
 
