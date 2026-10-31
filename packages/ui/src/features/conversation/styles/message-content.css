@@ -812,7 +812,7 @@
 }
 
 [data-code-token="cmnt"] {
-  color: var(--openbot-text-dim);
+  color: var(--openbot-text-muted);
   font-style: italic;
 }
 
@@ -823,13 +823,13 @@
 
 [data-code-token="str"],
 [data-code-token="insert"] {
-  color: var(--openbot-success);
+  color: var(--openbot-success-text);
 }
 
 [data-code-token="num"],
 [data-code-token="bool"],
 [data-code-token="class"] {
-  color: var(--openbot-warning);
+  color: var(--openbot-warning-text);
 }
 
 [data-code-token="func"],
