@@ -257,6 +257,7 @@ import {
 } from "./migration-assessment-inventory";
 import { MigrationAssessmentService } from "./migration-assessment-service";
 import { readMigrationAssessmentSource } from "./migration-assessment-source";
+import { MigrationDestinationPolicyService } from "./migration-destination-policy";
 import { MigrationPreparationService } from "./migration-preparation";
 import { readMigrationPreparationInventory } from "./migration-preparation-inventory";
 import { NotificationPreferenceStore } from "./notification-preference-store";
@@ -634,6 +635,7 @@ export interface ApplicationServices {
   instanceTransfer: InstanceTransferService;
   migrationPreparation: MigrationPreparationService;
   migrationAssessment: MigrationAssessmentService;
+  migrationDestinationPolicy: MigrationDestinationPolicyService;
   voice: VoiceTranscriptionService;
   speech: VoiceSpeechService;
   elevenLabsSpeech: VoiceElevenLabsSpeech;
@@ -2347,6 +2349,7 @@ export async function createApplicationServices({
     userDataPath: app.getPath("userData"),
     readInventory: () => readMigrationPreparationInventory(() => store.database.connection),
   });
+  const migrationDestinationPolicy = new MigrationDestinationPolicyService({ preparation: migrationPreparation });
   const migrationAssessment = new MigrationAssessmentService({
     userDataPath: app.getPath("userData"),
     preparation: migrationPreparation,
@@ -3368,6 +3371,7 @@ export async function createApplicationServices({
     instanceTransfer,
     migrationPreparation,
     migrationAssessment,
+    migrationDestinationPolicy,
     voice,
     speech,
     elevenLabsSpeech,

@@ -1,11 +1,13 @@
 # Authenticated migration destination verification: proposed design
 
-Status: **first scope approved; live implementation unavailable**. The owner approved explicitly
-paired verified servers and an exact same verified build, with mismatches blocked. The
+Status: **Docker publisher policy approved; connected verification unavailable**. The owner approved
+explicitly paired servers and exact verified builds, with mismatches blocked. The first publisher
+policy is Docker to Docker using `jorge123255/openbotv`'s release workflow and an explicitly approved
+release tag. The actual [policy-status panel](migration-docker-trust-policy.md) remains blocked. The
 [synthetic verifier](synthetic-destination-verification.md) tests a candidate admission policy only.
-This document follows
-[migration preparation](migration-preparation.md) and [offline assessment](migration-assessment.md).
-It adds no endpoint, transport, credential, persistence, pairing, certificate exception or permission.
+This document follows [migration preparation](migration-preparation.md) and
+[offline assessment](migration-assessment.md). A read-only local policy IPC endpoint exists; no
+connected verification route, transport, credential, pairing or certificate exception is added.
 Export, restore and activation remain unavailable. All current declarations remain unauthenticated.
 
 The next production slice must show which selected destination answered, which build it reported,
@@ -62,6 +64,11 @@ the destination identity is a separate future decision; this receipt must not de
 
 ## Exact build
 
+The first admitted artifact scope is the verified OCI index-to-platform-manifest/config chain for
+the approved fork release. Desktop archives, installed bundles and local/development builds are
+outside this first Docker policy. They need a separate trust path; the alternatives below do not
+enable them.
+
 The approved rule requires the exact same verified build and blocks a mismatch. A live adapter still
 needs a defined trusted artifact: installed desktop/server package, container
 image, or an operator-approved manifest for a development checkout. Define the complete executable
@@ -94,7 +101,8 @@ client adapters and their permission rules unchanged.
 The first endpoint issues no reservation, session transfer, upload permission, schedule change or
 execution command. Its authorization is read-only and separate from any future cutover grant.
 Do not read real credentials or create durable ongoing access in the synthetic implementation.
-The current slice imports public RFC vectors only. Future TLS fixtures may generate owned temporary
+The synthetic verifier imports public RFC vectors only; the policy-status service uses no keys.
+Future TLS fixtures may generate owned temporary
 credentials, with cleanup, as part of their separately reviewed tests. A later live adapter
 may use existing authorized connection state only within the approved trust model.
 
@@ -195,9 +203,9 @@ or follow-up request. Keep existing released-client and offline-assessment behav
 
 ## Current implementation limit
 
-The owner approved explicitly paired verified servers and exact same verified builds. The synthetic
+The owner approved the Docker-to-Docker fork publisher policy and exact same verified builds. The synthetic
 slice verifies public fixture signatures, supplied artifact bytes and exact platform/architecture/
 runtime/artifact identity; it does not measure a real installation. No production endpoint, live
 transport, pairing record, build provider or application verifier is available. The actual app remains
-offline-only for migration assessment. A later live slice must implement the artifact/transport and
+offline-only for migration assessment and policy status. A later live slice must implement the artifact/transport and
 trust-provenance requirements above without substituting version labels for exact build identity.

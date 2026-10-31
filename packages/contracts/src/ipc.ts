@@ -67,6 +67,7 @@ export * from "./ipc-marketplace-agents";
 export * from "./ipc-mcp-servers";
 export * from "./ipc-messaging";
 export * from "./ipc-migration-assessment";
+export * from "./ipc-migration-destination-policy";
 export * from "./ipc-migration-preparation";
 export * from "./ipc-notifications";
 export * from "./ipc-ollama-quota";

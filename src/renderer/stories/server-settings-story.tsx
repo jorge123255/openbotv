@@ -4,6 +4,7 @@ import { fn } from "storybook/test";
 import { ServerSettingsModal, type ServerSettingsModalProps } from "../src/features/servers/ServerSettingsModal";
 import { STORY_HOST_STATUS, STORY_INVITES, STORY_PRESENCE, STORY_SERVERS } from "../src/preview/fixtures";
 import { injectedMigrationAssessmentCalls } from "./migration-assessment-calls";
+import { injectedMigrationDestinationPolicyCalls } from "./migration-destination-policy-calls";
 import { injectedMigrationPreparationCalls } from "./migration-preparation-calls";
 import { createMockOpenBot } from "./mock-openbot";
 import { SettingsPageStory } from "./settings-page-story";
@@ -55,10 +56,11 @@ export function ServerSettingsStory(props: {
   hostRelease?: HostReleaseStatus;
   migrationPreparationCalls?: OpenBotDesktopApi["migrationPreparation"];
   migrationAssessmentCalls?: OpenBotDesktopApi["migrationAssessment"];
+  migrationDestinationPolicyCalls?: OpenBotDesktopApi["migrationDestinationPolicy"];
 }) {
   const previous = window.openbot;
   // Each story mount owns one copied mock profile and one selection of bridge overrides.
-  const { mock, migrationPreparationCalls, migrationAssessmentCalls } = untrack(() => {
+  const { mock, migrationPreparationCalls, migrationAssessmentCalls, migrationDestinationPolicyCalls } = untrack(() => {
     const hostStatus = props.settings.hostStatus;
     return {
       mock: createMockOpenBot({
@@ -74,11 +76,16 @@ export function ServerSettingsStory(props: {
         props.migrationAssessmentCalls ??
         injectedMigrationAssessmentCalls() ??
         props.settings.migrationPreparation?.assessmentCalls,
+      migrationDestinationPolicyCalls:
+        props.migrationDestinationPolicyCalls ??
+        injectedMigrationDestinationPolicyCalls() ??
+        props.settings.migrationPreparation?.policyCalls,
     };
   });
   window.openbot = mock.api;
   if (migrationPreparationCalls) mock.api.migrationPreparation = migrationPreparationCalls;
   if (migrationAssessmentCalls) mock.api.migrationAssessment = migrationAssessmentCalls;
+  if (migrationDestinationPolicyCalls) mock.api.migrationDestinationPolicy = migrationDestinationPolicyCalls;
   const migrationPreparation = createMemo(() => {
     const options = props.settings.migrationPreparation;
     return options
@@ -86,6 +93,7 @@ export function ServerSettingsStory(props: {
           ...options,
           ...(migrationPreparationCalls ? { calls: migrationPreparationCalls } : {}),
           ...(migrationAssessmentCalls ? { assessmentCalls: migrationAssessmentCalls } : {}),
+          ...(migrationDestinationPolicyCalls ? { policyCalls: migrationDestinationPolicyCalls } : {}),
         }
       : undefined;
   });

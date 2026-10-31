@@ -390,6 +390,7 @@ import type {
   TelegramOverview,
 } from "./ipc-messaging";
 import type { MigrationAssessmentAssessInput, MigrationAssessmentState } from "./ipc-migration-assessment";
+import type { MigrationDestinationPolicyState } from "./ipc-migration-destination-policy";
 import type {
   MigrationPreparationCancelInput,
   MigrationPreparationPrepareInput,
@@ -1865,6 +1866,9 @@ export const IPC_ENDPOINTS = {
     getState: request<undefined, MigrationAssessmentState>()("migration-assessment:get-state"),
     assess: request<MigrationAssessmentAssessInput, MigrationAssessmentState>()("migration-assessment:assess"),
   },
+  migrationDestinationPolicy: {
+    getState: request<undefined, MigrationDestinationPolicyState>()("migration-destination-policy:get-state"),
+  },
   // The plugin deep link, its own group because its registrar holds the pending link rather than a
   // service. `takePendingListing` is what a window that finished loading after the link arrived
   // asks for; `openListing` is the same slug pushed to a window that was already there.
@@ -2000,6 +2004,7 @@ export const IPC_GROUP_PATHS = {
   instanceTransfer: "instanceTransfer",
   migrationPreparation: "migrationPreparation",
   migrationAssessment: "migrationAssessment",
+  migrationDestinationPolicy: "migrationDestinationPolicy",
   plugins: "plugins",
   host: "host",
   events: "events",

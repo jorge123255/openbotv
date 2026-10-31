@@ -312,6 +312,7 @@ jobs:
           node --import tsx scripts/migration-assessment-e2e.ts
           node --import tsx scripts/migration-assessment-publication-e2e.ts
           node --import tsx scripts/synthetic-migration-destination-verification-e2e.ts
+          node --import tsx scripts/migration-destination-policy-e2e.ts
 
       - name: Upload offline migration assessment service evidence
         if: always()
@@ -323,6 +324,7 @@ jobs:
             .openbot-build/migration-assessment-e2e/report.json
             .openbot-build/migration-assessment-publication-e2e/report.json
             .openbot-build/synthetic-migration-destination-verification-e2e/report.json
+            .openbot-build/migration-destination-policy-e2e/report.json
 
       - name: Run migration preparation service acceptance
         run: node --import tsx scripts/migration-preparation-e2e.ts
@@ -1085,6 +1087,14 @@ jobs:
           node --import tsx scripts/migration-preparation-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           node --import tsx scripts/hermes-gateway-setup-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           node --import tsx scripts/migration-assessment-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          node --import tsx scripts/migration-destination-policy-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+
+      - name: Upload migration destination policy UI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: migration-destination-policy-ui-e2e
+          path: .openbot-build/migration-destination-policy-ui-e2e/
 
       - name: Upload offline migration assessment UI evidence
         if: always()

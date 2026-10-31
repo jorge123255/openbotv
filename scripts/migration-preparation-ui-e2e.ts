@@ -9,9 +9,11 @@ import { Effect } from "effect";
 import { chromium } from "playwright-core";
 import { AgentRoutineStore } from "../src/backend/agent-routine-store";
 import { OpenBotDatabase } from "../src/backend/openbot-database";
+import { MigrationDestinationPolicyService } from "../src/main/migration-destination-policy";
 import { MigrationPreparationService } from "../src/main/migration-preparation";
 import { readMigrationPreparationInventory } from "../src/main/migration-preparation-inventory";
 import { MIGRATION_PREPARATION_JOURNAL } from "../src/main/migration-preparation-store";
+import { decodeMigrationDestinationPolicyStateForRenderer } from "../src/preload/migration-destination-policy-decoding";
 import { decodeMigrationPreparationStateForRenderer } from "../src/preload/migration-preparation-decoding";
 import type { MigrationPreparationStoryRequest } from "../src/renderer/stories/migration-preparation-calls";
 
@@ -98,6 +100,10 @@ try {
   const sourceBefore = await digest(join(profile, "openbot.db"));
   const secretsBefore = await digest(secretCanary);
   const page = await browser.newPage({ viewport: { width: 1100, height: 1100 }, reducedMotion: "reduce" });
+  const policy = new MigrationDestinationPolicyService({ preparation: { getState: () => service.getState() } });
+  await page.exposeFunction("__openbotMigrationDestinationPolicyInvoke", async () =>
+    decodeMigrationDestinationPolicyStateForRenderer(await Effect.runPromise(policy.getState())),
+  );
   page.on("pageerror", (error) => report.pageErrors.push(error.stack ?? error.message));
   await page.route("**/*", (route) => {
     const url = new URL(route.request().url());

@@ -88,6 +88,7 @@ import { mcpServerIpcHandlers } from "./ipc/mcp-server-handlers";
 import { memoryIpcHandlers } from "./ipc/memory-handlers";
 import { messagingIpcHandlers } from "./ipc/messaging-handlers";
 import { migrationAssessmentIpcHandlers } from "./ipc/migration-assessment-handlers";
+import { migrationDestinationPolicyIpcHandlers } from "./ipc/migration-destination-policy-handlers";
 import { migrationPreparationIpcHandlers } from "./ipc/migration-preparation-handlers";
 import { notificationIpcHandlers } from "./ipc/notification-handlers";
 import { ollamaQuotaIpcHandlers } from "./ipc/ollama-quota-handlers";
@@ -639,6 +640,7 @@ function registerIpcHandlers({
   instanceTransfer,
   migrationPreparation,
   migrationAssessment,
+  migrationDestinationPolicy,
   voice,
   speech,
   elevenLabsSpeech,
@@ -756,6 +758,7 @@ function registerIpcHandlers({
     }),
     ...migrationPreparationIpcHandlers({ migrationPreparation }),
     ...migrationAssessmentIpcHandlers({ migrationAssessment }),
+    ...migrationDestinationPolicyIpcHandlers({ migrationDestinationPolicy }),
     ...instanceTransferIpcHandlers({
       instanceTransfer,
       remoteServers,

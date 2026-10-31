@@ -25,6 +25,7 @@ import { messages as memory } from "./memory";
 import { messages as menu } from "./menu";
 import { messages as messaging } from "./messaging";
 import { messages as migrationAssessment } from "./migrationAssessment";
+import { messages as migrationDestinationPolicy } from "./migrationDestinationPolicy";
 import { messages as migrationPreparation } from "./migrationPreparation";
 import { messages as notification } from "./notification";
 import { messages as onboarding } from "./onboarding";
@@ -100,6 +101,7 @@ export const en = {
   ...messaging,
   ...migrationPreparation,
   ...migrationAssessment,
+  ...migrationDestinationPolicy,
   ...webClient,
   ...account,
   ...onboarding,

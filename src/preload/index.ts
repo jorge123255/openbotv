@@ -255,6 +255,7 @@ import {
   decodeTelegramOverviewReply,
 } from "./messaging-decoding";
 import { decodeMigrationAssessmentStateForRenderer } from "./migration-assessment-decoding";
+import { decodeMigrationDestinationPolicyStateForRenderer } from "./migration-destination-policy-decoding";
 import { decodeMigrationPreparationStateForRenderer } from "./migration-preparation-decoding";
 import { decodeOllamaQuota } from "./ollama-quota-decoding";
 import { decodeProviderRuntimeSnapshot } from "./provider-runtime";
@@ -1118,6 +1119,9 @@ const openbotApi: OpenBotDesktopApi = {
   migrationAssessment: bridgeGroup(IPC_ENDPOINTS.migrationAssessment, {
     getState: decodeMigrationAssessmentStateForRenderer,
     assess: decodeMigrationAssessmentStateForRenderer,
+  }),
+  migrationDestinationPolicy: bridgeGroup(IPC_ENDPOINTS.migrationDestinationPolicy, {
+    getState: decodeMigrationDestinationPolicyStateForRenderer,
   }),
   instanceTransfer: bridgeGroup(IPC_ENDPOINTS.instanceTransfer, {
     summary: decodeInstanceTransferSummary,

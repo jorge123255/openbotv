@@ -2,13 +2,16 @@ import type { DesktopPlatform } from "@openbot/contracts/ipc";
 import { MigrationPreparationView } from "@openbot/ui/features/migration/MigrationPreparationView";
 import { createMemo, onSettled, Show, untrack } from "solid-js";
 import type { MigrationAssessmentCalls } from "./migration-assessment-port";
+import type { MigrationDestinationPolicyCalls } from "./migration-destination-policy-port";
 import { type MigrationPreparationCalls, migrationPreparationPort } from "./migration-preparation-port";
 import { createMigrationPreparationStore } from "./migration-preparation-store";
 import { ServerMigrationAssessmentPanel } from "./ServerMigrationAssessmentPanel";
+import { ServerMigrationDestinationPolicyPanel } from "./ServerMigrationDestinationPolicyPanel";
 
 export interface ServerMigrationPreparationOptions {
   calls?: MigrationPreparationCalls;
   assessmentCalls?: MigrationAssessmentCalls | undefined;
+  policyCalls?: MigrationDestinationPolicyCalls | undefined;
 }
 
 /** This computer only. There is no remote migration capability. */
@@ -21,6 +24,14 @@ export function ServerMigrationPreparationPanel(
   const assessmentPreparation = createMemo(() =>
     store.state.value?.plan?.status === "prepared" ? store.state.value : null,
   );
+  const policyPreparation = createMemo(() => {
+    const preparation = store.state.value;
+    return canPrepare() &&
+      preparation?.plan?.status === "prepared" &&
+      preparation.plan.destinationKind === "docker-host"
+      ? preparation
+      : null;
+  });
   onSettled(() => {
     store.reload();
     return store.dispose;
@@ -37,6 +48,17 @@ export function ServerMigrationPreparationPanel(
       onPrepare={store.prepare}
       onCancel={store.cancel}
       onReload={store.reload}
+      destinationPolicy={
+        <Show when={policyPreparation()}>
+          {(preparation) => (
+            <ServerMigrationDestinationPolicyPanel
+              preparationState={preparation()}
+              platform={props.platform}
+              calls={props.policyCalls}
+            />
+          )}
+        </Show>
+      }
       assessment={
         <Show when={assessmentPreparation()}>
           {(preparation) => (
