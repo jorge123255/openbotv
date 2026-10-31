@@ -7,6 +7,7 @@ import type {
   AttachmentSummary,
   AvatarHue,
   ChannelRoutingConversationEvent,
+  ChannelTaskState,
   ClientAgentSummary,
   ConversationMemoryChange,
   ConversationMessageSender,
@@ -94,6 +95,20 @@ export interface RoutineRunMarkerModel {
   expanded?: boolean;
 }
 
+/** Read-only channel work attached to a routing receipt. No provider session is opened. */
+export interface ChannelAssignmentTask {
+  id: string;
+  channelName: string;
+  ownerAgentId: string | null;
+  ownerName: string;
+  instruction: string;
+  state: ChannelTaskState;
+  error: string | null;
+  lastActivityAt: string | null;
+  earlierActivity: boolean;
+  activity: { id: string; author: string; text: string; at: string; attachments: number }[];
+}
+
 export type ChatActionMarkerModel =
   | (SkillConversationEvent & { kind: "skill-lifecycle"; timestamp: string })
   | AgentMessageMarkerModel
@@ -142,7 +157,12 @@ export type ChatActionMarkerModel =
       url: string | null;
       timestamp: string;
     }
-  | (ChannelRoutingConversationEvent & { kind: "channel-routing"; timestamp: string })
+  | (ChannelRoutingConversationEvent & {
+      kind: "channel-routing";
+      timestamp: string;
+      /** Current channel work, separate from the recipient's private chat. Display only. */
+      task?: ChannelAssignmentTask;
+    })
   /** The agent suggested a Marketplace app. The chat shows a card to connect it. */
   | { kind: "marketplace-suggestion"; appId: string; timestamp: string }
   /** The agent saved an MCP server that needs a sign-in. The chat shows a card to sign in. */

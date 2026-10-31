@@ -1,6 +1,36 @@
 import { defineMessages } from "../../message";
 
 export const messages = defineMessages("channel", {
+  "channel.task.open": "View task assigned to {name}: {task}",
+  "channel.task.title": "Channel task",
+  "channel.task.location":
+    "Work and replies stay in this channel. The agent’s own chat is separate. Viewing this task does not start or retry work.",
+  "channel.task.unavailable":
+    "Task details are not available in this channel page. No private chat or provider session was opened.",
+  "channel.task.reassigned": "Assignment changed",
+  "channel.task.reference": "Task reference",
+  "channel.task.attachments": {
+    one: "{count} attachment in the channel message",
+    other: "{count} attachments in the channel message",
+  },
+  "channel.task.activity": "Recent task activity",
+  "channel.task.earlier":
+    "Earlier activity may be above in this channel. This view shows the most recent updates available here.",
+  "channel.task.noActivity": "No work update has been recorded for this task yet.",
+  "channel.task.state.queued": "Queued",
+  "channel.task.state.running": "Running",
+  "channel.task.state.waiting": "Waiting",
+  "channel.task.state.paused": "Paused",
+  "channel.task.state.completed": "Completed",
+  "channel.task.state.failed": "Failed",
+  "channel.task.state.cancelled": "Cancelled",
+  "channel.task.reason.queued": "Waiting for a confirmed start. No result is recorded for this assignment.",
+  "channel.task.reason.running": "Work is in progress. Updates appear in this channel.",
+  "channel.task.reason.waiting": "Waiting for other work or a reply.",
+  "channel.task.reason.paused": "Review the stopped-task panel before continuing this work.",
+  "channel.task.reason.completed": "This task is marked completed.",
+  "channel.task.reason.failed": "Review the failure before starting this work again.",
+  "channel.task.reason.cancelled": "Previous activity is kept. Cancellation does not undo earlier work.",
   "channel.activity.one": "{name} is working",
   "channel.activity.many": "{names} and {last} are working",
   "channel.activity.status": "{sentence}: {label}",

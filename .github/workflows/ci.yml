@@ -478,6 +478,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: node --import tsx scripts/channel-task-actions-e2e.ts
 
+      - name: Run channel session visibility E2E
+        if: ${{ !cancelled() }}
+        run: node --import tsx scripts/channel-session-visibility-e2e.ts
+
       - name: Run the Cursor deep login E2E test
         if: ${{ !cancelled() }}
         run: bun run test:cursor-deep-login
@@ -619,6 +623,7 @@ jobs:
             .openbot-build/agent-channel-manage-e2e/
             .openbot-build/channel-bridge-routing-e2e/
             .openbot-build/channel-task-actions-e2e/
+            .openbot-build/channel-session-visibility-e2e/
             .openbot-build/cursor-deep-login-e2e/
             .openbot-build/agent-profile-accounts-e2e/
             .openbot-build/browser-profile-agents-e2e/
@@ -713,6 +718,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:stale-config-session
 
+      - name: Run bounded ACP session setup E2E
+        if: ${{ !cancelled() }}
+        run: node --import tsx scripts/acp-session-open-timeout-e2e.ts
+
       - name: Run the ACP turn stall E2E test
         if: ${{ !cancelled() }}
         run: bun run test:acp-turn-stall
@@ -800,6 +809,7 @@ jobs:
             .openbot-build/provider-shutdown-e2e/
             .openbot-build/stale-config-session-e2e/
             .openbot-build/acp-turn-stall-e2e/
+            .openbot-build/acp-session-open-timeout-e2e/
             .openbot-build/stream-stall-retry-e2e/
             .openbot-build/provider-detection-e2e/
             .openbot-build/acp-instructions-once-e2e/
@@ -997,6 +1007,7 @@ jobs:
           trap 'kill "$storybook_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://127.0.0.1:6006/iframe.html
           bun scripts/channel-task-attention-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/channel-assignment-activity-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/usage-chart-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/ollama-quota-e2e.ts
           bun scripts/storybook-a11y-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
@@ -1044,6 +1055,14 @@ jobs:
         with:
           name: channel-task-attention-e2e
           path: .openbot-build/channel-task-attention-e2e/
+          retention-days: 3
+
+      - name: Upload channel assignment activity evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: channel-assignment-activity-e2e
+          path: .openbot-build/channel-assignment-activity-e2e/
           retention-days: 3
 
   all-checks-pass:

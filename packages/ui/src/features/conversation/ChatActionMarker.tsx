@@ -33,6 +33,7 @@ import type {
 import { useText } from "../../text";
 import { prefersReducedMotion } from "../../utils";
 import { AgentAvatar } from "../agents/AgentAvatar";
+import { ChannelAssignmentTarget } from "../channels/ChannelAssignmentTarget";
 import { formatChatTimestamp } from "./chat-timestamp";
 
 interface ChatActionMarkerProps {
@@ -478,10 +479,10 @@ function SingleChatActionMarker(
           </Show>
           <Show when={props.marker.kind === "channel-routing" && props.marker}>
             {(marker) => (
-              <AgentButton
+              <ChannelAssignmentTarget
                 agent={props.agents.find((agent) => agent.id === marker().agentId)}
-                fallbackId={marker().agentId}
-                onSelectAgent={props.onSelectAgent}
+                targetAgentId={marker().agentId}
+                task={marker().task}
               />
             )}
           </Show>

@@ -14,7 +14,7 @@ import {
   type ConversationQuestionPrompt,
   channelRoutingConversationEvent,
 } from "@openbot/contracts/ipc";
-import type { AgentMessage, AgentProfile } from "@openbot/ui/data";
+import type { AgentMessage, AgentProfile, ChannelAssignmentTask } from "@openbot/ui/data";
 import type { ChannelWorker } from "@openbot/ui/features/channels/ChannelActivityIndicator";
 import { toAgentMessage, toAgentMessages } from "../../app-message-projection";
 
@@ -29,7 +29,7 @@ export function channelMessageHasContent(entry: ChannelMessage): boolean {
  * the coordinator's message names its author by `senderAgentId`. A routing receipt is an activity
  * row, like the "Messaged" marker of an agent chat: it has no bubble and does not count as new.
  */
-function channelConversationMessage(entry: ChannelMessage): AgentMessage {
+function channelConversationMessage(entry: ChannelMessage, task?: ChannelAssignmentTask): AgentMessage {
   const member = entry.author.kind === "member";
   const row = toAgentMessage(entry.message, member ? undefined : entry.author.id);
   const routing = channelRoutingConversationEvent(entry.message);
@@ -38,7 +38,12 @@ function channelConversationMessage(entry: ChannelMessage): AgentMessage {
       ...row,
       id: entry.id,
       kind: "action-marker",
-      actionMarker: { ...routing, kind: "channel-routing", timestamp: entry.message.createdAt },
+      actionMarker: {
+        ...routing,
+        kind: "channel-routing",
+        timestamp: entry.message.createdAt,
+        ...(task ? { task } : {}),
+      },
     };
   if (member)
     return { ...row, id: entry.id, author: "you", senderMember: { id: entry.author.id, name: entry.author.name } };
@@ -56,13 +61,18 @@ function foldedEntry(entry: ChannelMessage): boolean {
  * as a message, and a model that streams its whole reasoning (DeepSeek through OpenCode) showed a
  * very long one.
  */
-export function channelConversationRows(entries: readonly ChannelMessage[]): AgentMessage[] {
+export function channelConversationRows(
+  entries: readonly ChannelMessage[],
+  tasks?: ReadonlyMap<string, ChannelAssignmentTask>,
+): AgentMessage[] {
   return toAgentMessages(
     entries.map((entry) => ({ ...entry.message, id: entry.id })),
     undefined,
     (message, index) => {
       const entry = entries[index];
-      return entry ? channelConversationMessage(entry) : toAgentMessage(message);
+      return entry
+        ? channelConversationMessage(entry, entry.taskId ? tasks?.get(entry.taskId) : undefined)
+        : toAgentMessage(message);
     },
   );
 }
