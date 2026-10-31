@@ -8,7 +8,7 @@ import { BrowserWindow, session as electronSession, shell } from "electron";
  * `webviewTag` off, so the viewer gets a sandboxed window on the same kind of dedicated partition:
  * no preload, no node, no other OpenBot storage. Navigation is pinned to the viewer's origin.
  */
-export const GROK_BOT_COMPUTER_PARTITION = "persist:grok-bot-computer";
+const GROK_BOT_COMPUTER_PARTITION = "persist:grok-bot-computer";
 const WIDTH = 1280;
 const HEIGHT = 840;
 
