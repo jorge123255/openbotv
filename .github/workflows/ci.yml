@@ -975,6 +975,7 @@ jobs:
           curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:6006/iframe.html
           bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/ollama-quota-e2e.ts
+          bun scripts/storybook-a11y-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/ollama-quota-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
         env:
           STORYBOOK_DISABLE_TELEMETRY: "1"
@@ -996,6 +997,7 @@ jobs:
           path: |
             .openbot-build/ollama-quota-e2e/
             .openbot-build/ollama-quota-ui-e2e/
+            .openbot-build/storybook-a11y-e2e/
           retention-days: 3
 
   all-checks-pass:
