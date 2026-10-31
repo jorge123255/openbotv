@@ -934,7 +934,9 @@ export const IPC_ENDPOINTS = {
     stop: request<string, void>()("background-processes:stop"),
   },
   skills: {
-    localShareReview: request<Required<LocalSkillRevisionInput>, LocalSkillShareReview>()("skills:local-share-review"),
+    localShareReview: request<Pick<InstallLocalSkillInput, "skillId" | "revision">, LocalSkillShareReview>()(
+      "skills:local-share-review",
+    ),
     localShare: request<ShareLocalSkillInput, LocalSkillShareOutcome[]>()("skills:local-share"),
     localList: request<undefined, MarketplaceSkillDetail[]>()("skills:local-list"),
     localGet: request<LocalSkillRevisionInput, MarketplaceSkillDetail>()("skills:local-get"),

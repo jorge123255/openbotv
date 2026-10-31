@@ -26,7 +26,7 @@ export const parseReadLocalSkill = (input: unknown): LocalSkillRevisionInput => 
 export const parseInstallLocalSkill = (input: unknown): InstallLocalSkillInput =>
   installLocalSkillSchema.extend({ agentId }).parse(input);
 
-export const parseLocalSkillShareReview = (input: unknown): Required<LocalSkillRevisionInput> =>
+export const parseLocalSkillShareReview = (input: unknown): Pick<InstallLocalSkillInput, "skillId" | "revision"> =>
   installLocalSkillSchema.omit({ agentId: true }).parse(input);
 export const parseShareLocalSkill = (input: unknown): ShareLocalSkillInput =>
   installLocalSkillSchema
