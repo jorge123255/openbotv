@@ -753,6 +753,7 @@ jobs:
         run: |
           node --import tsx scripts/hermes-gateway-e2e.ts
           node --import tsx scripts/hermes-gateway-setup-e2e.ts
+          node --import tsx scripts/hermes-gateway-chat-e2e.ts
 
       - name: Run the provider detection E2E test
         if: ${{ !cancelled() }}
@@ -843,6 +844,7 @@ jobs:
             .openbot-build/stream-stall-retry-e2e/
             .openbot-build/hermes-gateway-e2e/
             .openbot-build/hermes-gateway-setup-e2e/
+            .openbot-build/hermes-gateway-chat-e2e/
             .openbot-build/provider-detection-e2e/
             .openbot-build/acp-instructions-once-e2e/
             .openbot-build/grok-steer-e2e/

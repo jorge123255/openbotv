@@ -171,6 +171,119 @@ export function redactText(value: string): string {
   return marked === value ? redacted : redacted.replace(MARKERS, "[redacted]");
 }
 
+interface SecretPrefixNode {
+  edges: Map<string, SecretPrefixNode>;
+  failure: SecretPrefixNode | null;
+  depth: number;
+  matchLength: number;
+}
+let secretPrefixCount = -1;
+let secretPrefixRoot: SecretPrefixNode | null = null;
+
+function registeredPrefixTree(): SecretPrefixNode {
+  if (secretPrefixRoot && secretPrefixCount === registeredSecrets.size) return secretPrefixRoot;
+  const root: SecretPrefixNode = { edges: new Map(), failure: null, depth: 0, matchLength: 0 };
+  for (const secret of registeredSecrets) {
+    let node = root;
+    // Match UTF-16 units, like String.length and the registered-value regexp, including split surrogates.
+    for (let index = 0; index < secret.length; index++) {
+      const character = secret.charAt(index);
+      let child = node.edges.get(character);
+      if (!child) {
+        child = { edges: new Map(), failure: null, depth: node.depth + 1, matchLength: 0 };
+        node.edges.set(character, child);
+      }
+      node = child;
+    }
+    node.matchLength = node.depth;
+  }
+  const queue = [...root.edges.values()];
+  for (const node of queue) node.failure = root;
+  for (let index = 0; index < queue.length; index++) {
+    const parent = queue[index];
+    if (!parent) continue;
+    for (const [character, node] of parent.edges) {
+      let fallback = parent.failure ?? root;
+      while (fallback !== root && !fallback.edges.has(character)) fallback = fallback.failure ?? root;
+      node.failure = fallback.edges.get(character) ?? root;
+      node.matchLength = Math.max(node.matchLength, node.failure.matchLength);
+      queue.push(node);
+    }
+  }
+  secretPrefixCount = registeredSecrets.size;
+  secretPrefixRoot = root;
+  return root;
+}
+
+/** End of the prefix that cannot become a registered value after another chunk arrives. */
+function registeredSafePrefix(value: string): number {
+  const root = registeredPrefixTree();
+  let node = root;
+  const matches: Array<{ start: number; end: number }> = [];
+  for (let index = 0; index < value.length; index++) {
+    const character = value.charAt(index);
+    while (node !== root && !node.edges.has(character)) node = node.failure ?? root;
+    node = node.edges.get(character) ?? root;
+    if (node.matchLength > 0) {
+      let start = index + 1 - node.matchLength;
+      while (matches.length > 0) {
+        const previous = matches.at(-1);
+        if (!previous || start > previous.end) break;
+        start = Math.min(start, previous.start);
+        matches.pop();
+      }
+      matches.push({ start, end: index + 1 });
+    }
+  }
+  let end = value.length - node.depth;
+  // A complete match can overlap the ambiguous suffix of another registered value. Do not
+  // cut through it and accidentally release its leading bytes before redaction can see it whole.
+  for (const match of matches)
+    if (match.start < end && end < match.end) {
+      end = match.start;
+      break;
+    }
+  return end;
+}
+
+/** Registered-value protection across arbitrary text chunks. Register credentials before the
+ * first chunk. The raw carry is private and bounded; null means the caller must stop the stream.
+ * finish masks an unfinished candidate instead of releasing a credential prefix at a boundary.
+ * Generic unregistered pattern rules still use redactText on each released prefix. */
+export class RegisteredSecretStream {
+  #pending = "";
+  #failed = false;
+
+  push(value: string): string | null {
+    if (this.#failed) return null;
+    if (value.length > 32_768) return this.#overflow();
+    const combined = this.#pending + value;
+    if (combined.length > 65_536) return this.#overflow();
+    const end = registeredSafePrefix(combined);
+    const pending = combined.slice(end);
+    if (pending.length > 32_768) return this.#overflow();
+    this.#pending = pending;
+    return end === 0 ? "" : redactText(combined.slice(0, end));
+  }
+
+  finish(): string {
+    const output = this.#pending || this.#failed ? "[redacted]" : "";
+    this.reset();
+    return output;
+  }
+
+  reset(): void {
+    this.#pending = "";
+    this.#failed = false;
+  }
+
+  #overflow(): null {
+    this.#pending = "";
+    this.#failed = true;
+    return null;
+  }
+}
+
 // Every exact match is found before any grows, so a match inside the token an earlier one grew to
 // still extends the range past it. Ranges that overlap or touch become one token.
 function markRegisteredSecrets(value: string): string {

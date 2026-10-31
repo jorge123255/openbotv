@@ -115,6 +115,8 @@ the pinned gateway's native PKCE broker and system browser. It adds explicit con
 and profile metadata. It keeps native credentials in memory and does not start chat or create an
 agent. The direct cookie login remains covered by the foundation fixtures.
 
-OAuth providers, native refresh, profile-scoped JSON-RPC, chat sessions, streaming, approvals,
-automatic reconnect, credential persistence, remote revocation and remote HTTP exceptions remain
-deferred. A reconnect must never replay an uncertain turn or approval.
+The next [canonical transport stage](hermes-gateway-chat-transport.md) provides internal
+profile-scoped session attachment, text streaming, exact prompt controls and explicit reconnect.
+It has no IPC or conversation UI. OAuth providers, native refresh, user-facing chat, automatic
+reconnect, credential persistence, remote revocation and remote HTTP exceptions remain deferred.
+A reconnect must never replay an uncertain turn or approval.
