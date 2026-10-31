@@ -359,4 +359,9 @@ export const messages = defineMessages("error.backend", {
     "This agent has {count} open tasks. Close a task, then start or open another one.",
   "error.backend.taskRemoteUnsupported": "Tasks are only available for agents on this computer.",
   "error.backend.taskStartFailed": "OpenBot could not start the task. Do the work in this turn instead.",
+  "error.backend.hostToolDenied": "Denied",
+  "error.backend.hostToolRefused": "Refused",
+  "error.backend.hostToolMachineUnavailable": "The machine is unavailable.",
+  "error.backend.hostToolMachineOffline": "The machine is offline.",
+  "error.backend.hostToolScreenCaptureDenied": "The screen capture was denied.",
 });
