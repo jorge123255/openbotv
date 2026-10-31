@@ -230,6 +230,8 @@ For setup problems, data reset, and uninstall instructions, see
 
 ## Migration preparation
 
+A prepared Docker target also shows the [approved Docker-to-Docker trust policy](docs/architecture/migration-docker-trust-policy.md). It requires provenance from this fork's release workflow, an explicitly approved tag and exact verified platform artifacts. The current status lists missing providers; it does not verify a build, approve a tag or contact a destination.
+
 Server settings → **Migration preparation** saves a local plan for a local desktop, Docker host, or other server. It records provisional counts and unresolved requirements and reloads after restart. Export, restore, and activation stay disabled. It does not copy credentials or move agents. See [the preparation architecture and synthetic checks](docs/architecture/migration-preparation.md). A saved plan also supports an [offline destination assessment](docs/architecture/migration-assessment.md): compare declared target facts, review all data categories and unresolved requirements, and retain versioned reports. This does not connect to a host or certify a complete move.
 
 ## Development

@@ -11,9 +11,11 @@ import { OpenBotDatabase } from "../src/backend/openbot-database";
 import { readMigrationAssessmentInventory } from "../src/main/migration-assessment-inventory";
 import { MigrationAssessmentService } from "../src/main/migration-assessment-service";
 import { readMigrationAssessmentSource } from "../src/main/migration-assessment-source";
+import { MigrationDestinationPolicyService } from "../src/main/migration-destination-policy";
 import { MigrationPreparationService } from "../src/main/migration-preparation";
 import { readMigrationPreparationInventory } from "../src/main/migration-preparation-inventory";
 import { decodeMigrationAssessmentStateForRenderer } from "../src/preload/migration-assessment-decoding";
+import { decodeMigrationDestinationPolicyStateForRenderer } from "../src/preload/migration-destination-policy-decoding";
 import { decodeMigrationPreparationStateForRenderer } from "../src/preload/migration-preparation-decoding";
 import type { MigrationAssessmentStoryRequest } from "../src/renderer/stories/migration-assessment-calls";
 import type { MigrationPreparationStoryRequest } from "../src/renderer/stories/migration-preparation-calls";
@@ -159,6 +161,10 @@ try {
     },
   );
   let assessmentRequests = 0;
+  const policy = new MigrationDestinationPolicyService({ preparation: { getState: () => preparation.getState() } });
+  await page.exposeFunction("__openbotMigrationDestinationPolicyInvoke", async () =>
+    decodeMigrationDestinationPolicyStateForRenderer(await Effect.runPromise(policy.getState())),
+  );
   let assessmentCalls = 0;
   let loseResponse = false;
   await page.exposeFunction("__openbotMigrationAssessmentInvoke", async (request: MigrationAssessmentStoryRequest) => {

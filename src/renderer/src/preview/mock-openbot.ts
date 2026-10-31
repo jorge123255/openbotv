@@ -200,6 +200,7 @@ import { createMockHostedServers } from "./mock-hosted-servers";
 import { createMockLicense } from "./mock-license";
 import { createMockMessaging } from "./mock-messaging";
 import { createMockMigrationAssessment } from "./mock-migration-assessment";
+import { createMockMigrationDestinationPolicy } from "./mock-migration-destination-policy";
 import { createMockMigrationPreparation } from "./mock-migration-preparation";
 import { createMockOnePasswordConnector } from "./mock-onepassword-connector";
 import { createMockProviderRuntimes, type MockProviderRuntimeOptions } from "./mock-provider-runtimes";
@@ -3183,6 +3184,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       () => api.migrationPreparation.getState(),
       () => api.getAppInfo(),
     ),
+    migrationDestinationPolicy: createMockMigrationDestinationPolicy(() => api.migrationPreparation.getState()),
     migrationPreparation: createMockMigrationPreparation(() => {
       const conversations = [...Object.values(snapshots), ...taskConversations.values()];
       const messages = conversations.flatMap((conversation) => conversation.messages);

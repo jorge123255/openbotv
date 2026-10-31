@@ -70,6 +70,7 @@ export interface MigrationPreparationViewProps {
   onCancel: () => void;
   onReload: () => void;
   assessment?: JSX.Element;
+  destinationPolicy?: JSX.Element;
 }
 
 /** A saved metadata plan. No transfer or activation action is available from this view. */
@@ -211,7 +212,10 @@ export function MigrationPreparationView(props: MigrationPreparationViewProps) {
                 </For>
               </ItemGroup>
             </SettingsSection>
-            <Show when={saved().status === "prepared"}>{props.assessment}</Show>
+            <Show when={saved().status === "prepared"}>
+              {props.destinationPolicy}
+              {props.assessment}
+            </Show>
           </>
         )}
       </Show>

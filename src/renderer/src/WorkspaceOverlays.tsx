@@ -825,7 +825,11 @@ function ServerSettings() {
           }
           migrationPreparation={
             server().kind === "local" && migrationPreparationHostConfirmed(platform)
-              ? { calls: appPort().migrationPreparation, assessmentCalls: appPort().migrationAssessment }
+              ? {
+                  calls: appPort().migrationPreparation,
+                  assessmentCalls: appPort().migrationAssessment,
+                  policyCalls: appPort().migrationDestinationPolicy,
+                }
               : undefined
           }
           // The feed listens on this computer, so a calendar app on another one cannot read it.

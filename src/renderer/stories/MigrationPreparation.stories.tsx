@@ -12,9 +12,10 @@ import { migrationPreparationHostConfirmed } from "../src/features/servers/migra
 import { ServerSettingsModal } from "../src/features/servers/ServerSettingsModal";
 import { PlatformProvider, usePlatform } from "../src/platform";
 import { injectedMigrationAssessmentCalls } from "./migration-assessment-calls";
+import { injectedMigrationDestinationPolicyCalls } from "./migration-destination-policy-calls";
 import { injectedMigrationPreparationCalls } from "./migration-preparation-calls";
 import { createMockOpenBot } from "./mock-openbot";
-import { ServerSettingsStory, serverSettingsArgs } from "./server-settings-story";
+import { ServerSettingsStory, STORY_REMOTE_SERVER, serverSettingsArgs } from "./server-settings-story";
 import { SettingsPageStory } from "./settings-page-story";
 
 const meta = {
@@ -154,6 +155,55 @@ export const WindowsAssessmentUnavailable: Story = {
   ),
 };
 
+export const DestinationPolicy: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        migrationPreparation: { calls: fixtureCalls(savedPlan()) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
+export const LocalDestinationPolicyUnavailable: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        migrationPreparation: { calls: fixtureCalls({ ...savedPlan(), destinationKind: "local-desktop" }) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
+export const OtherDestinationPolicyUnavailable: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        migrationPreparation: { calls: fixtureCalls({ ...savedPlan(), destinationKind: "other-server" }) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
+export const RemoteDestinationPolicyUnavailable: Story = {
+  render: () => (
+    <ServerSettingsStory
+      settings={{
+        ...serverSettingsArgs(),
+        server: STORY_REMOTE_SERVER,
+        migrationPreparation: { calls: fixtureCalls(savedPlan()) },
+        initialSection: "migration",
+      }}
+    />
+  ),
+};
+
 /** Exercise the actual provider's host-read and fallback paths without a nested mock. */
 function HostMetadataStory(props: { rejected: boolean }) {
   const previous = window.openbot;
@@ -166,6 +216,8 @@ function HostMetadataStory(props: { rejected: boolean }) {
   mock.api.migrationPreparation = calls;
   const assessmentCalls = injectedMigrationAssessmentCalls();
   if (assessmentCalls) mock.api.migrationAssessment = assessmentCalls;
+  const policyCalls = injectedMigrationDestinationPolicyCalls();
+  if (policyCalls) mock.api.migrationDestinationPolicy = policyCalls;
   window.openbot = {
     ...mock.api,
     getAppInfo: async () => {
