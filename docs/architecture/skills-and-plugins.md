@@ -181,6 +181,33 @@ A pack is one bundle that holds skills of its own in `skills/<slug>-<name>/SKILL
 
 The backend local skill tools derive the agent from the calling provider session. Main-process IPC validates local library inputs independently of sender validation. The renderer reads local previews through that bridge. The released Team API adapters are unchanged; local creation and revision are not exposed as remote operations.
 
+### Reviewed sharing on this computer
+
+The local library detail has a **Share skill…** action. The first version accepts only a bundle that
+contains `SKILL.md`, up to 64 KB. The review shows that file as plain text, its local library ID,
+revision and bundle SHA-256. This ID identifies the library copy; it does not prove who wrote it or
+identify its original Hermes profile. The user must check the text for private information and
+select local recipients. No recipient is selected by default.
+
+The main service reads the exact immutable revision again and checks the reviewed hash. It refuses
+extra files and text that the existing secret redactor detects. This check cannot identify all
+private prose or unknown credentials, so the user must review the complete text. The operation does
+not read or copy agent memory, credentials, connector configuration, permissions or schedules.
+It adds no tools and makes no remote request. Provider-side local skill tools keep their existing
+session-derived scope; only trusted desktop IPC exposes the sharing operation.
+
+Each recipient uses the existing per-agent write gate and installer. An equal, intact copy stays as
+it is, including its disabled state. A different revision, modified copy or incomplete copy is
+blocked. Unowned folders and unsafe paths retain the existing installer checks. The response names
+each recipient and its result. A failed operation can have written files before a runtime refresh
+failed; its result is `check-required`, and the screen does not retry it. No batch rollback removes
+a successful recipient's files. Later library revisions never update recipients automatically.
+
+Follow-up PRs can add full asset review, trustworthy import provenance and separately reviewed
+updates. Hermes live connections remain separate from this local copy workflow. The importer
+currently joins same-slug skills into one revision chain and preserves imported routines' active
+state. Those behaviors require separate changes and fixtures; this sharing change does not alter them.
+
 ## Plugin distribution
 
 A plugin is one developer's bundle: an MCP server, shown as an app, the skills that drive it, and the listing text. The catalog of available plugins is a static file set that the Account Worker serves from `openbot.run` without an account, and the main process keeps a copy in the user-data directory rather than in SQLite, because a remote catalog is a cache and not the source of truth. An install saves the app as a host-global MCP server and installs the pinned skills into the chosen agent. A share link at `openbot.run/plugins/<slug>` opens a public page, and `openbot://plugins/<slug>` opens the listing in the app; neither one installs anything.

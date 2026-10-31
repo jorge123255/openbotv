@@ -270,6 +270,8 @@ import {
   decodeAgentTemplatePublication,
   decodeInstalledSkill,
   decodeInstalledSkillsFromMain,
+  decodeLocalSkillShareOutcomes,
+  decodeLocalSkillShareReview,
   decodeMarketplaceAgentDetail,
   decodeMarketplaceAgentPage,
   decodeSkillDetail,
@@ -836,6 +838,8 @@ const openbotApi: OpenBotDesktopApi = {
     event: decodeCentralAuthState,
   }),
   skills: bridgeGroup(IPC_ENDPOINTS.skills, {
+    localShareReview: decodeLocalSkillShareReview,
+    localShare: decodeLocalSkillShareOutcomes,
     localList: decodeSkillDetails,
     localGet: decodeSkillDetail,
     localCreate: decodeSkillDetail,

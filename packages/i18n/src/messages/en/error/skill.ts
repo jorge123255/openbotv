@@ -1,6 +1,11 @@
 import { defineMessages } from "../../../message";
 
 export const messages = defineMessages("error.skill", {
+  "error.skill.shareInstructionsOnly":
+    "Sharing currently requires a skill with only SKILL.md, up to 64 KB. Skills with other files need a separate review.",
+  "error.skill.shareSensitive":
+    "This skill contains potentially sensitive text. Remove private information before sharing it.",
+  "error.skill.shareChanged": "The skill content changed. Review it again before sharing.",
   // Skill package, library, and marketplace errors.
   "error.skill.symlinks": "Skill packages cannot contain symbolic links.",
   "error.skill.expandedTooLarge": "The expanded skill must be under 10 MB.",

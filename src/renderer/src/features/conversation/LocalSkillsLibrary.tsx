@@ -6,6 +6,7 @@ import { errorReference } from "@openbot/user-errors";
 import { createEffect, createSignal, createStore, For, onSettled, Show } from "solid-js";
 import { SkillPreview } from "../../components/SkillPreview";
 import { skillsPort } from "../../skills-port";
+import { LocalSkillShare } from "./LocalSkillShare";
 
 export function LocalSkillsLibrary(props: {
   initialSkillId?: string | undefined;
@@ -17,6 +18,7 @@ export function LocalSkillsLibrary(props: {
 }) {
   const { t, errorMessage } = useText();
   const [reload, setReload] = createSignal(0);
+  const [sharing, setSharing] = createSignal<MarketplaceSkillDetail | null>(null);
   let active = true;
   onSettled(() => () => {
     active = false;
@@ -126,144 +128,158 @@ export function LocalSkillsLibrary(props: {
     }
   }
   return (
-    <div class={["agent-local-library", state.selected && "agent-skill-detail"]}>
-      <Show when={state.selected}>
-        <div class="skill-preview-toolbar">
+    <Show
+      when={sharing()}
+      fallback={
+        <div class={["agent-local-library", state.selected && "agent-skill-detail"]}>
           <Show when={state.selected}>
-            <Button
-              variant="ghost"
-              onClick={() => setState((current) => ({ ...current, selected: null, error: "", reference: null }))}
-            >
-              {t("skill.local.back")}
-            </Button>
-          </Show>
-          <Show when={state.selected}>
-            {(skill) => (
+            <div class="skill-preview-toolbar">
               <Button
-                disabled={
-                  state.busy ||
-                  (installed()?.installedVersion === skill().version && installed()?.state !== "needs-repair")
-                }
-                onClick={() => void install(skill())}
+                variant="ghost"
+                disabled={state.busy || props.disabled}
+                onClick={() => setSharing(state.selected)}
               >
-                {installed()?.state === "needs-repair"
-                  ? t("skill.repair")
-                  : installed()?.installedVersion === skill().version
-                    ? t("skill.local.added")
-                    : installed()
-                      ? t("skill.update")
-                      : t("skill.local.add")}
+                {t("skill.share.open")}
               </Button>
-            )}
+              <Show when={state.selected}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setState((current) => ({ ...current, selected: null, error: "", reference: null }))}
+                >
+                  {t("skill.local.back")}
+                </Button>
+              </Show>
+              <Show when={state.selected}>
+                {(skill) => (
+                  <Button
+                    disabled={
+                      state.busy ||
+                      (installed()?.installedVersion === skill().version && installed()?.state !== "needs-repair")
+                    }
+                    onClick={() => void install(skill())}
+                  >
+                    {installed()?.state === "needs-repair"
+                      ? t("skill.repair")
+                      : installed()?.installedVersion === skill().version
+                        ? t("skill.local.added")
+                        : installed()
+                          ? t("skill.update")
+                          : t("skill.local.add")}
+                  </Button>
+                )}
+              </Show>
+            </div>
+          </Show>
+          <Show when={state.error}>
+            <p class="agent-memory-error" role="alert">
+              {state.error}
+              <ErrorReference reference={state.reference} />
+            </p>
+            <Show when={!state.selected}>
+              <Button variant="ghost" onClick={() => setReload((value) => value + 1)}>
+                {t("common.retry")}
+              </Button>
+            </Show>
+          </Show>
+          <Show
+            when={!state.loading}
+            fallback={
+              <p role="status" class="agent-memory-state">
+                {t("skill.local.loading")}
+              </p>
+            }
+          >
+            <Show
+              when={state.selected}
+              fallback={
+                <>
+                  <Show when={state.skills.length === 0 && !state.error}>
+                    <p class="agent-memory-state">{t("skill.local.empty")}</p>
+                  </Show>
+                  <For each={state.skills}>
+                    {(skill) => (
+                      <div
+                        class={[
+                          "agent-skill-row agent-local-skill-row",
+                          !props.installed.some((item) => item.skillId === skill.id && item.enabled !== false) &&
+                            "agent-skill-row-disabled",
+                        ]}
+                      >
+                        <Button
+                          variant="ghost"
+                          class="agent-skill-open"
+                          onClick={() =>
+                            setState((current) => ({ ...current, selected: skill, error: "", reference: null }))
+                          }
+                        >
+                          <SkillGlyph iconUrl={skill.iconUrl} />
+                          <span class="agent-skill-copy">
+                            <span class="agent-skill-title">
+                              <strong>{skill.name}</strong>
+                            </span>
+                            <small>{skill.description}</small>
+                          </span>
+                        </Button>
+                        <Show
+                          when={props.installed.some(
+                            (item) =>
+                              item.skillId === skill.id &&
+                              item.installedVersion < skill.version &&
+                              item.state !== "modified" &&
+                              item.state !== "needs-repair",
+                          )}
+                        >
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            class="agent-skill-update"
+                            aria-label={t("skill.updateName", { name: skill.name })}
+                            disabled={state.busy || props.disabled}
+                            onClick={() => void install(skill)}
+                          >
+                            {t("skill.update")}
+                          </Button>
+                        </Show>
+                        <Switch
+                          aria-label={t("skill.enableName", { name: skill.name })}
+                          checked={props.installed.some((item) => item.skillId === skill.id && item.enabled !== false)}
+                          disabled={state.busy || props.disabled === true}
+                          onChange={(enabled) => void toggleSkill(skill, enabled)}
+                        />
+                      </div>
+                    )}
+                  </For>
+                </>
+              }
+            >
+              {(skill) => (
+                <SkillPreview
+                  skill={skill()}
+                  onTry={
+                    installed()?.installedVersion === skill().version &&
+                    installed()?.state !== "needs-repair" &&
+                    !state.busy &&
+                    props.onTry
+                      ? () => void trySkill(skill())
+                      : undefined
+                  }
+                  unavailableReason={
+                    !installed()
+                      ? t("skill.unavailable.add")
+                      : installed()?.installedVersion !== skill().version
+                        ? t("skill.unavailable.updateRevision")
+                        : installed()?.state === "needs-repair"
+                          ? t("skill.unavailable.repair")
+                          : t("skill.unavailable.composer")
+                  }
+                />
+              )}
+            </Show>
           </Show>
         </div>
-      </Show>
-      <Show when={state.error}>
-        <p class="agent-memory-error" role="alert">
-          {state.error}
-          <ErrorReference reference={state.reference} />
-        </p>
-        <Show when={!state.selected}>
-          <Button variant="ghost" onClick={() => setReload((value) => value + 1)}>
-            {t("common.retry")}
-          </Button>
-        </Show>
-      </Show>
-      <Show
-        when={!state.loading}
-        fallback={
-          <p role="status" class="agent-memory-state">
-            {t("skill.local.loading")}
-          </p>
-        }
-      >
-        <Show
-          when={state.selected}
-          fallback={
-            <>
-              <Show when={state.skills.length === 0 && !state.error}>
-                <p class="agent-memory-state">{t("skill.local.empty")}</p>
-              </Show>
-              <For each={state.skills}>
-                {(skill) => (
-                  <div
-                    class={[
-                      "agent-skill-row agent-local-skill-row",
-                      !props.installed.some((item) => item.skillId === skill.id && item.enabled !== false) &&
-                        "agent-skill-row-disabled",
-                    ]}
-                  >
-                    <Button
-                      variant="ghost"
-                      class="agent-skill-open"
-                      onClick={() =>
-                        setState((current) => ({ ...current, selected: skill, error: "", reference: null }))
-                      }
-                    >
-                      <SkillGlyph iconUrl={skill.iconUrl} />
-                      <span class="agent-skill-copy">
-                        <span class="agent-skill-title">
-                          <strong>{skill.name}</strong>
-                        </span>
-                        <small>{skill.description}</small>
-                      </span>
-                    </Button>
-                    <Show
-                      when={props.installed.some(
-                        (item) =>
-                          item.skillId === skill.id &&
-                          item.installedVersion < skill.version &&
-                          item.state !== "modified" &&
-                          item.state !== "needs-repair",
-                      )}
-                    >
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        class="agent-skill-update"
-                        aria-label={t("skill.updateName", { name: skill.name })}
-                        disabled={state.busy || props.disabled}
-                        onClick={() => void install(skill)}
-                      >
-                        {t("skill.update")}
-                      </Button>
-                    </Show>
-                    <Switch
-                      aria-label={t("skill.enableName", { name: skill.name })}
-                      checked={props.installed.some((item) => item.skillId === skill.id && item.enabled !== false)}
-                      disabled={state.busy || props.disabled === true}
-                      onChange={(enabled) => void toggleSkill(skill, enabled)}
-                    />
-                  </div>
-                )}
-              </For>
-            </>
-          }
-        >
-          {(skill) => (
-            <SkillPreview
-              skill={skill()}
-              onTry={
-                installed()?.installedVersion === skill().version &&
-                installed()?.state !== "needs-repair" &&
-                !state.busy &&
-                props.onTry
-                  ? () => void trySkill(skill())
-                  : undefined
-              }
-              unavailableReason={
-                !installed()
-                  ? t("skill.unavailable.add")
-                  : installed()?.installedVersion !== skill().version
-                    ? t("skill.unavailable.updateRevision")
-                    : installed()?.state === "needs-repair"
-                      ? t("skill.unavailable.repair")
-                      : t("skill.unavailable.composer")
-              }
-            />
-          )}
-        </Show>
-      </Show>
-    </div>
+      }
+    >
+      {(skill) => <LocalSkillShare skill={skill()} onClose={() => setSharing(null)} onInstalled={props.onInstalled} />}
+    </Show>
   );
 }

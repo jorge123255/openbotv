@@ -7,11 +7,14 @@ import type {
   AgentTemplateSkill,
   InstalledSkill,
   InstallSkillInput,
+  LocalSkillShareOutcome,
+  LocalSkillShareReview,
   MarketplaceAgentSkill,
   MarketplaceSkillDetail,
   MarketplaceSkillPage,
   MarketplaceSkillQuery,
   SetEnabledSkillInput,
+  ShareLocalSkillInput,
   SkillPackagePreview,
   SkillSubmission,
   SubmitSkillInput,
@@ -27,6 +30,7 @@ import {
 } from "@openbot/contracts/ipc";
 import { isBoolean, isDynamicRecord, isNumber, isOneOf, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
+import { redactText } from "@openbot/logging";
 import { Cache, Effect, Exit, Result, Schema, Semaphore } from "effect";
 import { parse as parseYaml } from "yaml";
 import type { AgentLifecycleFailed } from "../backend/agent-service";
@@ -617,6 +621,80 @@ export class SkillMarketplaceService {
         .bundle(input.skillId, input.revision)
         .pipe(toSkillMarketplaceFailure);
       return yield* this.installResolved(yield* skillSync(() => this.requireAgent(input.agentId)), detail, bundle);
+    });
+  }
+
+  /** Only the immutable library revision is read. No source workspace, memory, routine or connector is copied. */
+  reviewLocalShare(input: {
+    skillId: string;
+    revision: number;
+  }): Effect.Effect<LocalSkillShareReview, SkillMarketplaceFailure> {
+    return Effect.gen({ self: this }, function* () {
+      const { detail, markdown } = yield* this.shareableLocalRevision(input);
+      return {
+        skillId: detail.id,
+        revision: detail.version,
+        bundleSha256: detail.bundleSha256,
+        markdown,
+        recipients: this.listAgents().map(({ id, name }) => ({ agentId: id, name })),
+      };
+    });
+  }
+
+  private shareableLocalRevision(input: { skillId: string; revision: number }) {
+    return Effect.gen({ self: this }, function* () {
+      const library = this.requireLocalLibrary();
+      const detail = yield* library.get(input.skillId, input.revision).pipe(toSkillMarketplaceFailure);
+      const bundle = yield* library.bundle(input.skillId, input.revision).pipe(toSkillMarketplaceFailure);
+      if (sha256(bundle) !== detail.bundleSha256)
+        return yield* new SkillMarketplaceFailure({ cause: new Error(sourceText("error.skill.bundleMismatch")) });
+      const files = yield* skillSync(() => normalizedFiles(bundle));
+      const bytes = files["SKILL.md"];
+      if (Object.keys(files).length !== 1 || !bytes || bytes.length > 64 * 1024)
+        return yield* new SkillMarketplaceFailure({
+          cause: new Error(sourceText("error.skill.shareInstructionsOnly")),
+        });
+      const markdown = yield* skillSync(() => new TextDecoder("utf-8", { fatal: true }).decode(bytes));
+      // Refuse detected sensitive content, rather than install a redacted copy the user did not review.
+      if (redactText(markdown) !== markdown)
+        return yield* new SkillMarketplaceFailure({ cause: new Error(sourceText("error.skill.shareSensitive")) });
+      return { detail, bundle, markdown };
+    });
+  }
+
+  /** Desktop-only. Provider tools keep their session-derived agent scope; they cannot call this operation. */
+  shareLocal(input: ShareLocalSkillInput): Effect.Effect<LocalSkillShareOutcome[], SkillMarketplaceFailure> {
+    return Effect.gen({ self: this }, function* () {
+      const { detail, bundle } = yield* this.shareableLocalRevision(input);
+      if (!input.reviewed || input.bundleSha256 !== detail.bundleSha256)
+        return yield* new SkillMarketplaceFailure({ cause: new Error(sourceText("error.skill.shareChanged")) });
+      const outcomes: LocalSkillShareOutcome[] = [];
+      for (const agentId of input.agentIds) {
+        const result = yield* Effect.result(
+          this.serialize(
+            agentId,
+            Effect.gen({ self: this }, function* () {
+              // Resolve each local recipient again under its write gate. Remote or removed ids fail closed.
+              const agent = yield* skillSync(() => this.requireAgent(agentId));
+              const lock = yield* readLock(agent.workspacePath);
+              const existing = lock.skills[detail.id];
+              if (existing) {
+                const state = yield* installedState(agent.workspacePath, existing);
+                return existing.version === detail.version &&
+                  existing.bundleSha256 === detail.bundleSha256 &&
+                  state === "installed"
+                  ? ("unchanged" as const)
+                  : ("blocked" as const);
+              }
+              yield* this.writeResolvedEffect(agent, detail, bundle);
+              return "installed" as const;
+            }),
+          ),
+        );
+        // A write or runtime refresh can fail after files were committed. Preserve that uncertainty.
+        outcomes.push({ agentId, status: Result.isSuccess(result) ? result.success : "check-required" });
+      }
+      return outcomes;
     });
   }
 
