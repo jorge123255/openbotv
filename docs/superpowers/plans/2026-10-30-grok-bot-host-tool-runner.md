@@ -1,6 +1,15 @@
 # Grok Bot host tool runner
 
-> **For agentic workers:** Implement one phase per pull request. Use the repository E2E scripts under `scripts/`. Do not add unit tests. This plan does not change production behavior.
+## Shipping decision (2026-10-31)
+
+George approved [the host-tool runner design](../specs/2026-10-31-openbot-host-tool-runner-design.md).
+
+- Phase 1 is on `main` (pull request #37). Do not implement it again.
+- Implement phases 2, 3, and 4 together in one later effort. Do not open one pull request per phase.
+- This file stays the 2026-10-30 analysis. Follow the design spec when the two files disagree.
+- Do not turn this file into the implementation checklist. That checklist comes later.
+
+> **For agentic workers:** Read the design spec first. Phases 2–4 ship together. This plan does not change production behavior.
 
 **Goal:** Make OpenBot a host tool runner for a Grok Bot sand agent, in the same role as the BotAI Mac host, while the sand box keeps inference and sand tools.
 
@@ -121,9 +130,11 @@ Rules:
 
 **C. Push OpenBot MCP config into the box.** Rejected for connectors. `box-mcp-exec.ts` `loadServers` gives the box the server config. OpenBot connector secrets must stay on the computer. Phase 3 runs an MCP call on the host only when the box sends that call on local-exec. It does not upload the connector config.
 
+The 2026-10-31 design uses “full phases 2–4” for one implementation of local-exec, host MCP, and ask / always / never. That name is not approach C in this section. Approach C here stays rejected.
+
 ## 3. Phased pull requests
 
-Each phase is one reviewable pull request. Later phases do not start inside the earlier pull request.
+The original split was one pull request per phase. The design spec replaces that split: phases 2, 3, and 4 are one implementation. The sections below keep the original file lists as analysis. They are not the shipping sequence.
 
 ### Phase 1 — Show sand tool activity in chat
 
@@ -183,6 +194,8 @@ export function transcriptToolSteps(body: unknown): readonly GrokBotTranscriptTo
 - Cursor and other provider tests are not in this pull request.
 
 ### Phase 2 — Host local-exec loop, default off
+
+The design spec supersedes the `grokBotHostTools` flag and the Shell refusal in this section. Auto-review is the gate. Shell is part of the combined ship.
 
 **Files:**
 
@@ -246,6 +259,8 @@ export function runGrokBotLocalExec(options: GrokBotLocalExecOptions): Promise<v
 - An existing local-agent MCP scope E2E still passes. Run `scripts/agent-mcp-scope-e2e.ts` because agent JSON shape changes.
 
 ### Phase 3 — OpenBot MCP picker for grok-bot agents
+
+The design spec keeps host MCP in the combined ship for every agent. A missing Grok MCP frame does not remove MCP for other agents. Do not upload MCP config to the box.
 
 Do this only after phase 2 can return a host result.
 
@@ -321,13 +336,15 @@ Do this only after phase 2 can return a host result.
 | 3 | A selected MCP server can answer a host MCP frame, or the spike records that the gateway never sends one and the pull request adds no advertise path. |
 | 4 | Ask, always, never, and retire match the BotAI modes for the five local actions that this plan allows. Computer hand-back is available from the chat card. Cookie and message export stay refused. |
 
+The design spec replaces the phase 2 Shell refusal, the one-pull-request-per-phase rule, and the phase 4 chat hand-back card. Cookie and message export stay refused.
+
 ## 6. First implementation pull request
 
-Implement **phase 1 only**.
+Phase 1 is done. It landed on `main` as pull request #37. Do not open it again.
 
-It is the smallest user-visible step. It does not grant the model a new tool. It does not change auth. It uses the chat tool rows that already exist. It gives a fixture for the transcript shape that phases 2 and 3 need.
+The next implementation follows the design spec. It includes phases 2, 3, and 4 in one effort.
 
-Do not start phase 2 in that pull request.
+The original instruction was phase 1 only. That instruction is complete. Phase 1 did not grant a host tool and did not change auth. It shows sand tool rows from the transcript.
 
 ## 7. Unconfirmed items
 
