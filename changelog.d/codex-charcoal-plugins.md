@@ -8,7 +8,7 @@
 
 ### Changed
 
-- Show BotAI in the page rail, loading screen, and desktop document title. Keep existing service names and upstream attribution.
+- Show BotAI in the page rail, loading screens, search, settings descriptions, and desktop document title. Keep existing service names and upstream attribution.
 - Use charcoal surfaces and violet accents across labelled navigation, bot cards, chat, Marketplace, and settings. Keep category filters, the sleep section, and selected chat. Navigation becomes compact at smaller window widths.
 - Plugins discovery shows catalog cards. Create opens the existing tool and skill setup views.
 - The roster shows each teammate's saved avatar color. Category colors stay on the category markers.
