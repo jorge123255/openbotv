@@ -3,10 +3,9 @@ import { isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { Effect, Schema } from "effect";
 import { readLimitedBody } from "../backend/limited-body";
 
-export class OllamaBalanceUnavailable extends Schema.TaggedError<OllamaBalanceUnavailable>()(
-  "OllamaBalanceUnavailable",
-  { retryAfterMs: Schema.Number },
-) {}
+class OllamaBalanceUnavailable extends Schema.TaggedError<OllamaBalanceUnavailable>()("OllamaBalanceUnavailable", {
+  retryAfterMs: Schema.Number,
+}) {}
 
 export interface OllamaBalance {
   windows: OllamaQuotaWindow[];
