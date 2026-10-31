@@ -47,7 +47,7 @@ import { clineFreeModels } from "./cline-free-models";
 import { readCursorUsage } from "./cursor-usage";
 import { CustomAcpAgentsClient, type CustomAgentConfig, type CustomAgentSource } from "./custom-acp-agents-client";
 import type { GrokBotAccountStore } from "./grok-bot/grok-bot-account";
-import { GrokBotAgentClient } from "./grok-bot/grok-bot-agent-client";
+import { GrokBotAgentClient, type GrokBotAgentClientOptions } from "./grok-bot/grok-bot-agent-client";
 import { GROK_BOT_RUNTIME } from "./grok-bot/grok-bot-runtime";
 import { GrokAgentClient } from "./grok-client";
 import type { McpOAuthAuthority } from "./mcp-oauth-provider";
@@ -404,6 +404,8 @@ export interface ProviderClientContext {
   readonly grokBotAccount?: GrokBotAccountStore;
   /** File that keeps the Grok Bot checksum machine id. Absent in tests that pass an id. */
   readonly grokBotMachineIdPath?: string;
+  /** Host-tool frames on a Grok gateway turn. Absent when this process does not run host tools. */
+  readonly hostToolRunner?: GrokBotAgentClientOptions["hostTools"];
 }
 
 /** The agent environment with the account's home folder after it, so the account folder wins. */
@@ -998,12 +1000,14 @@ export const BUILT_IN_PROVIDER_DRIVERS: readonly BuiltInProviderDriver[] = [
       new GrokBotAgentClient({
         ...(context.grokBotAccount ? { store: context.grokBotAccount } : {}),
         ...(context.grokBotMachineIdPath ? { machineIdPath: context.grokBotMachineIdPath } : {}),
+        ...(context.hostToolRunner ? { hostTools: context.hostToolRunner } : {}),
         requestTimeoutMs: timeout,
       }),
     createProfileClient: (_cli, timeout, context) =>
       new GrokBotAgentClient({
         ...(context.grokBotAccount ? { store: context.grokBotAccount } : {}),
         ...(context.grokBotMachineIdPath ? { machineIdPath: context.grokBotMachineIdPath } : {}),
+        ...(context.hostToolRunner ? { hostTools: context.hostToolRunner } : {}),
         requestTimeoutMs: timeout,
       }),
     authState: (account) => ({ kind: "grok-bot", email: account?.email ?? null }),

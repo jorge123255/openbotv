@@ -2068,6 +2068,16 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
     return this.#mcp.enabled();
   }
 
+  /** The MCP servers this agent selected, for a host-tool call. */
+  mcpServersForAgent(agentId: string): McpServerConfig[] {
+    return this.#mcp.forAgent(this.enabledMcpServers(), agentId);
+  }
+
+  /** Where one selected MCP server is reached. A refusal carries `error`. */
+  mcpEndpoint(config: McpServerConfig, agentId: string) {
+    return this.#mcp.endpoint(config, agentId);
+  }
+
   /**
    * The Computer Use capability, as the main process alone can know it.
    *

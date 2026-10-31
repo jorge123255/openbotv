@@ -35,6 +35,13 @@ export interface HostToolRunnerDeps {
 
 type AskDecision = "allow-once" | "always" | "never" | "expired";
 
+let pendingAsks = 0;
+
+/** Host-tool cards that are still open. A turn stays open while this is above zero. */
+export function pendingHostToolAsks() {
+  return pendingAsks;
+}
+
 /**
  * One local-exec frame. Device, upload, and download never reach Auto-review.
  * The function does not retry.
@@ -168,19 +175,24 @@ function refusedMcp(request: HostToolRequest, deps: HostToolRunnerDeps): LocalEx
 async function askWithDeadline(request: HostToolRequest, deps: HostToolRunnerDeps): Promise<AskDecision> {
   const started = deps.now();
   const remaining = HOST_TOOL_ASK_DEADLINE_MS - (deps.now() - started);
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => resolve("expired"), Math.max(0, remaining));
-    deps.ask(request).then(
-      (decision) => {
-        clearTimeout(timer);
-        resolve(decision);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
+  pendingAsks += 1;
+  try {
+    return await new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve("expired"), Math.max(0, remaining));
+      deps.ask(request).then(
+        (decision) => {
+          clearTimeout(timer);
+          resolve(decision);
+        },
+        (error: unknown) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      );
+    });
+  } finally {
+    pendingAsks -= 1;
+  }
 }
 
 function denied(deps: HostToolRunnerDeps, request: HostToolRequest): LocalExecResponseFrame {

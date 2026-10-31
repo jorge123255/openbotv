@@ -1,12 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { attachmentMimeTypeForName } from "@openbot/contracts/attachment-files";
 import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { createOpenBotLogger } from "@openbot/logging";
 import { Effect } from "effect";
 import type { AgentClient, DiagnosticOrigin } from "../agent-client";
+import { thisComputer } from "../host-tools/host-tool-machines";
+import { pendingHostToolAsks } from "../host-tools/host-tool-runner";
+import { runLocalExecClient } from "../host-tools/local-exec-client";
+import {
+  type LocalExecRequestFrame,
+  type LocalExecResponseFrame,
+  localExecHeaders,
+} from "../host-tools/local-exec-frames";
 import { PendingServerRequests } from "../pending-server-requests";
 import type {
   AppServerNotification,
@@ -18,7 +27,7 @@ import type {
 } from "../protocol";
 import { getString, isRecord } from "../protocol";
 import { type ProviderClientOperationError, providerFailure } from "../provider-client-effects";
-import { accessTokenNeedsRefresh, type GrokBotAccountStore } from "./grok-bot-account";
+import { accessTokenNeedsRefresh, type GrokBotAccountStore, type GrokBotGatewaySession } from "./grok-bot-account";
 import { readOrCreateMachineId } from "./grok-bot-checksum";
 import {
   createGrokBotAgent,
@@ -103,6 +112,20 @@ export interface GrokBotAgentClientOptions {
   readonly gatewayEventsStallMs?: number;
   /** How long to wait for the first `GET /events` response. Default 15s. */
   readonly gatewayEventsConnectMs?: number;
+  /** Local-exec frames for this turn. Absent means the turn does not subscribe. */
+  readonly hostTools?: {
+    handle(
+      frame: LocalExecRequestFrame,
+      context: { agentId: string; threadId: string; turnId: string },
+    ): Promise<LocalExecResponseFrame | null>;
+  };
+}
+
+/** Gateway bearer and stored gateway headers. The account access token is not a parameter. */
+export function grokLocalExecHeaders(
+  session: Pick<GrokBotGatewaySession, "token" | "headers">,
+): Record<string, string> {
+  return localExecHeaders({ token: session.token, headers: session.headers });
 }
 
 /**
@@ -486,6 +509,7 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
     const shownTools = new Map<string, GrokBotTranscriptToolStep["status"]>();
     const readTail = async () => Effect.runPromise(readGrokBotTranscript(store, thread.id, options));
     const streamAbort = new AbortController();
+    const hostAbort = new AbortController();
     const abortStream = () => streamAbort.abort();
     turn.controller.signal.addEventListener("abort", abortStream);
     try {
@@ -525,6 +549,26 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
           this.emit("diagnostic", "Grok Bot has no gateway turn signal. The turn ends after a quiet window.");
         }
       }
+      const hostTools = this.#options.hostTools;
+      if (hostTools && session) {
+        const computer = thisComputer();
+        void runLocalExecClient({
+          baseUrl: session.url,
+          session: { token: session.token, headers: session.headers },
+          signal: hostAbort.signal,
+          hello: () => ({
+            kind: "hello",
+            localRoot: homedir(),
+            terminalsFolder: homedir(),
+            computerId: computer.id,
+            label: computer.label,
+          }),
+          onFrame: (frame) => hostTools.handle(frame, { agentId: thread.id, threadId: thread.id, turnId: turn.id }),
+        }).catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : "";
+          if (message.length > 0) this.emit("diagnostic", message);
+        });
+      }
       await Effect.runPromise(sendGrokBotPrompt(store, { agentId: thread.id, prompt, clientNonce: turn.id }, options));
       const started = Date.now();
       const timeoutMs = this.#options.gatewayTurnTimeoutMs ?? 10 * 60_000;
@@ -554,7 +598,8 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
         quietOpen =
           activity.steps.some((step) => step.status === "inProgress") ||
           activity.permissionPending ||
-          reply.length === 0;
+          reply.length === 0 ||
+          pendingHostToolAsks() > 0;
         return JSON.stringify([
           reply,
           activity.steps.map((step) => [step.id, step.status, step.detail]),
@@ -639,6 +684,7 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       });
     } finally {
       streamAbort.abort();
+      hostAbort.abort();
       turn.controller.signal.removeEventListener("abort", abortStream);
     }
   }
