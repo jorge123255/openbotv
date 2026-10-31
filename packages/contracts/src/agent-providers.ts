@@ -462,7 +462,9 @@ const AGENT_PROVIDER_DESCRIPTOR_TABLE = {
     approvalsInFullAccess: true,
     foldersInFullAccess: false,
   },
-  // The Grok Bot sand account. Turns use InferenceService with that token. The `grok` row stays the CLI.
+  // The Grok Bot sand account. A turn uses the sand gateway (`POST /api/sendPrompt`). The sand host
+  // runs the model. `InferenceService/Stream` runs only when a caller sets `directInference`.
+  // The `grok` row stays the CLI.
   "grok-bot": {
     id: "grok-bot",
     displayName: "Grok Bot",

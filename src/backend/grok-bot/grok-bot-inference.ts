@@ -6,8 +6,9 @@ import { createCursorChecksum } from "./grok-bot-checksum";
 import { GROK_BOT_CURSOR_CLIENT_VERSION } from "./grok-bot-gateway";
 
 /**
- * BotAI sends a turn with `InferenceService.Stream` (`aiserver.v1.InferenceService`) and the sand
- * access token. The JSON fields match `buildStreamRequest` in
+ * Optional `directInference` path. It calls `InferenceService/Stream`
+ * (`aiserver.v1.InferenceService`) with the user sand access token. The default turn does not
+ * use this module. The sand gateway runs the model. The JSON fields match `buildStreamRequest` in
  * `source/packages/chat-inference-proto/converters.ts`. An empty text part with `isFinal` ends the part and carries no extra text, as
  * `ProtoPromptExecutor.protoResponseToStreamParts` does. A final part that still has text is kept.
  *

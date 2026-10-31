@@ -34,7 +34,11 @@ import {
   grokBotStreamBody,
   readGrokBotInference,
 } from "./grok-bot-inference";
-import { transcriptToMessages } from "./grok-bot-transcript";
+import {
+  type GrokBotTranscriptToolStep,
+  transcriptActivityAfterPrompt,
+  transcriptToMessages,
+} from "./grok-bot-transcript";
 import { readGrokBotUsageSummary } from "./grok-bot-usage";
 
 const DEFAULT_API = "https://api2.cursor.sh";
@@ -75,8 +79,9 @@ export interface GrokBotAgentClientOptions {
  * One OpenBot thread is one sand agent id from `POST /api/createAgent`.
  * A turn is `POST /api/sendPrompt` on the sand gateway. The sand host runs the model.
  * The user-visible reply is a text `send-message` card. OpenBot stores that card as the
- * assistant message, then completes the turn. `InferenceService/Stream` runs only when
- * `directInference` is set.
+ * assistant message. A `tool-call` card becomes a sand tool row. OpenBot shows the row.
+ * OpenBot does not run that tool. The turn completes when the reply text is stable and no
+ * tool row is in progress. `InferenceService/Stream` runs only when `directInference` is set.
  */
 export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements AgentClient {
   readonly provider = "grok-bot" as const;
@@ -437,19 +442,22 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
   /**
    * BotAI path: `POST /api/sendPrompt` returns `{ accepted: true }`. The sand host owns the model
    * stream and writes a text `send-message` card. Poll `/api/getAgentTranscriptTail` until that
-   * card stops changing, then project it as the assistant reply.
+   * card stops changing, then project it as the assistant reply. Project `tool-call` cards as
+   * display rows. Do not call `item/tool/call`.
    */
   async #viaGateway(thread: SandThread, params: unknown): Promise<void> {
     const turn = thread.turn;
     const store = this.#options.store;
     if (!turn || !store) return;
     const options = { ...this.#callOptions(), allowLoopback: this.#options.allowLoopback === true };
-    const tail = async () =>
-      transcriptToMessages(await Effect.runPromise(readGrokBotTranscript(store, thread.id, options)));
+    const shownTools = new Map<string, GrokBotTranscriptToolStep["status"]>();
+    const readTail = async () => Effect.runPromise(readGrokBotTranscript(store, thread.id, options));
     try {
       const prompt = promptText(params);
       const none: GrokBotInferenceMessage[] = [];
-      const before = await tail().catch(() => none);
+      const before = await readTail()
+        .then((body) => transcriptToMessages(body))
+        .catch(() => none);
       await Effect.runPromise(sendGrokBotPrompt(store, { agentId: thread.id, prompt, clientNonce: turn.id }, options));
       const started = Date.now();
       const timeoutMs = this.#options.gatewayTurnTimeoutMs ?? 10 * 60_000;
@@ -459,8 +467,11 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       while (Date.now() - started < timeoutMs) {
         await sleep(pollMs, turn.controller.signal);
         if (thread.turn?.id !== turn.id) return;
-        const messages = await tail().catch(() => null);
-        if (!messages) continue;
+        const body = await readTail().catch(() => null);
+        if (!body) continue;
+        const messages = transcriptToMessages(body);
+        const activity = transcriptActivityAfterPrompt(body, prompt);
+        this.#projectSandTools(thread.id, turn.id, activity.steps, shownTools);
         const reply = replyAfter(before, messages, prompt);
         if (reply.length > turn.text.length && reply.startsWith(turn.text)) {
           const delta = reply.slice(turn.text.length);
@@ -468,6 +479,13 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
           this.#emit("item/agentMessage/delta", { threadId: thread.id, turnId: turn.id, itemId: turn.itemId, delta });
         } else if (reply !== turn.text && reply.length > 0) {
           turn.text = reply;
+        }
+        const toolRunning = activity.steps.some((step) => step.status === "inProgress");
+        // An open tool row or permission card is not a missing reply. Two empty reads are not success.
+        if (toolRunning || activity.permissionPending) {
+          stable = 0;
+          lastSeen = reply;
+          continue;
         }
         stable = reply.length > 0 && reply === lastSeen ? stable + 1 : 0;
         lastSeen = reply;
@@ -557,6 +575,51 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
       },
     });
     return toolResult;
+  }
+
+  /** Show one sand tool card. A later poll does not run the tool and does not send the row again. */
+  #projectSandTools(
+    threadId: string,
+    turnId: string,
+    steps: readonly GrokBotTranscriptToolStep[],
+    shown: Map<string, GrokBotTranscriptToolStep["status"]>,
+  ): void {
+    for (const step of steps) {
+      const previous = shown.get(step.id);
+      if (step.status === "inProgress") {
+        if (previous !== undefined) continue;
+        this.#emitSandTool(threadId, turnId, step, "started");
+        shown.set(step.id, "inProgress");
+        continue;
+      }
+      if (previous === "completed" || previous === "failed") continue;
+      if (previous === undefined) this.#emitSandTool(threadId, turnId, step, "started");
+      this.#emitSandTool(threadId, turnId, step, "completed");
+      shown.set(step.id, step.status);
+    }
+  }
+
+  #emitSandTool(
+    threadId: string,
+    turnId: string,
+    step: GrokBotTranscriptToolStep,
+    phase: "started" | "completed",
+  ): void {
+    const status = phase === "started" ? "inProgress" : step.status;
+    this.#emit(phase === "started" ? "item/started" : "item/completed", {
+      threadId,
+      turnId,
+      item: {
+        id: step.id,
+        type: "dynamicToolCall",
+        namespace: "sand",
+        tool: step.name,
+        status,
+        ...(phase === "completed" && step.detail.length > 0
+          ? { contentItems: [{ type: "inputText", text: step.detail }] }
+          : {}),
+      },
+    });
   }
 
   #emitTool(thread: SandThread, turnId: string, call: GrokBotStreamTool, status: string): void {
