@@ -59,4 +59,6 @@ export const messages = defineMessages("status.agent", {
   "status.agent.planContinues": "The plan has open steps. The agent continues ({current} of {limit}).",
   "status.agent.grokBotWriting": "Writing…",
   "status.agent.grokBotRetrying": "Retrying…",
+  "status.agent.hostToolExit": "exit {code}",
+  "status.agent.hostToolThumbnail": "Thumbnail {path}",
 });
