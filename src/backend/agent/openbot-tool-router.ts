@@ -45,6 +45,7 @@ import type { AgentWaits } from "../agent-waits/agent-waits";
 import { OPENBOT_BROWSER_NAMESPACE } from "../browser-tools";
 import type { ChannelService } from "../channel-service";
 import type { ProviderSession } from "../database/provider-sessions";
+import { callHostMcpTool } from "../host-tools/host-mcp";
 import { cancelHostToolAnswer, waitForHostToolAnswer } from "../host-tools/host-tool-asks";
 import { hostToolRequestFromCatalog, isHostCatalogTool } from "../host-tools/host-tool-catalog";
 import { runHostCommand } from "../host-tools/host-tool-executor";
@@ -226,6 +227,11 @@ export interface OpenBotToolRouterOptions {
   userDataPath?: string | undefined;
   /** Tells the desktop to show one host-tool ask. Absent in a process with no window. */
   surfaceHostToolAsk?: ((ask: HostToolAsk) => void) | undefined;
+  /** Where one MCP server is reached for a host-tool call. Absent when this process has no gateway. */
+  hostMcpEndpoint?: (
+    config: McpServerConfig,
+    agentId: string,
+  ) => Effect.Effect<{ url: string; authorization: string | null } | { error: string }, unknown>;
   /** The MCP servers of this OpenBot server, for the MCP tools; null where nothing holds them. */
   mcpServers?: AgentMcpServers | null | undefined;
   /** The API keys that users saved for agents; null where nothing can save them. */
@@ -267,6 +273,12 @@ export class OpenBotToolRouter {
   readonly #screenCapture: ScreenCaptureHost | null;
   readonly #userDataPath: string | null;
   readonly #surfaceHostToolAsk: ((ask: HostToolAsk) => void) | null;
+  readonly #hostMcpEndpoint:
+    | ((
+        config: McpServerConfig,
+        agentId: string,
+      ) => Effect.Effect<{ url: string; authorization: string | null } | { error: string }, unknown>)
+    | null;
   readonly #mcpServers: AgentMcpServers | null;
   readonly #apiKeys: AgentApiKeys | null;
   readonly #hooks: OpenBotToolRouterHooks;
@@ -303,6 +315,7 @@ export class OpenBotToolRouter {
     this.#screenCapture = options.screenCapture ?? null;
     this.#userDataPath = options.userDataPath ?? null;
     this.#surfaceHostToolAsk = options.surfaceHostToolAsk ?? null;
+    this.#hostMcpEndpoint = options.hostMcpEndpoint ?? null;
     this.#mcpServers = options.mcpServers ?? null;
     this.#apiKeys = options.apiKeys ?? null;
     this.#hooks = options.hooks;
@@ -1209,6 +1222,11 @@ export class OpenBotToolRouter {
         now: () => Date.now(),
         ask: (request) => this.#askHostTool(request),
         emitRow: () => undefined,
+        mcp: {
+          configs: this.#hooks.enabledMcpServers(),
+          forAgent: (_configs, id) => this.#hooks.enabledMcpServers(id),
+          call: (config, toolName, args) => this.#callHostMcp(agentId, config, toolName, args),
+        },
       }),
     );
     return {
@@ -1247,6 +1265,24 @@ export class OpenBotToolRouter {
     await writeFile(path, png);
     await writeFile(thumbnailPath, thumbnail);
     return { path, thumbnailPath };
+  }
+
+  async #callHostMcp(
+    agentId: string,
+    config: McpServerConfig,
+    toolName: string,
+    args: { readonly [key: string]: unknown },
+  ): Promise<string> {
+    const endpoint = this.#hostMcpEndpoint;
+    if (!endpoint) throw new Error("refused");
+    const resolved = await Effect.runPromise(endpoint(config, agentId));
+    if ("error" in resolved) throw new Error("refused");
+    return callHostMcpTool({
+      config,
+      endpoint: config.transport === "http" ? resolved : null,
+      toolName,
+      arguments: args,
+    });
   }
 
   #askHostTool(request: HostToolRequest): Promise<"allow-once" | "always" | "never" | "expired"> {

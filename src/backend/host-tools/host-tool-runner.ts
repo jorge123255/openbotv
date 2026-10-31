@@ -1,4 +1,6 @@
+import type { McpServerConfig } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
+import { mcpSuccessMessage, runHostMcp } from "./host-mcp";
 import type { HostActionResult, HostExecutorDeps } from "./host-tool-executor";
 import { executeHostAction } from "./host-tool-executor";
 import type { HostToolPolicy } from "./host-tool-policy";
@@ -20,6 +22,15 @@ export interface HostToolRunnerDeps {
   readonly now: () => number;
   readonly ask: (request: HostToolRequest) => Promise<"allow-once" | "always" | "never" | "expired">;
   readonly emitRow: (row: HostToolRow) => void;
+  readonly mcp?: {
+    readonly configs: readonly McpServerConfig[];
+    readonly forAgent: (configs: readonly McpServerConfig[], agentId: string) => McpServerConfig[];
+    readonly call: (
+      config: McpServerConfig,
+      toolName: string,
+      args: { readonly [key: string]: unknown },
+    ) => Promise<string>;
+  };
 }
 
 type AskDecision = "allow-once" | "always" | "never" | "expired";
@@ -95,11 +106,13 @@ async function gate(
   request: HostToolRequest,
   deps: HostToolRunnerDeps,
 ): Promise<LocalExecResponseFrame> {
-  const selected = selectMachine([deps.computer], request.machineId);
-  if (!selected.ok) {
-    const text = sourceText("error.backend.hostToolMachineUnavailable");
-    failed(deps, request.id, request.action, text);
-    return { kind: "client", requestId: request.id, message: { error: text } };
+  if (request.action !== "mcp") {
+    const selected = selectMachine([deps.computer], request.machineId);
+    if (!selected.ok) {
+      const text = sourceText("error.backend.hostToolMachineUnavailable");
+      failed(deps, request.id, request.action, text);
+      return { kind: "client", requestId: request.id, message: { error: text } };
+    }
   }
   const mode = deps.policy.decide(request.action);
   if (mode === "never") return denied(deps, request);
@@ -117,7 +130,39 @@ async function gate(
       await deps.policy.save();
     }
   }
+  if (request.action === "mcp") return performMcp(request, deps);
   return perform(request, deps);
+}
+
+async function performMcp(request: HostToolRequest, deps: HostToolRunnerDeps): Promise<LocalExecResponseFrame> {
+  const mcp = deps.mcp;
+  const toolName = request.toolName;
+  if (mcp === undefined || toolName === undefined || toolName.length === 0) {
+    return refusedMcp(request, deps);
+  }
+  try {
+    const result = await runHostMcp({
+      configs: mcp.configs,
+      agentId: request.agentId,
+      forAgent: mcp.forAgent,
+      ...(request.serverIdentifier === undefined ? {} : { serverIdentifier: request.serverIdentifier }),
+      ...(request.providerIdentifier === undefined ? {} : { providerIdentifier: request.providerIdentifier }),
+      toolName,
+      ...(request.arguments === undefined ? {} : { arguments: request.arguments }),
+      call: mcp.call,
+    });
+    if ("refused" in result) return refusedMcp(request, deps);
+    deps.emitRow({ id: request.id, action: "mcp", status: "completed", text: result.text });
+    return { kind: "client", requestId: request.id, message: mcpSuccessMessage(result.text) };
+  } catch {
+    return refusedMcp(request, deps);
+  }
+}
+
+function refusedMcp(request: HostToolRequest, deps: HostToolRunnerDeps): LocalExecResponseFrame {
+  const text = sourceText("error.backend.hostToolRefused");
+  failed(deps, request.id, request.action, text);
+  return { kind: "client", requestId: request.id, message: { throw: { error: text } } };
 }
 
 async function askWithDeadline(request: HostToolRequest, deps: HostToolRunnerDeps): Promise<AskDecision> {

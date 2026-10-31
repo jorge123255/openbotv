@@ -10,6 +10,7 @@ const CATALOG_ACTIONS = {
   host_list_directory: "list-directory",
   host_write_file: "write-file",
   host_send_input: "send-input",
+  host_mcp: "mcp",
 } as const satisfies Record<string, HostToolAction>;
 
 export const HOST_CATALOG_TOOLS = new Set<string>([...Object.keys(CATALOG_ACTIONS), "host_list_machines"]);
@@ -60,6 +61,18 @@ export function hostToolRequestFromCatalog(
   if (action === "write-file") {
     if (!isString(args.path) || args.path.length === 0 || !isString(args.fileText)) return null;
     return { ...base, action, path: args.path, fileText: args.fileText };
+  }
+  if (action === "mcp") {
+    if (!isString(args.serverIdentifier) || args.serverIdentifier.length === 0) return null;
+    if (!isString(args.toolName) || args.toolName.length === 0) return null;
+    const toolArguments = isDynamicRecord(args.arguments) ? args.arguments : undefined;
+    return {
+      ...base,
+      action,
+      serverIdentifier: args.serverIdentifier,
+      toolName: args.toolName,
+      ...(toolArguments === undefined ? {} : { arguments: toolArguments }),
+    };
   }
   return { ...base, action: "send-input", chars: isString(args.chars) ? args.chars : "" };
 }

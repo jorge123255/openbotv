@@ -393,6 +393,16 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
     shape: { chars: z.string(), machineId: z.string().min(1).optional() },
   },
   {
+    name: "host_mcp",
+    description:
+      "Call one tool on an MCP server this agent already selected. The call runs on this computer after Auto-review. It does not use a machine id, and it does not start a server this agent did not select.",
+    shape: {
+      serverIdentifier: z.string().min(1),
+      toolName: z.string().min(1),
+      arguments: z.record(z.string(), z.unknown()).optional(),
+    },
+  },
+  {
     name: "host_list_machines",
     description:
       "List the machines a host tool can use. Each entry has id, label, and connected. Pass id as machineId to host_shell, host_screenshot, and the file tools.",
