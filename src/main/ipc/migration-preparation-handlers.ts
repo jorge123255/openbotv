@@ -9,7 +9,7 @@ import { sourceText } from "@openbot/i18n/source";
 import { Effect } from "effect";
 import { type IpcGroupHandlers, payloadHandler } from "./define-ipc-group";
 
-export interface MigrationPreparationIpcService<E> {
+interface MigrationPreparationIpcService<E> {
   getState: () => Effect.Effect<MigrationPreparationState, E>;
   prepare: (input: MigrationPreparationPrepareInput) => Effect.Effect<MigrationPreparationState, E>;
   cancel: (input: MigrationPreparationCancelInput) => Effect.Effect<MigrationPreparationState, E>;
