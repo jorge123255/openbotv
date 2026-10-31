@@ -10,6 +10,7 @@ import type {
 } from "@openbot/contracts/ipc";
 import { type DynamicRecord, isBoolean, isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
+import { redactText } from "@openbot/logging";
 import { Deferred, Effect, Exit, Fiber, Scope } from "effect";
 import type { NativeImage, WebContents } from "electron";
 import {
@@ -732,10 +733,10 @@ export class BrowserCdpEngine {
     if (this.#closing || this.#contents.isDestroyed())
       return yield* browserFailure(new Error("Browser tab was closed."));
     return {
-      title: this.#cardScrub.text(this.#contents.getTitle().slice(0, 500)),
-      url: this.#cardScrub.text(this.#contents.getURL()),
+      title: this.#cardScrub.text(redactText(this.#contents.getTitle())).slice(0, 500),
+      url: this.#cardScrub.text(redactText(this.#contents.getURL())),
       loading: this.#contents.isLoading(),
-      focus: focus && { ...focus, name: this.#cardScrub.text(focus.name) },
+      focus: focus && { ...focus, name: this.#cardScrub.text(redactText(focus.name)) },
     };
   });
 

@@ -307,6 +307,10 @@ async function main(): Promise<void> {
     phase("capture-gates");
     assert(failure(await call("screenshot", { tabId: main.tabId })).includes("filled card"), "Screenshot ran.");
     assert(
+      failure(await call("screenshot", { tabId: main.tabId, ref: mainTargets.number.ref })).includes("filled card"),
+      "An element screenshot bypassed the filled-card guard.",
+    );
+    assert(
       failure(await call("snapshot", { tabId: main.tabId, image: "always" })).includes("filled card"),
       "A snapshot image was taken.",
     );
@@ -327,6 +331,7 @@ async function main(): Promise<void> {
     assert(preview.includes("filled card"), "A preview was captured.");
     recordCases(
       "screenshot-refused",
+      "element-screenshot-refused",
       "snapshot-image-refused",
       "evaluate-refused",
       "recording-refused",
