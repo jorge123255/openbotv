@@ -10,8 +10,11 @@ import { isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-
 import { sourceText } from "@openbot/i18n/source";
 import { closeBackgroundShells, executeHostAction } from "../src/backend/host-tools/host-tool-executor";
 import { thisComputer } from "../src/backend/host-tools/host-tool-machines";
-import type { HostToolRequest } from "../src/backend/host-tools/host-tool-types";
+import { HostToolPolicy } from "../src/backend/host-tools/host-tool-policy";
+import { handleLocalExecFrame } from "../src/backend/host-tools/host-tool-runner";
+import type { HostToolRequest, HostToolRow } from "../src/backend/host-tools/host-tool-types";
 import { runLocalExecClient } from "../src/backend/host-tools/local-exec-client";
+import type { LocalExecRequestFrame } from "../src/backend/host-tools/local-exec-frames";
 
 const checks: string[] = [];
 
@@ -218,6 +221,177 @@ async function checkLocalExecChannel(): Promise<void> {
   }
 }
 
+function shellExec(id: string, machineId?: string): LocalExecRequestFrame {
+  return {
+    kind: "exec",
+    requestId: id,
+    serverMessage: { message: { case: "shellStreamArgs", value: { command: "echo host-tool-ok" } } },
+    ...(machineId === undefined ? {} : { machineId }),
+  };
+}
+
+async function checkRunner(): Promise<void> {
+  const computer = thisComputer();
+  const context = { agentId: "agent-1", threadId: "thread-1", turnId: "turn-1" };
+  const exitLine = sourceText("status.agent.hostToolExit", { code: "0" });
+
+  async function runCase(
+    frame: LocalExecRequestFrame,
+    prepare: (policy: HostToolPolicy) => void,
+    ask: () => Promise<"allow-once" | "always" | "never" | "expired">,
+  ): Promise<{ rows: HostToolRow[]; runs: number; asks: number; policy: HostToolPolicy }> {
+    const policy = new HostToolPolicy();
+    prepare(policy);
+    const rows: HostToolRow[] = [];
+    let runs = 0;
+    let asks = 0;
+    await handleLocalExecFrame(
+      frame,
+      {
+        policy,
+        computer,
+        execute: {
+          root: tmpdir(),
+          computer,
+          run: async () => {
+            runs += 1;
+            return { code: 0, stdout: "host-tool-ok\n", stderr: "" };
+          },
+          capture: async () => ({ denied: true }),
+          writeShot: async () => ({ path: "", thumbnailPath: "" }),
+        },
+        now: () => Date.now(),
+        ask: async () => {
+          asks += 1;
+          return ask();
+        },
+        emitRow: (row) => {
+          rows.push(row);
+        },
+      },
+      context,
+    );
+    return { rows, runs, asks, policy };
+  }
+
+  const device = await runCase(
+    { kind: "device", requestId: "d1", request: { operation: "messages" } },
+    (policy) => policy.allowAlways("shell", "ap-device"),
+    async () => "allow-once",
+  );
+  assert.equal(device.rows[0]?.text, sourceText("error.backend.hostToolRefused"));
+  assert.equal(device.runs, 0);
+  assert.equal(device.asks, 0);
+  assert.equal(device.policy.decide("shell"), "always");
+
+  const upload = await runCase(
+    { kind: "upload", requestId: "u1", path: "/tmp/a", bytesBase64: "YQ==" },
+    (policy) => policy.allowAlways("write-file", "ap-upload"),
+    async () => "allow-once",
+  );
+  assert.equal(upload.rows[0]?.text, sourceText("error.backend.hostToolRefused"));
+  assert.equal(upload.runs, 0);
+  assert.equal(upload.policy.decide("write-file"), "always");
+
+  const download = await runCase(
+    { kind: "download", requestId: "n1", path: "/tmp/a" },
+    (policy) => policy.allowAlways("read-file", "ap-download"),
+    async () => "allow-once",
+  );
+  assert.equal(download.rows[0]?.text, sourceText("error.backend.hostToolRefused"));
+  assert.equal(download.runs, 0);
+  assert.equal(download.policy.decide("read-file"), "always");
+
+  const once = await runCase(
+    shellExec("once"),
+    () => undefined,
+    async () => "allow-once",
+  );
+  assert.equal(once.runs, 1);
+  assert.equal(once.asks, 1);
+  assert.ok(once.rows[0]?.text.includes("host-tool-ok"));
+  assert.ok(once.rows[0]?.text.includes(exitLine));
+
+  const always = await runCase(
+    shellExec("always"),
+    (policy) => policy.allowAlways("shell", "ap-always"),
+    async () => "allow-once",
+  );
+  assert.equal(always.runs, 1);
+  assert.equal(always.asks, 0);
+  assert.ok(always.rows[0]?.text.includes("host-tool-ok"));
+
+  const never = await runCase(
+    shellExec("never"),
+    (policy) => policy.denyForever("shell"),
+    async () => "allow-once",
+  );
+  assert.equal(never.runs, 0);
+  assert.equal(never.asks, 0);
+  assert.equal(never.rows[0]?.text, sourceText("error.backend.hostToolDenied"));
+
+  const askNever = await runCase(
+    shellExec("ask-never"),
+    () => undefined,
+    async () => "never",
+  );
+  assert.equal(askNever.runs, 0);
+  assert.equal(askNever.rows[0]?.text, sourceText("error.backend.hostToolDenied"));
+  assert.equal(askNever.policy.decide("shell"), "never");
+
+  const expired = await runCase(
+    shellExec("expired"),
+    () => undefined,
+    async () => "expired",
+  );
+  assert.equal(expired.runs, 0);
+  assert.equal(expired.rows[0]?.text, sourceText("error.backend.hostToolDenied"));
+  assert.equal(expired.policy.decide("shell"), "ask");
+
+  const retired = new HostToolPolicy();
+  retired.allowAlways("shell", "ap-retire");
+  const retiredRows: HostToolRow[] = [];
+  let retiredRuns = 0;
+  let retiredAsks = 0;
+  const retiredDeps = {
+    policy: retired,
+    computer,
+    execute: {
+      root: tmpdir(),
+      computer,
+      run: async () => {
+        retiredRuns += 1;
+        return { code: 0, stdout: "host-tool-ok\n", stderr: "" };
+      },
+      capture: async () => ({ denied: true as const }),
+      writeShot: async () => ({ path: "", thumbnailPath: "" }),
+    },
+    now: () => Date.now(),
+    ask: async () => {
+      retiredAsks += 1;
+      return "allow-once" as const;
+    },
+    emitRow: (row: HostToolRow) => {
+      retiredRows.push(row);
+    },
+  };
+  await handleLocalExecFrame(shellExec("retire-before"), retiredDeps, context);
+  assert.equal(retiredRuns, 1);
+  assert.equal(retiredAsks, 0);
+  await handleLocalExecFrame({ kind: "retire-approval", approvalId: "ap-retire" }, retiredDeps, context);
+  await handleLocalExecFrame(shellExec("retire-after"), retiredDeps, context);
+  assert.equal(retiredAsks, 1);
+
+  const other = await runCase(
+    shellExec("other", "other-mac"),
+    (policy) => policy.allowAlways("shell", "ap-other"),
+    async () => "allow-once",
+  );
+  assert.equal(other.runs, 0);
+  assert.equal(other.asks, 0);
+  assert.equal(other.rows[0]?.text, sourceText("error.backend.hostToolMachineUnavailable"));
+}
+
 const root = await mkdtemp(join(tmpdir(), "host-tool-exec-"));
 try {
   assert.deepEqual(thisComputer("Mac"), { id: "Mac", label: "Mac", connected: true });
@@ -358,6 +532,8 @@ try {
   await rm(outsideDir, { recursive: true, force: true });
   await checkLocalExecChannel();
   mark("local-exec-channel");
+  await checkRunner();
+  mark("runner-gate");
   await mkdir(".openbot-build", { recursive: true });
   await writeFile(".openbot-build/host-tool-local-exec-e2e.json", JSON.stringify({ ok: true, checks }, null, 2));
 } finally {

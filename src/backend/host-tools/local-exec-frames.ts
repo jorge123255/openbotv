@@ -26,6 +26,7 @@ export type LocalExecRequestFrame =
       readonly kind: "exec";
       readonly requestId: string;
       readonly approvalId?: string;
+      readonly machineId?: string;
       readonly serverMessage: Json;
     }
   | { readonly kind: "upload"; readonly requestId: string; readonly path: string; readonly bytesBase64: string }
@@ -46,7 +47,7 @@ export type LocalExecResponseFrame =
   | { readonly kind: "file"; readonly requestId: string }
   | { readonly kind: "file-error"; readonly requestId: string; readonly error: string };
 
-function toJson(value: unknown): Json {
+export function toJson(value: unknown): Json {
   if (value === null || isString(value) || isBoolean(value) || isNumber(value)) return value;
   if (Array.isArray(value)) return value.map((entry) => toJson(entry));
   if (!isDynamicRecord(value)) return null;
@@ -69,9 +70,14 @@ export function decodeRequestFrame(value: unknown): LocalExecRequestFrame | null
   if (!isString(value.requestId)) return null;
   if (value.kind === "exec") {
     const serverMessage = toJson(value.serverMessage ?? null);
-    return isString(value.approvalId)
-      ? { kind: "exec", requestId: value.requestId, approvalId: value.approvalId, serverMessage }
-      : { kind: "exec", requestId: value.requestId, serverMessage };
+    const machineId = isString(value.machineId) ? value.machineId : undefined;
+    return {
+      kind: "exec",
+      requestId: value.requestId,
+      serverMessage,
+      ...(isString(value.approvalId) ? { approvalId: value.approvalId } : {}),
+      ...(machineId === undefined ? {} : { machineId }),
+    };
   }
   if (value.kind === "upload" && isString(value.path) && isString(value.bytesBase64)) {
     return { kind: "upload", requestId: value.requestId, path: value.path, bytesBase64: value.bytesBase64 };
