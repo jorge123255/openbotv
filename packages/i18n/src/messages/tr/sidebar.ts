@@ -4,7 +4,6 @@ import type { messages as source } from "../en/sidebar";
 export const messages = {
   "sidebar.frame.label": "Ajan gezintisi",
   "sidebar.nav.label": "Sohbet listesi",
-  "sidebar.nav.freeArea": "Kenar çubuğu boş alanı",
   "sidebar.nav.actions": "Kenar çubuğu işlemleri",
   "sidebar.deletedChannels.title": "Silinen kanallar",
   "sidebar.deletedChannels.empty": "Silinmiş kanal yok.",

@@ -4,7 +4,6 @@ import type { messages as source } from "../en/sidebar";
 export const messages = {
   "sidebar.frame.label": "エージェントのナビゲーション",
   "sidebar.nav.label": "チャット一覧",
-  "sidebar.nav.freeArea": "サイドバーの空き領域",
   "sidebar.nav.actions": "サイドバーの操作",
   "sidebar.deletedChannels.title": "削除済みのチャンネル",
   "sidebar.deletedChannels.empty": "削除済みのチャンネルはありません。",

@@ -4,7 +4,6 @@ import type { messages as source } from "../en/sidebar";
 export const messages = {
   "sidebar.frame.label": "Navegação dos agentes",
   "sidebar.nav.label": "Lista de chats",
-  "sidebar.nav.freeArea": "Área livre da barra lateral",
   "sidebar.nav.actions": "Ações da barra lateral",
   "sidebar.deletedChannels.title": "Canais excluídos",
   "sidebar.deletedChannels.empty": "Nenhum canal excluído.",

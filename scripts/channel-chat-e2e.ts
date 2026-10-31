@@ -215,7 +215,7 @@ try {
     () => client.summary(channel.id),
     (summary) => summary.archived === true,
   );
-  await page.getByLabel(english("sidebar.nav.freeArea"), { exact: true }).click({ button: "right" });
+  await page.locator(".sidebar-list-context-trigger").click({ button: "right" });
   await page.getByRole("menuitem", { name: english("sidebar.deletedChannels.title"), exact: true }).click();
   const deleted = page.getByRole("region", { name: english("sidebar.deletedChannels.title") });
   const deletedRow = deleted.getByRole("button", { name: new RegExp(`^${literal(name)}[,.]`) });
@@ -236,7 +236,7 @@ try {
   await composer().waitFor({ timeout: UI_WAIT_MS });
   await deletedRow.waitFor({ state: "detached", timeout: UI_WAIT_MS });
   report.archive = { notice: true, sidePanels, inDeletedChannels: true, composerAfterRestore: true };
-  await page.getByLabel(english("sidebar.nav.freeArea"), { exact: true }).click({ button: "right" });
+  await page.locator(".sidebar-list-context-trigger").click({ button: "right" });
   await page.getByRole("menuitem", { name: english("sidebar.deletedChannels.hide"), exact: true }).click();
 
   report.passed = true;

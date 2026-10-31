@@ -4,7 +4,6 @@ import type { messages as source } from "../en/sidebar";
 export const messages = {
   "sidebar.frame.label": "에이전트 탐색",
   "sidebar.nav.label": "채팅 목록",
-  "sidebar.nav.freeArea": "사이드바 빈 영역",
   "sidebar.nav.actions": "사이드바 작업",
   "sidebar.deletedChannels.title": "삭제된 채널",
   "sidebar.deletedChannels.empty": "삭제된 채널이 없어요.",
