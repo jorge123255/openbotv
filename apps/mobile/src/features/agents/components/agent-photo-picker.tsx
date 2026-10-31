@@ -6,6 +6,7 @@ import ImagePlus from "lucide-react-native/icons/image-plus";
 import Trash2 from "lucide-react-native/icons/trash";
 import { useRef, useState } from "react";
 import { haptics } from "@/shared/lib/haptics";
+import { pickAnimatedAvatarPhoto } from "@/shared/lib/pick-animated-avatar-photo";
 import { pickAvatarPhoto } from "@/shared/lib/pick-avatar-photo";
 import { useText } from "@/shared/lib/text";
 
@@ -31,13 +32,13 @@ export function AgentPhotoPicker({
   const foreground = useThemeColor("foreground");
   const pending = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  async function choose() {
+  async function choose(animated = false) {
     if (disabled || pending.current) return;
     pending.current = true;
     onBusyChange(true);
     setError(null);
     try {
-      const photo = await pickAvatarPhoto(cropRoute);
+      const photo = animated ? await pickAnimatedAvatarPhoto() : await pickAvatarPhoto(cropRoute);
       if (photo) onChange({ uri: photo.uri, name: photo.name, mimeType: photo.mimeType, base64: photo.base64 });
     } catch (cause) {
       setError(errorMessage(cause, t("mobile.agent.photo.openFailed")));
@@ -52,6 +53,7 @@ export function AgentPhotoPicker({
         isIconOnly
         variant="ghost"
         accessibilityLabel={t(hasPhoto ? "mobile.agent.photo.change" : "mobile.agent.photo.add")}
+        accessibilityHint={t("mobile.agent.photo.staticHint")}
         isDisabled={disabled}
         onPress={() => {
           void haptics.impact("soft");
@@ -59,6 +61,17 @@ export function AgentPhotoPicker({
         }}
       >
         <ImagePlus color={foreground} size={20} />
+      </Button>
+      <Button
+        variant="ghost"
+        accessibilityLabel={t("mobile.agent.photo.importAnimation")}
+        isDisabled={disabled}
+        onPress={() => {
+          void haptics.impact("soft");
+          void choose(true);
+        }}
+      >
+        <Typography type="body-sm">{t("mobile.agent.photo.importAnimation")}</Typography>
       </Button>
       {hasPhoto ? (
         <Button
@@ -75,6 +88,9 @@ export function AgentPhotoPicker({
           <Trash2 color={foreground} size={20} />
         </Button>
       ) : null}
+      <Typography.Paragraph align="center" className="w-full text-muted">
+        {t("mobile.agent.photo.animationHelp")}
+      </Typography.Paragraph>
       {error ? (
         <Typography.Paragraph accessibilityRole="alert" align="center" className="w-full text-danger-text">
           {error}

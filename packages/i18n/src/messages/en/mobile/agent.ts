@@ -79,6 +79,14 @@ export const messages = defineMessages("mobile.agent", {
   "mobile.agent.photo.change": "Change photo",
   "mobile.agent.photo.add": "Add photo",
   "mobile.agent.photo.remove": "Remove photo",
+  "mobile.agent.photo.staticHint": "Crop a photo and save it as a still image.",
+  "mobile.agent.photo.importAnimation": "Import animated WebP",
+  "mobile.agent.photo.animationHelp":
+    "Photos are saved as still images. Animated WebP imports keep the original file and metadata without cropping. Maximum 512 KiB and 512 × 512 pixels. GIF import is not supported.",
+  "mobile.agent.photo.animationInvalid": "Select a valid animated WebP. GIF import is not supported.",
+  "mobile.agent.photo.animationSize": "This animation is too large. Select a WebP of 512 KiB or less.",
+  "mobile.agent.photo.animationDimensions":
+    "This animation is too large. Select a WebP no wider or taller than 512 pixels.",
   "mobile.agent.usage.oneYear": "1 year",
   "mobile.agent.usage.custom": "Custom",
   "mobile.agent.usage.days": { one: "{count} day", other: "{count} days" },
