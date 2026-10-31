@@ -8,9 +8,9 @@ import { createServer, get, type IncomingMessage, type ServerResponse } from "no
 import { createServer as createSecureServer } from "node:https";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { redactText } from "@openbot/logging";
+import { redactText, registerSecretValue } from "@openbot/logging";
 import { Effect, Result, Schema } from "effect";
-import { type WebSocket, WebSocketServer } from "ws";
+import { WebSocket, WebSocketServer } from "ws";
 import { HermesGatewayChatTransport } from "../src/main/hermes-gateway-chat-transport";
 import { HermesGatewayConnection } from "../src/main/hermes-gateway-connection";
 
@@ -40,6 +40,7 @@ const Input = Schema.Struct({
     }),
   ),
   error: Schema.optionalKey(Schema.Struct({ code: Schema.Int })),
+  result: Schema.optionalKey(Schema.Unknown),
 });
 interface Prompt {
   kind: "approval" | "clarify";
@@ -79,6 +80,7 @@ interface Peer {
 }
 type Action =
   | "drop"
+  | "drop-running"
   | "wrong-ref"
   | "wrong-profile"
   | "wrong-session"
@@ -116,7 +118,10 @@ async function fixture(tls?: { key: string; cert: string }) {
   let ticketPosts = 0;
   let nextCertificate: { key: string; cert: string } | null = null;
   let rejectedRequests = 0;
-  const requestDeclined = deferred();
+  const broadcasts = new Map<
+    string,
+    { status: "pending" | "failed" | "resolved"; done: ReturnType<typeof deferred> }
+  >();
   const handler = async (request: IncomingMessage, response: ServerResponse) => {
     assert.equal(request.headers.origin, origin);
     assert.ok(!request.url?.includes("?"), "REST credential and profile selectors do not enter the URL.");
@@ -202,9 +207,12 @@ async function fixture(tls?: { key: string; cert: string }) {
         const input = Schema.decodeUnknownSync(Input)(JSON.parse(data.toString()));
         const method = input.method;
         if (!method) {
-          assert.equal(input.error?.code, -32601);
-          rejectedRequests++;
-          requestDeclined.resolve();
+          const broadcast = broadcasts.get(input.id);
+          if (input.error) rejectedRequests++;
+          if (broadcast?.status === "pending") {
+            broadcast.status = input.error ? "failed" : "resolved";
+            broadcast.done.resolve();
+          }
           return;
         }
         const params = input.params ?? {};
@@ -233,7 +241,8 @@ async function fixture(tls?: { key: string; cert: string }) {
           });
         }
         if (method === "client.capabilities") {
-          assert.deepEqual(params, { server_requests: false, desktop_local: false });
+          assert.equal(params.desktop_local, false);
+          assert.equal(params.server_requests, peer.identity === "broadcast-review" && params.server_requests === true);
           return reply({ server_requests: ["approval", "clarify", "sudo"] });
         }
         if (method === "gateway.ping") return reply({ ok: true });
@@ -261,7 +270,7 @@ async function fixture(tls?: { key: string; cert: string }) {
           const snapshot = snapshotOf(session);
           if (selected?.action === "wrong-profile") snapshot.info.profile_name = "other";
           if (selected?.action === "wrong-session") snapshot.session_id = "other-session";
-          if (selected?.action === "stage-event") emit(peer, "message.delta", { text: "during attach" });
+          if (selected?.action === "stage-event") emit(peer, "message.delta", { text: "during attach\n" });
           if (selected?.action === "reply-then-invalid") {
             wire.send(`${JSON.stringify({ jsonrpc: "2.0", id: input.id, result: snapshot })}\ninvalid-json`);
             return;
@@ -287,6 +296,10 @@ async function fixture(tls?: { key: string; cert: string }) {
             input_id: params.submission_id,
           };
           session.pending = [receipt];
+          if (selected?.action === "drop-running") {
+            wire.terminate();
+            return;
+          }
           if (selected?.action === "drop") {
             session.running = false;
             session.pending = [];
@@ -298,7 +311,7 @@ async function fixture(tls?: { key: string; cert: string }) {
           if (selected?.action === "complete-before-ack") {
             const frames = [
               event(peer, "message.start", {}),
-              event(peer, "message.delta", { text: "early", turn_id: "early-turn", segment: 0, offset: 0 }),
+              event(peer, "message.delta", { text: "early\n", turn_id: "early-turn", segment: 0, offset: 0 }),
               event(peer, "message.complete", { text: "early", status: "completed" }),
             ];
             session.running = false;
@@ -311,7 +324,7 @@ async function fixture(tls?: { key: string; cert: string }) {
             [
               event(peer, "message.start", {}),
               event(peer, "message.delta", {
-                text: `${peer.identity}/${session.profile}`,
+                text: `${peer.identity}/${session.profile}\n`,
                 turn_id: receipt.admission_id,
                 segment: 0,
                 offset: 0,
@@ -476,7 +489,6 @@ async function fixture(tls?: { key: string; cert: string }) {
     event,
     seen,
     secrets,
-    requestDeclined: requestDeclined.promise,
     replaceCertificateOnTicket(certificate: { key: string; cert: string }) {
       nextCertificate = certificate;
     },
@@ -488,6 +500,99 @@ async function fixture(tls?: { key: string; cert: string }) {
     },
     get rejectedRequests() {
       return rejectedRequests;
+    },
+    broadcast(method: "sudo" | "secret" | "clarify", identity: string, profile: string, sessionId: string) {
+      const id = `srq-${randomBytes(6).toString("hex")}`;
+      const entry: { status: "pending" | "failed" | "resolved"; done: ReturnType<typeof deferred> } = {
+        status: "pending",
+        done: deferred(),
+      };
+      broadcasts.set(id, entry);
+      const params =
+        method === "sudo"
+          ? { session_id: sessionId, command: "synthetic command" }
+          : method === "secret"
+            ? { session_id: sessionId, env_var: "SYNTHETIC_REVIEW_VALUE", prompt: "Synthetic value" }
+            : {
+                session_id: sessionId,
+                questions: [
+                  { qid: "q1", question: "Synthetic question", choices: ["one", "two"], multi_select: false },
+                ],
+              };
+      for (const peer of peers)
+        if (peer.identity === identity && peer.session?.profile === profile && peer.session.id === sessionId)
+          peer.socket.send(
+            JSON.stringify({
+              jsonrpc: "2.0",
+              id,
+              method,
+              params,
+            }),
+          );
+      return { id, state: () => entry.status, settled: entry.done.promise };
+    },
+    async capableViewer() {
+      const identity = "broadcast-review";
+      const ticket = randomBytes(32).toString("base64url");
+      tickets.set(ticket, { identity, expires: Date.now() + 30_000 });
+      const socket = new WebSocket(
+        `${origin.replace(/^http/u, "ws")}/proxy/api/ws`,
+        ["hermes-gateway-v1", `hermes-gateway-ticket.${ticket}`],
+        { origin },
+      );
+      const received = new Set<string>();
+      const signals = new Map<string, ReturnType<typeof deferred>>();
+      const replies = new Map<string, ReturnType<typeof deferred>>();
+      socket.on("message", (data) => {
+        const frame = Schema.decodeUnknownSync(
+          Schema.Struct({ id: Schema.optionalKey(Schema.String), method: Schema.optionalKey(Schema.String) }),
+        )(JSON.parse(data.toString()));
+        if (!frame.id) return;
+        if (frame.method) {
+          received.add(frame.id);
+          signals.get(frame.id)?.resolve();
+        } else replies.get(frame.id)?.resolve();
+      });
+      await once(socket, "open");
+      const call = async (
+        method: string,
+        params: {
+          server_requests?: boolean;
+          desktop_local?: boolean;
+          profile?: string;
+          session_id?: string;
+          omit_messages?: boolean;
+        },
+      ) => {
+        const id = randomBytes(16).toString("hex");
+        const replied = deferred();
+        replies.set(id, replied);
+        socket.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }));
+        await replied.promise;
+        replies.delete(id);
+      };
+      await call("client.capabilities", { server_requests: true, desktop_local: false });
+      await call("session.resume", { profile: "alpha", session_id: "shared-prompt", omit_messages: true });
+      return {
+        async observe(id: string) {
+          if (received.has(id)) return;
+          const signal = deferred();
+          signals.set(id, signal);
+          await signal.promise;
+        },
+        answer(id: string, method: "sudo" | "secret" | "clarify") {
+          const result =
+            method === "clarify"
+              ? { answers: { q1: "one" }, outcome: "submitted" }
+              : { value: "synthetic-explicit-value" };
+          socket.send(JSON.stringify({ jsonrpc: "2.0", id, result }));
+        },
+        async close() {
+          const closed = once(socket, "close");
+          socket.terminate();
+          await closed;
+        },
+      };
     },
     setCapabilities(value: boolean) {
       capabilities = value;
@@ -511,7 +616,7 @@ async function fixture(tls?: { key: string; cert: string }) {
       return { reached: reached.promise, release: release.resolve, closed: closed.promise };
     },
     peer(identity: string, profile: string) {
-      const peer = [...peers].find((item) => item.identity === identity && item.session?.profile === profile);
+      const peer = [...peers].reverse().find((item) => item.identity === identity && item.session?.profile === profile);
       assert.ok(peer);
       return peer;
     },
@@ -530,6 +635,361 @@ async function failure<A, E extends { code: string }>(effect: Effect.Effect<A, E
   if (code) assert.equal(result.failure.code, code);
   assert.equal(Object.keys(result.failure).includes("cause"), false);
   return result.failure;
+}
+
+function localSessionMetadata(session: Session) {
+  // Pinned gateway/session_local.py::local_session_info and
+  // session_local_inventory.py::agent_inventory / publish_settled_info.
+  return {
+    source: "gui",
+    model: "synthetic-model",
+    lazy: false,
+    profile_id: session.home,
+    profile_name: session.profile,
+    desktop_protocol: "hermes-gateway-v1",
+    cwd: "/synthetic/workspace",
+    reasoning_effort: "medium",
+    reasoning_effort_wire: "medium",
+    launch_request: { source: "gui" },
+    title: "Synthetic session",
+    started_at: 1,
+    last_active_at: 2,
+    yolo: false,
+    api_mode: "chat_completions",
+    tool_count: 1,
+    credential_hint: null,
+    provider: "synthetic-provider",
+    tools: { terminal: ["terminal"] },
+    system_prompt: "synthetic-private-inventory-not-projected",
+    context_length: 4096,
+  };
+}
+
+async function checkSessionInfoMetadata(gateway: Awaited<ReturnType<typeof fixture>>) {
+  const owner = await gateway.signIn("metadata-review");
+  const chat = await Effect.runPromise(owner.createChatTransport("alpha"));
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("metadata-review"));
+  await Effect.runPromise(chat.submit("metadata review turn"));
+  await Effect.runPromise(chat.readEvent());
+  const peer = gateway.peer("metadata-review", "alpha");
+  const session = peer.session;
+  assert.ok(session);
+  const prompt: Prompt = {
+    kind: "approval",
+    prompt_id: "metadata-approval",
+    execution_generation: session.generation,
+    choices: ["once", "deny"],
+  };
+  session.prompts = [prompt];
+  gateway.emit(peer, "approval.request", prompt);
+  await Effect.runPromise(chat.readEvent());
+  const before = chat.state();
+  gateway.emit(peer, "session.info", localSessionMetadata(session));
+  gateway.emit(peer, "message.delta", { text: "metadata barrier\n" });
+  const barrier = await Effect.runPromise(chat.readEvent());
+  assert.ok(
+    barrier.type === "delta" && barrier.text?.trim() === "metadata barrier",
+    "Local settings metadata must not close an active canonical session.",
+  );
+  assert.deepEqual(
+    chat.state(),
+    before,
+    "Settings metadata cannot clear running state, prompts or execution identity.",
+  );
+  assert.ok(!JSON.stringify(chat.state()).includes("synthetic-private-inventory-not-projected"));
+  await Effect.runPromise(chat.respondApproval(prompt.prompt_id, "deny"));
+  await Effect.runPromise(chat.readEvent());
+  await Effect.runPromise(chat.interrupt());
+  await Effect.runPromise(chat.readEvent());
+  const upgrades = gateway.upgrades;
+  gateway.emit(peer, "session.info", localSessionMetadata(session), { execution_generation: undefined });
+  await Effect.runPromise(chat.attach("metadata-review"));
+  assert.equal(gateway.upgrades, upgrades, "An end-of-turn metadata event cannot force a redial.");
+  session.generation++;
+  // Policy refresh publishes a complete control update followed by local settings metadata.
+  gateway.emit(
+    peer,
+    "session.info",
+    {
+      desktop_protocol: "hermes-gateway-v1",
+      authority_epoch: 1,
+      execution_generation: session.generation,
+      running: false,
+      pending: [],
+    },
+    { execution_generation: undefined },
+  );
+  gateway.emit(
+    peer,
+    "session.info",
+    { ...localSessionMetadata(session), lazy: true, model: null },
+    { execution_generation: undefined },
+  );
+  gateway.emit(peer, "message.delta", { text: "policy barrier\n" });
+  await Effect.runPromise(chat.readEvent());
+  assert.equal(chat.state().generation, session.generation);
+  assert.equal(chat.state().running, false);
+  assert.equal(chat.state().prompts.length, 0);
+  await failure(chat.respondApproval(prompt.prompt_id, "once"), "stale-prompt");
+  chat.close();
+  cases.push(
+    "real local-session end-of-turn/settings and policy-refresh metadata preserve the socket and control state without exporting inventory",
+  );
+}
+
+async function checkStrictSessionInfo(gateway: Awaited<ReturnType<typeof fixture>>) {
+  const owner = await gateway.signIn("control-review");
+  const chat = await Effect.runPromise(owner.createChatTransport("alpha"));
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("strict-info"));
+  const session = gateway.peer("control-review", "alpha").session;
+  assert.ok(session);
+  const metadata = localSessionMetadata(session);
+  const control = {
+    desktop_protocol: "hermes-gateway-v1",
+    authority_epoch: 1,
+    execution_generation: session.generation,
+    running: false,
+    pending: [],
+  };
+  const invalid = [
+    {
+      desktop_protocol: "hermes-gateway-v1",
+      authority_epoch: 1,
+      execution_generation: session.generation,
+      running: false,
+    },
+    { ...metadata, running: false },
+    { ...control, running: "idle" },
+    {
+      ...control,
+      pending: [
+        {
+          admission_id: "foreign-admission",
+          input_id: "foreign-input",
+          ref: { profile_id: "/foreign/profile", session_id: session.id },
+          sequence: 1,
+          status: "started",
+          outcome: null,
+          authority_epoch: 1,
+          execution_generation: session.generation,
+        },
+      ],
+    },
+    { ...metadata, profile_id: "/foreign/profile" },
+    { ...metadata, profile_name: "beta" },
+    { ...control, profile_id: "/foreign/profile" },
+  ];
+  for (const payload of invalid) {
+    if (chat.state().phase === "disconnected") {
+      await Effect.runPromise(chat.connect());
+      await Effect.runPromise(chat.attach("strict-info"));
+    }
+    const waiting = Effect.runPromise(Effect.result(chat.readEvent()));
+    gateway.emit(gateway.peer("control-review", "alpha"), "session.info", payload);
+    assert.ok(
+      Result.isFailure(await waiting),
+      "Malformed, partial or conflicting control/identity fields must close the transport.",
+    );
+    assert.equal(chat.state().phase, "disconnected");
+  }
+  chat.close();
+  cases.push("partial/malformed control updates and metadata/control owner substitutions remain fail closed");
+}
+
+async function checkStreamSecrets(gateway: Awaited<ReturnType<typeof fixture>>, choiceOnly = false) {
+  const owner = await gateway.signIn("stream-review");
+  const chat = await Effect.runPromise(owner.createChatTransport("alpha"));
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("stream-review"));
+  await Effect.runPromise(chat.submit("synthetic redaction review"));
+  await Effect.runPromise(chat.readEvent());
+  const peer = gateway.peer("stream-review", "alpha");
+  const session = peer.session;
+  assert.ok(session);
+  const secret = `review-"value /+%\\line\n${randomBytes(16).toString("hex")}`;
+  registerSecretValue(secret);
+  const forms = [secret, JSON.stringify(secret).slice(1, -1), encodeURIComponent(secret)];
+  let displayed = "";
+  for (const [index, form] of forms.entries()) {
+    const prompt: Prompt = {
+      kind: "clarify",
+      prompt_id: `choice-review-${index}`,
+      execution_generation: session.generation,
+      question: "Synthetic question",
+      choices: [secret, "safe choice"],
+    };
+    session.prompts = [prompt];
+    const middle = Math.floor(form.length / 2);
+    if (!choiceOnly)
+      gateway.emit(peer, "message.delta", {
+        text: form.slice(0, 4),
+        turn_id: `redaction-${index}`,
+        segment: 0,
+        offset: 0,
+      });
+    gateway.emit(peer, "clarify.request", prompt);
+    const card = await Effect.runPromise(chat.readEvent());
+    assert.equal(
+      card.type,
+      "prompt",
+      "A possible credential prefix must be held, not emitted before a later chunk completes it.",
+    );
+    assert.ok(card.type === "prompt");
+    assert.ok(
+      card.prompt.choices.every((choice) => !forms.some((value) => choice.includes(value))),
+      "Choice labels must use registered-value redaction.",
+    );
+    assert.ok(
+      chat
+        .state()
+        .prompts.every((item) => item.choices.every((choice) => !forms.some((value) => choice.includes(value)))),
+    );
+    if (choiceOnly) {
+      chat.close();
+      cases.push("choice labels mask registered credentials");
+      return;
+    }
+    gateway.emit(peer, "message.delta", {
+      text: form.slice(4, middle),
+      turn_id: `redaction-${index}`,
+      segment: 0,
+      offset: 4,
+    });
+    gateway.emit(peer, "message.delta", {
+      text: `${form.slice(middle)} done\n`,
+      turn_id: `redaction-${index}`,
+      segment: 0,
+      offset: middle,
+    });
+    const delta = await Effect.runPromise(chat.readEvent());
+    assert.ok(delta.type === "delta" && delta.text !== null);
+    displayed += delta.text;
+    assert.ok(
+      forms.every((value) => !displayed.includes(value)),
+      "Joined chunks must not reconstruct raw, JSON-escaped or URL-encoded credentials.",
+    );
+    assert.ok(!Object.hasOwn(delta, "offset"), "Raw offsets cannot describe redacted/coalesced output.");
+  }
+  gateway.emit(peer, "message.delta", { text: secret.slice(0, 4), turn_id: "boundary", segment: 0, offset: 0 });
+  gateway.emit(peer, "message.complete", { text: secret, status: "completed" });
+  session.running = false;
+  session.pending = [];
+  session.prompts = [];
+  const tail = await Effect.runPromise(chat.readEvent());
+  assert.ok(tail.type === "delta" && tail.text !== null);
+  displayed += tail.text;
+  const complete = await Effect.runPromise(chat.readEvent());
+  assert.ok(complete.type === "complete" && forms.every((value) => !complete.text.includes(value)));
+  assert.ok(forms.every((value) => !displayed.includes(value)));
+  const left = "bounded-review-left";
+  const right = "bounded-review-right";
+  registerSecretValue(left + right);
+  registerSecretValue(right + left);
+  const longSecret = (left + right).repeat(1000);
+  const overflow = Effect.runPromise(Effect.result(chat.readEvent()));
+  gateway.emit(peer, "message.delta", {
+    text: longSecret.slice(0, 32_768),
+    turn_id: "overflow",
+    segment: 0,
+    offset: 0,
+  });
+  gateway.emit(peer, "message.delta", {
+    text: longSecret.slice(32_768),
+    turn_id: "overflow",
+    segment: 0,
+    offset: 32_768,
+  });
+  assert.ok(
+    Result.isFailure(await overflow),
+    "An oversized ambiguous secret prefix must stop the stream without exposing it.",
+  );
+  assert.equal(chat.state().phase, "disconnected");
+  chat.close();
+  cases.push(
+    "registered raw/JSON/URL credentials split across chunks, choice labels and final partial prefixes are masked; ambiguous carry remains bounded",
+  );
+}
+
+async function checkBroadcastViewers(gateway: Awaited<ReturnType<typeof fixture>>) {
+  const owner = await gateway.signIn("broadcast-review");
+  const chat = await Effect.runPromise(owner.createChatTransport("alpha"));
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("shared-prompt"));
+  const capable = await gateway.capableViewer();
+  try {
+    for (const method of ["sudo", "secret", "clarify"] as const) {
+      const prompt = gateway.broadcast(method, "broadcast-review", "alpha", "shared-prompt");
+      await capable.observe(prompt.id);
+      // The first reply proves this viewer received the earlier broadcast. The second RPC is
+      // sent after any old client's error response, so the broker has observed that error too.
+      await Effect.runPromise(chat.attach("shared-prompt"));
+      await Effect.runPromise(chat.attach("shared-prompt"));
+      assert.equal(
+        prompt.state(),
+        "pending",
+        "An unsupported viewer must not authoritatively cancel a capable viewer's shared request.",
+      );
+      capable.answer(prompt.id, method);
+      await prompt.settled;
+      assert.equal(prompt.state(), "resolved");
+    }
+    assert.equal(gateway.rejectedRequests, 0);
+  } finally {
+    await capable.close();
+    chat.close();
+  }
+  cases.push(
+    "an unsupported viewer stays silent on shared sudo/secret/batch requests so a capable viewer can explicitly answer without global cancellation",
+  );
+}
+
+async function checkUncertaintyChain(gateway: Awaited<ReturnType<typeof fixture>>) {
+  const owner = await gateway.signIn("uncertainty-review");
+  const chat = await Effect.runPromise(owner.createChatTransport("alpha"));
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("uncertainty-chain"));
+  gateway.action("prompt.submit", "drop-running");
+  await failure(chat.submit("synthetic uncertain turn"), "uncertain");
+  const original = gateway.seen
+    .filter((row) => row.method === "prompt.submit" && row.identity === "uncertainty-review")
+    .at(-1)?.submission;
+  assert.ok(original);
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("uncertainty-chain"));
+  assert.equal(chat.state().running, true);
+  gateway.action("session.interrupt", "drop");
+  await failure(chat.interrupt(), "uncertain");
+  assert.ok(
+    JSON.stringify(chat.state().uncertain).includes(original),
+    "A lost interrupt cannot replace the unresolved turn's identity.",
+  );
+  await Effect.runPromise(chat.connect());
+  await Effect.runPromise(chat.attach("uncertainty-chain"));
+  await Effect.runPromise(chat.interrupt());
+  await Effect.runPromise(chat.readEvent());
+  assert.equal(
+    chat.state().uncertain.length,
+    2,
+    "Successful explicit cancellation does not erase either uncertain action.",
+  );
+  const stop = chat.state().uncertain.find((operation) => operation.method === "session.interrupt");
+  assert.ok(stop);
+  chat.acknowledgeUncertain(stop.id);
+  await failure(chat.submit("cannot erase the earlier fence"), "uncertain");
+  assert.ok(chat.state().uncertain.some((operation) => operation.id === original));
+  chat.acknowledgeUncertain(original);
+  assert.equal(chat.state().uncertain.length, 0);
+  assert.equal(
+    gateway.seen.filter((row) => row.identity === "uncertainty-review" && row.method === "prompt.submit").length,
+    1,
+    "Neither reconnect nor cancellation can replay the uncertain input.",
+  );
+  chat.close();
+  cases.push(
+    "lost submit plus lost interrupt retain independent fences; explicit generation-fenced cancellation stays available and acknowledging one cannot clear another",
+  );
 }
 
 async function tlsChild() {
@@ -605,8 +1065,31 @@ if (process.argv[2] === "--tls-child") {
   await tlsChild();
   process.exit(0);
 }
+const reviewMode = process.argv[2];
+if (reviewMode?.startsWith("--review-")) {
+  const gateway = await fixture();
+  try {
+    if (reviewMode === "--review-session-info") await checkSessionInfoMetadata(gateway);
+    else if (reviewMode === "--review-stream-secrets") await checkStreamSecrets(gateway);
+    else if (reviewMode === "--review-choice-labels") await checkStreamSecrets(gateway, true);
+    else if (reviewMode === "--review-broadcast") await checkBroadcastViewers(gateway);
+    else if (reviewMode === "--review-uncertainty") await checkUncertaintyChain(gateway);
+    else throw new Error("Unknown synthetic review mode");
+    // Machine-readable: fixed regression outcome only.
+    process.stdout.write(`${JSON.stringify({ reviewPassed: true, cases: cases.length })}\n`);
+  } finally {
+    for (const client of clients) await Effect.runPromise(client.dispose());
+    await gateway.close();
+  }
+  process.exit(0);
+}
 const gateway = await fixture();
 try {
+  await checkSessionInfoMetadata(gateway);
+  await checkStrictSessionInfo(gateway);
+  await checkStreamSecrets(gateway);
+  await checkBroadcastViewers(gateway);
+  await checkUncertaintyChain(gateway);
   const alice = await gateway.signIn("alice");
   const bob = await gateway.signIn("bob");
   const alpha = await Effect.runPromise(alice.createChatTransport("alpha"));
@@ -639,9 +1122,12 @@ try {
   ] as const) {
     await Effect.runPromise(chat.submit("synthetic turn"));
     const delta = await Effect.runPromise(chat.readEvent());
-    assert.ok(delta.type === "delta" && delta.text === expected);
+    assert.ok(delta.type === "delta" && delta.text?.trim() === expected);
   }
-  assert.equal(gateway.seen.filter((row) => row.method === "prompt.submit").length, 3);
+  assert.equal(
+    gateway.seen.filter((row) => row.method === "prompt.submit" && ["alice", "bob"].includes(row.identity)).length,
+    3,
+  );
   await failure(alpha.attach("another-session"), "session-mismatch");
   await failure(alpha.submit("overlap"), "busy");
   cases.push(
@@ -687,25 +1173,20 @@ try {
   const multiEvent = await Effect.runPromise(alpha.readEvent());
   assert.ok(multiEvent.type === "prompt" && multiEvent.prompt.prompt_id === "multi");
   await failure(alpha.respondClarification("multi", "one"), "invalid-input");
-  alphaPeer.socket.send(
-    JSON.stringify({ jsonrpc: "2.0", id: "unsupported-sudo", method: "sudo", params: { password: "never-echo" } }),
-  );
-  await gateway.requestDeclined;
   await Effect.runPromise(alpha.interrupt());
   const completion = await Effect.runPromise(alpha.readEvent());
   assert.ok(completion.type === "complete" && completion.status === "interrupted");
-  assert.equal(gateway.rejectedRequests, 1);
   assert.equal(beta.state().running, true);
   assert.equal(bobAlpha.state().running, true);
   cases.push(
-    "exact generation-fenced approval/clarification, explicit once/deny only, stale and multi-select refusal, server-request decline and isolated interrupt",
+    "exact generation-fenced approval/clarification, explicit once/deny only, stale and multi-select refusal and isolated interrupt",
   );
 
   gateway.action("prompt.submit", "complete-before-ack");
   await Effect.runPromise(alpha.submit("completion races acknowledgement"));
   const earlyDelta = await Effect.runPromise(alpha.readEvent());
   const earlyComplete = await Effect.runPromise(alpha.readEvent());
-  assert.ok(earlyDelta.type === "delta" && earlyDelta.text === "early");
+  assert.ok(earlyDelta.type === "delta" && earlyDelta.text?.trim() === "early");
   assert.equal(earlyComplete.type, "complete");
   assert.equal(alpha.state().running, false);
   await Effect.runPromise(alpha.submit("can submit after early completion"));
@@ -717,7 +1198,7 @@ try {
   gateway.emit(alphaPeer, "message.delta", { text: `secret: ${secret}` });
   const redacted = await Effect.runPromise(alpha.readEvent());
   assert.ok(redacted.type === "delta" && !redacted.text?.includes(secret));
-  const duplicate = gateway.event(alphaPeer, "message.delta", { text: "one chunk" });
+  const duplicate = gateway.event(alphaPeer, "message.delta", { text: "one chunk\n" });
   alphaPeer.socket.send(`${duplicate}\n${duplicate}`);
   gateway.emit(alphaPeer, "message.complete", { text: "final", status: "completed" });
   assert.equal((await Effect.runPromise(alpha.readEvent())).type, "delta");
@@ -729,7 +1210,7 @@ try {
   const countBeforeLost = gateway.seen.filter((row) => row.method === "prompt.submit").length;
   gateway.action("prompt.submit", "drop");
   await failure(alpha.submit("lost ack"), "uncertain");
-  const uncertain = alpha.state().uncertain;
+  const uncertain = alpha.state().uncertain[0];
   assert.ok(uncertain);
   const beforeReconnect = gateway.ticketPosts;
   await Effect.runPromise(alpha.connect());
@@ -743,7 +1224,7 @@ try {
     "Reconnect and snapshot never replay a turn.",
   );
   alpha.acknowledgeUncertain(uncertain.id);
-  assert.equal(alpha.state().uncertain, null);
+  assert.equal(alpha.state().uncertain.length, 0);
   cases.push(
     "lost turn acknowledgement fences writes; explicit reconnect uses a fresh ticket, explicit snapshot and explicit uncertainty decision without replay",
   );
@@ -763,7 +1244,7 @@ try {
   const beforeApproval = gateway.seen.filter((row) => row.method === "approval.respond").length;
   gateway.action("approval.respond", "drop");
   await failure(alpha.respondApproval("lost-approval", "once"), "uncertain");
-  const lostApproval = alpha.state().uncertain;
+  const lostApproval = alpha.state().uncertain[0];
   assert.ok(lostApproval);
   resumedSession.prompts = [replayedPrompt];
   await Effect.runPromise(alpha.connect());
@@ -778,7 +1259,7 @@ try {
   gateway.action("session.resume", "stage-event");
   await Effect.runPromise(alpha.attach("same-session"));
   const staged = await Effect.runPromise(alpha.readEvent());
-  assert.ok(staged.type === "delta" && staged.text === "during attach");
+  assert.ok(staged.type === "delta" && staged.text?.trim() === "during attach");
   const active = gateway.peer("alice", "alpha");
   const close = once(active.socket, "close");
   gateway.emit(active, "message.delta", { text: "gap" }, { seq: (active.session?.sequence ?? 0) + 2 });
@@ -802,7 +1283,7 @@ try {
   mismatchPeer.session.prompts = [];
   gateway.action("prompt.submit", "wrong-ref");
   await failure(alpha.submit("wrong receipt owner"), "uncertain");
-  assert.ok(alpha.state().uncertain);
+  assert.ok(alpha.state().uncertain.length > 0);
   cases.push("profile/session snapshot substitution and wrong-profile admission receipts fail closed");
 
   alpha.close();
@@ -858,9 +1339,9 @@ try {
   // A foreign session consumes no watermark in this session. Reset the fixture's test sequence.
   assert.ok(brokenPeer.session);
   brokenPeer.session.sequence--;
-  gateway.emit(brokenPeer, "message.delta", { text: "right session" });
+  gateway.emit(brokenPeer, "message.delta", { text: "right session\n" });
   const right = await Effect.runPromise(broken.readEvent());
-  assert.ok(right.type === "delta" && right.text === "right session");
+  assert.ok(right.type === "delta" && right.text?.trim() === "right session");
   const foreign = Effect.runPromise(Effect.result(broken.readEvent()));
   gateway.emit(brokenPeer, "message.delta", { text: "foreign profile" }, { profile: "beta" });
   assert.ok(Result.isFailure(await foreign));
@@ -950,7 +1431,7 @@ try {
   abortSubmission.abort();
   await assert.rejects(pendingSubmit);
   assert.equal(aborted.state().phase, "disconnected");
-  assert.equal(aborted.state().uncertain?.method, "prompt.submit");
+  assert.equal(aborted.state().uncertain[0]?.method, "prompt.submit");
   aborted.close();
   cases.push(
     "cancelling an in-flight submitted request closes its socket and retains uncertainty instead of assuming remote cancellation",

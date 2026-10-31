@@ -67,13 +67,30 @@ export const ChatSnapshot = Schema.Struct({
     profile_name: Id,
   }),
 });
-export const ChatSessionUpdate = Schema.Struct({
+const ChatSessionUpdate = Schema.Struct({
   desktop_protocol: Schema.Literal("hermes-gateway-v1"),
   authority_epoch: Natural,
   execution_generation: Natural,
   running: Schema.Boolean,
   pending: ChatSnapshot.fields.pending,
+  profile_id: Schema.optionalKey(Id),
+  profile_name: Schema.optionalKey(Id),
 });
+const ChatSessionMetadata = ChatSnapshot.fields.info;
+type ChatSessionInfo =
+  | { kind: "control"; value: typeof ChatSessionUpdate.Type }
+  | { kind: "metadata"; value: typeof ChatSessionMetadata.Type };
+
+/** The owner publishes both control state and local settings under session.info. Any control
+ * field commits the payload to the full strict control schema; partial controls cannot fall back. */
+export function decodeChatSessionInfo(value: unknown): ChatSessionInfo {
+  const hasControlField =
+    typeof value === "object" &&
+    value !== null &&
+    ["authority_epoch", "execution_generation", "running", "pending"].some((key) => Object.hasOwn(value, key));
+  if (hasControlField) return { kind: "control", value: decodeChat(ChatSessionUpdate, value) };
+  return { kind: "metadata", value: decodeChat(ChatSessionMetadata, value) };
+}
 export const ChatDescription = Schema.Struct({
   instance_id: Id,
   profile_id: Id,

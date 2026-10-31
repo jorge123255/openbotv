@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { redactText, registerSecretValue } from "@openbot/logging";
+import { RegisteredSecretStream, redactText, registerSecretValue } from "@openbot/logging";
 import { Effect, type Schema, Semaphore } from "effect";
 import WebSocket from "ws";
 import {
@@ -15,10 +15,10 @@ import {
   ChatPromptResult,
   ChatReady,
   ChatReceipt,
-  ChatSessionUpdate,
   ChatSettled,
   ChatSnapshot,
   decodeChat,
+  decodeChatSessionInfo,
   HermesChatFailure,
 } from "./hermes-gateway-chat-protocol";
 import type { HermesGatewayFailure } from "./hermes-gateway-protocol";
@@ -54,7 +54,7 @@ interface PendingCall {
   receive: (value: unknown, error: boolean) => void;
 }
 type ChatEvent =
-  | { type: "delta"; text: string | null; turnId?: string; segment?: number; offset?: number }
+  | { type: "delta"; text: string | null }
   | { type: "complete"; text: string; status?: string }
   | { type: "prompt"; prompt: Prompt }
   | { type: "prompt-settled"; promptId: string };
@@ -76,6 +76,8 @@ export class HermesGatewayChatTransport {
   readonly #spentPrompts = new Set<string>();
   readonly #completedAdmissions = new Set<string>();
   readonly #events: ChatEvent[] = [];
+  readonly #stream = new RegisteredSecretStream();
+  #streamKey: string | null = null;
   #eventBytes = 0;
   #socket: WebSocket | null = null;
   #attempt: AbortController | null = null;
@@ -92,7 +94,7 @@ export class HermesGatewayChatTransport {
   #attaching = false;
   #staged: Envelope[] = [];
   #mutation: UncertainOperation | null = null;
-  #uncertain: UncertainOperation | null = null;
+  readonly #uncertain = new Map<string, UncertainOperation>();
   #reader: { receive: (event: ChatEvent) => void; fail: () => void } | null = null;
   readonly #ownerClosed = () => this.close();
 
@@ -117,7 +119,7 @@ export class HermesGatewayChatTransport {
       sessionId: this.#sessionId,
       running: this.#snapshot?.running ?? false,
       generation: this.#snapshot?.execution_generation ?? null,
-      uncertain: this.#uncertain ? { ...this.#uncertain } : null,
+      uncertain: [...this.#uncertain.values()].map((operation) => ({ ...operation })),
       prompts: this.#snapshot?.prompts.map((prompt) => this.#safePrompt(prompt)) ?? [],
     };
   }
@@ -182,6 +184,8 @@ export class HermesGatewayChatTransport {
       this.#staged = [];
       this.#events.length = 0;
       this.#eventBytes = 0;
+      this.#stream.reset();
+      this.#streamKey = null;
       this.#reader?.fail();
       try {
         const snapshot = await this.#rpc("session.resume", this.#params({ omit_messages: true }), ChatSnapshot, signal);
@@ -277,12 +281,12 @@ export class HermesGatewayChatTransport {
   acknowledgeUncertain(operationId: string): void {
     const snapshot = this.#requireSession(false);
     if (
-      this.#uncertain?.id !== operationId ||
+      !this.#uncertain.has(operationId) ||
       snapshot.running ||
       snapshot.pending.some((row) => row.status !== "terminal")
     )
       throw new HermesChatFailure({ code: "uncertain" });
-    this.#uncertain = null;
+    this.#uncertain.delete(operationId);
   }
 
   /** One bounded consumer. Cancelling a read cancels only that wait, never the remote turn. */
@@ -394,7 +398,7 @@ export class HermesGatewayChatTransport {
   #requireSession(write: boolean): SessionState {
     if (this.#phase !== "attached" || this.#attaching || !this.#snapshot)
       throw new HermesChatFailure({ code: "not-connected" });
-    if (write && this.#uncertain) throw new HermesChatFailure({ code: "uncertain" });
+    if (write && this.#uncertain.size > 0) throw new HermesChatFailure({ code: "uncertain" });
     if (this.#mutation) throw new HermesChatFailure({ code: "busy" });
     return this.#snapshot;
   }
@@ -447,6 +451,7 @@ export class HermesGatewayChatTransport {
         return reject(new HermesChatFailure({ code: "not-connected" }));
       if (this.#pending.size >= 4 || (mutation && this.#mutation))
         return reject(new HermesChatFailure({ code: "busy" }));
+      if (mutation && this.#uncertain.size >= 8) return reject(new HermesChatFailure({ code: "limit" }));
       const id = randomUUID();
       let sent = false;
       let settled = false;
@@ -459,7 +464,7 @@ export class HermesGatewayChatTransport {
         if (settled) return;
         settled = true;
         cleanup();
-        if (mutation && sent) this.#uncertain = { ...mutation };
+        if (mutation && sent) this.#uncertain.set(mutation.id, { ...mutation });
         if (mutation) this.#mutation = null;
         reject(new HermesChatFailure({ code: mutation && sent ? "uncertain" : code }));
       };
@@ -608,12 +613,9 @@ export class HermesGatewayChatTransport {
       return;
     }
     if (frame.method !== undefined) {
-      // We advertised no server-request support. Decline unimplemented setup/sudo/batch handlers;
-      // never interpret a server request as permission to execute a host action.
-      if (frame.id !== undefined && frame.id !== null)
-        this.#socket?.send(
-          JSON.stringify({ jsonrpc: "2.0", id: frame.id, error: { code: -32601, message: "Method not supported" } }),
-        );
+      // We advertised no server-request support. The pinned broker can settle a broadcast
+      // request globally on any error response. Stay silent: an unsupported viewer must not
+      // cancel another viewer's sudo/secret/batch prompt or execute a local host action.
       return;
     }
     if (typeof frame.id !== "string") throw new HermesChatFailure({ code: "invalid-response" });
@@ -641,7 +643,14 @@ export class HermesGatewayChatTransport {
     snapshot.last_sequence = event.seq;
     // The owner can publish this update after clearing its active execution stamp. Its payload
     // still fences controls and pending admissions; a queued cancellation has no generation.
-    const update = event.type === "session.info" ? decodeChat(ChatSessionUpdate, event.payload) : null;
+    const info = event.type === "session.info" ? decodeChatSessionInfo(event.payload) : null;
+    const update = info?.kind === "control" ? info.value : null;
+    const identity = info?.value;
+    if (
+      (identity?.profile_id !== undefined && identity.profile_id !== this.#profileId) ||
+      (identity?.profile_name !== undefined && identity.profile_name !== this.#deps.profile)
+    )
+      throw new HermesChatFailure({ code: "profile-mismatch" });
     if (update) {
       if (update.authority_epoch !== snapshot.authority_epoch)
         throw new HermesChatFailure({ code: "invalid-response" });
@@ -653,7 +662,10 @@ export class HermesGatewayChatTransport {
     const generation = update?.execution_generation ?? event.execution_generation;
     if (generation !== undefined) {
       if (generation < snapshot.execution_generation) return;
-      if (generation > snapshot.execution_generation) snapshot.prompts = [];
+      if (generation > snapshot.execution_generation) {
+        this.#finishStream();
+        snapshot.prompts = [];
+      }
       snapshot.execution_generation = generation;
     }
     if (update) {
@@ -666,16 +678,25 @@ export class HermesGatewayChatTransport {
       generation === undefined
     )
       throw new HermesChatFailure({ code: "invalid-response" });
-    if (event.type === "message.start") snapshot.running = true;
+    if (event.type === "message.start") {
+      this.#finishStream();
+      snapshot.running = true;
+    }
     if (event.type === "message.delta") {
       const delta = decodeChat(ChatDelta, event.payload);
-      this.#emit({
-        type: "delta",
-        text: delta.text === null ? null : redactText(delta.text),
-        ...(delta.turn_id === undefined ? {} : { turnId: delta.turn_id }),
-        ...(delta.segment === undefined ? {} : { segment: delta.segment }),
-        ...(delta.offset === undefined ? {} : { offset: delta.offset }),
-      });
+      const key = JSON.stringify([delta.turn_id ?? null, delta.segment ?? null]);
+      if (this.#streamKey !== key) this.#finishStream();
+      this.#streamKey = key;
+      if (delta.text === null) {
+        this.#finishStream();
+        this.#emit({ type: "delta", text: null });
+      } else {
+        const text = this.#stream.push(delta.text);
+        if (text === null) throw new HermesChatFailure({ code: "limit" });
+        if (text) this.#emit({ type: "delta", text });
+      }
+    } else if (event.type === "message.interim") {
+      this.#finishStream();
     } else if (event.type === "message.complete") {
       if (generation === undefined) {
         // A queued row can settle beside a different running execution. It cannot end that turn
@@ -685,6 +706,7 @@ export class HermesGatewayChatTransport {
         return;
       }
       const complete = decodeChat(ChatComplete, event.payload);
+      this.#finishStream();
       snapshot.running = false;
       snapshot.prompts = [];
       if (event.admission_id) {
@@ -720,11 +742,17 @@ export class HermesGatewayChatTransport {
   #safePrompt(prompt: Prompt): Prompt {
     return {
       ...prompt,
-      choices: [...prompt.choices],
+      choices: prompt.choices.map(redactText),
       ...(prompt.command === undefined ? {} : { command: redactText(prompt.command) }),
       ...(prompt.description === undefined ? {} : { description: redactText(prompt.description) }),
       ...(prompt.question === undefined ? {} : { question: redactText(prompt.question) }),
     };
+  }
+
+  #finishStream(): void {
+    const text = this.#stream.finish();
+    this.#streamKey = null;
+    if (text) this.#emit({ type: "delta", text });
   }
 
   #emit(event: ChatEvent): void {
@@ -753,6 +781,8 @@ export class HermesGatewayChatTransport {
     for (const call of [...this.#pending.values()]) call.fail();
     this.#pending.clear();
     this.#events.length = 0;
+    this.#stream.reset();
+    this.#streamKey = null;
     this.#eventBytes = 0;
     this.#staged = [];
     this.#snapshot = null;

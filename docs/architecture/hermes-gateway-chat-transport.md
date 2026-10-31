@@ -56,12 +56,28 @@ or unresolved pending work. The admission receipt must match the session/profile
 the call reports acceptance. A completion that arrives before its receipt cannot leave a false
 running state or pending row. No attachment, slash-command or launch-policy option is accepted.
 
-`readEvent()` has one consumer and returns projected text deltas (including segment/offset hints),
+`readEvent()` has one consumer and returns projected text deltas,
 text completions, scalar approval/clarification requests and prompt settlement. Known credential
-values are redacted from displayed text. Unknown remote fields and rendered HTML are not projected.
+values are redacted from displayed text and choice labels. A private `RegisteredSecretStream`
+holds suffixes that can still become a registered raw, JSON-escaped or URL-encoded secret after
+another chunk. It uses a cached prefix automaton and retains at most 32,768 UTF-16 units. Complete
+overlapping matches are kept whole. Overflow closes the socket; an unfinished candidate is masked
+at a segment/turn boundary and discarded on detach. Credentials must be registered before their
+first chunk. Generic unregistered pattern rules still run on each released prefix. Raw segment
+and offset hints are not exposed: redacted output has different chunk boundaries and lengths.
+Unknown remote fields and rendered HTML are not projected.
 Sequence duplicates and older execution generations are discarded. `session.info` also advances
 the generation when only its payload carries it. A generationless queued cancellation cannot end
 another running turn or remove its prompts. Non-text completions require a later adapter.
+
+The pinned owner also publishes `session.info` with local settings/model/profile inventory at
+turn completion and policy refresh, through
+[`session_local_inventory.py`](https://github.com/NousResearch/hermes-agent/blob/f30105a0b4b3d0c1baa6c464189755ccdbc1ac7f/gateway/session_local_inventory.py)
+and [`session_policy_refresh.py`](https://github.com/NousResearch/hermes-agent/blob/f30105a0b4b3d0c1baa6c464189755ccdbc1ac7f/gateway/session_policy_refresh.py).
+That variant validates the current canonical profile identity and is otherwise ignored. Any
+control field selects the full strict control schema: partial/malformed controls cannot fall back
+to harmless metadata. Conflicting profile identities close the
+transport. Settings metadata cannot clear pending admissions, running state or prompts.
 
 Approvals need an exact current prompt ID, generation and explicit advertised `once` or `deny`
 choice. Session/permanent grants, edit approvals, multi-select and batch clarification are not
@@ -70,8 +86,11 @@ response to the next arbitrary prompt. A sent response spends that prompt for th
 lifetime, including after a lost acknowledgement and a replayed snapshot.
 
 The client advertises no server-request handlers and is not a local Hermes Desktop. Unexpected
-server requests receive a fixed JSON-RPC method-not-supported error. Sudo, setup, plugin, file,
-browser and host-tool requests cannot execute anything in OpenBot.
+server requests are ignored locally. The pinned broker can resolve a broadcast globally on an
+error response ([`session_server_requests.py`](https://github.com/NousResearch/hermes-agent/blob/f30105a0b4b3d0c1baa6c464189755ccdbc1ac7f/gateway/session_server_requests.py)), so sending a method-not-supported error could cancel a capable viewer's shared
+sudo/secret/batch prompt. This viewer neither answers nor cancels that request; capable viewers
+and the server's own deadline retain ownership. Sudo, setup, plugin, file, browser and host-tool
+requests cannot execute anything in OpenBot.
 
 `interrupt()` explicitly sends the captured execution generation. It never guesses a newer turn
 after a stale response. Disconnect is a local socket detach, not remote cancellation or sign-out.
@@ -86,11 +105,13 @@ There is no event replay or transcript backfill in this stage; a gap requires a 
 and text lost while disconnected remains unavailable here.
 
 Once a mutation's send is attempted, a lost/error/malformed acknowledgement leaves a main-owned
-uncertainty marker. Reconnect and resume do not clear it or resend the input/control. New writes
-remain blocked. `acknowledgeUncertain(id)` only clears that marker after a fresh attached snapshot
+uncertainty record. Up to eight independent records are retained. Reconnect and resume do not
+clear them or resend the input/control. New input and prompt responses remain blocked. A fresh
+snapshot still permits an explicit generation-fenced interrupt. If its acknowledgement is lost,
+it adds another record and cannot replace the original submission or approval. `acknowledgeUncertain(id)` only clears the named record after a fresh attached snapshot
 shows no running or unresolved pending work. A future UI must present the exact uncertain action
-and obtain an explicit decision before calling it. It sends nothing and never replays the old
-operation. Spent approval IDs remain spent. Server-side unknown admissions cannot be resolved by
+and obtain an explicit decision before calling it. Acknowledging one record cannot clear another
+record's fence. It sends nothing and never replays the old operation. Spent approval IDs remain spent. Server-side unknown admissions cannot be resolved by
 this stage. The marker is memory-only, not a crash-durable intent journal; replacement transport
 objects cannot prove outcomes from a previous process or object.
 
@@ -109,7 +130,7 @@ removes the transport from its account owner.
 ## Verification and limits
 
 Run `node --import tsx scripts/hermes-gateway-chat-e2e.ts`. Its report is
-`.openbot-build/hermes-gateway-chat-e2e/report.json`. Fourteen groups drive the real native auth,
+`.openbot-build/hermes-gateway-chat-e2e/report.json`. Nineteen groups drive the real native auth,
 HTTP, socket, canonical session and control adapters against a credential-free synthetic gateway.
 They cover same-ID account/profile isolation, exact approvals and clarification, interrupt,
 coalesced/duplicate/racing frames, payload-only generations, lost turn/approval acknowledgements,
@@ -118,6 +139,14 @@ ticket mint, pending mutation/read cancellation, slow-consumer overflow, malform
 unsupported edits, account-specific authentication refusal and owner/expired-token closure. A separate synthetic TLS child trusts only its
 temporary fixture CA, then proves that the persistent WSS adapter refuses a replacement untrusted
 certificate before the ticket header reaches the server. Temporary keys are removed.
+
+The five review groups add real local metadata/control variants, partial/mixed/foreign controls,
+raw/JSON/URL credentials split across chunks, redacted choice labels, bounded ambiguous carry,
+capable and unsupported viewers of one shared prompt, and lost-submit/lost-interrupt chains.
+All five defects were reproduced on `854b32e78` before their fixes. Safe reproduction results are
+under `.openbot-build/hermes-gateway-chat-review/before-report.json`. The two protected logging
+test files cover the unchanged text redactor and new streaming primitive, including every split
+point, overlapping match chains, final partial prefixes, reset and buffer overflow.
 
 The foundation and setup fixture suites remain required. The CI provider-fakes lane runs this
 script and uploads its report when the normal workflow runs. That workflow targets `main`; it
