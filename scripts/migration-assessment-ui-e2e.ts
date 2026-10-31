@@ -304,7 +304,7 @@ try {
     "Destination data ownership",
     "Destination persistence",
   ])
-    assert.equal(await page.getByRole("combobox", { name, exact: true }).isEnabled(), false);
+    assert.equal(await page.getByRole("button", { name: new RegExp(`^${name}\\b`) }).isEnabled(), false);
   for (const name of ["Destination OpenBot version", "Destination schema version"])
     assert.equal(await page.getByRole("textbox", { name, exact: true }).isEnabled(), false);
   assert.equal(assessmentCalls, callsBeforeWindows);
