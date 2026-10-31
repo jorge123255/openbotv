@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "playwright-core";
+import { runStorybookA11y } from "./storybook-a11y";
 
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`--${name}=`))?.slice(name.length + 3);
 const target = new URL(argument("url") ?? "http://localhost:6006");
@@ -68,14 +69,13 @@ async function contrast(theme: string, surface: string, selector: string) {
         .map((animation) => animation.finished.catch(() => undefined)),
     );
   });
-  const result = await page.evaluate<{ violations: string[]; incomplete: string[] }>(
-    `axe.run(${JSON.stringify(selector)}, {runOnly:{type:"rule",values:["color-contrast"]}}).then(result => ({violations: result.violations.map(value => value.id), incomplete: result.incomplete.map(value => value.id)}))`,
-  );
+  const details = await runStorybookA11y(page, selector, { runOnly: { type: "rule", values: ["color-contrast"] } });
+  const result = {
+    violations: details.violations.map((value) => value.id),
+    incomplete: details.incomplete.map((value) => value.id),
+  };
   report.contrast.push({ theme, surface, ...result });
   if (result.violations.length || result.incomplete.length) {
-    const details = await page.evaluate(
-      `axe.run(${JSON.stringify(selector)}, {runOnly:{type:"rule",values:["color-contrast"]}})`,
-    );
     writeFileSync(resolve(output, `contrast-${theme}-${surface}.json`), JSON.stringify(details, null, 2));
   }
   assert.deepEqual(result.violations, []);
@@ -91,7 +91,6 @@ try {
       await page.getByText("Purchased credits: $25.00. Separate", { exact: false }).waitFor();
       await screenshot(`warning-${theme}-${width}`);
       if (width === 390) {
-        await page.addScriptTag({ path: resolve(import.meta.dirname, "../node_modules/axe-core/axe.min.js") });
         await contrast(theme, "notice", ".quota-notice");
       }
       await page.getByRole("button", { name: "Review switch", exact: true }).click();
