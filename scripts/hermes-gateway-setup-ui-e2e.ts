@@ -98,7 +98,12 @@ try {
   await text("Finish sign-in in your browser…");
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await text("Sign-in required");
-  report.cases.push("pending browser sign-in can be cancelled without exposing credentials");
+  await story("pending-elsewhere");
+  await text("Finish sign-in in your browser…");
+  assert.equal(await page.getByRole("button", { name: "Sign in with browser", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await text("Sign-in required");
+  report.cases.push("local and other-window pending sign-in can be cancelled without exposing credentials");
   assert.ok(report.externalRequests.length === 0, "The UI fixture makes no external network request.");
   assert.ok(report.pageErrors.length === 0, "The UI fixture has no runtime error.");
   report.passed = true;

@@ -38,6 +38,7 @@ export class HermesGatewaySetupService {
   readonly #pending = new Set<HermesGatewayConnection>();
   #readOnly = false;
   #closed = false;
+  #signingIn = false;
   constructor(deps: SetupDependencies) {
     this.#deps = deps;
   }
@@ -147,9 +148,11 @@ export class HermesGatewaySetupService {
     providerId: string,
   ) {
     const entry = yield* this.#entry(id);
-    if (entry.view.phase === "signing-in") return yield* new HermesGatewayFailure({ code: "busy" });
+    // The system browser shares the gateway's native broker cookie. Do not overlap authorizations.
+    if (this.#signingIn) return yield* new HermesGatewayFailure({ code: "busy" });
     // Remembered gateways are not probed at startup. Explicit sign-in discovers capabilities again.
     const connection = yield* HermesGatewayConnection.create(entry.view.url);
+    this.#signingIn = true;
     entry.connection?.close();
     entry.connection = connection;
     entry.view.phase = "signing-in";
@@ -175,6 +178,7 @@ export class HermesGatewaySetupService {
       }),
       Effect.onExit(() =>
         Effect.sync(() => {
+          this.#signingIn = false;
           this.#pending.delete(connection);
         }),
       ),

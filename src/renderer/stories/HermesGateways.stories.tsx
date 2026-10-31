@@ -63,3 +63,22 @@ export const Pending: Story = {
     return <SettingsHermesGatewaysTab api={{ ...api, signIn: () => new Promise<HermesGatewaySetup[]>(() => {}) }} />;
   },
 };
+
+export const PendingElsewhere: Story = {
+  render: () => (
+    <SettingsHermesGatewaysTab
+      api={createMockHermesGateways([
+        {
+          id: "12345678-1234-4234-9234-123456789abc",
+          url: "https://gateway.example/hermes",
+          phase: "signing-in",
+          remembered: false,
+          selectedProfileId: null,
+          expiresAt: null,
+          providers: [{ id: "basic", name: "Password", supported: true }],
+          profiles: [],
+        },
+      ])}
+    />
+  ),
+};

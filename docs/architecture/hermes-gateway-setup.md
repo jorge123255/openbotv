@@ -50,6 +50,12 @@ Hermes imports, workspaces, skills, routines and databases are not modified.
 
 `HermesGatewaySetupService` owns setup state and the dedicated metadata file. Each connection owns
 its bearer and request cancellation. Public discovery is serialized and limited to eight rows.
+Only one browser authorization can be pending in OpenBot at a time: the gateway uses a broker
+cookie in the system browser, so overlapping password flows could replace that cookie. Another
+attempt is refused as busy, never queued. Completed connections keep separate native bearer
+sessions. Sign-ins started in other applications and old browser login tabs are outside this
+coordination; users should complete or close those tabs before starting another attempt.
+
 Application teardown aborts connections, waits for the native callback/transport operations to
 unwind, and waits for metadata writes. No operation replays an uncertain code exchange, socket
 admission, turn or approval. There are no turn or approval methods in this stage.
@@ -75,7 +81,7 @@ existing English fallback until translated.
   main HTTP/socket adapters, metadata file and injected browser launcher against a synthetic
   gateway. The browser driver models the pinned password form and PKCE code exchange.
 - The six groups cover sign-in, wrong/duplicate/non-ASCII state and code, wrong path/Host/Origin/
-  method, concurrent identities, profile validation, native remember consent, restart without
+  method, browser-flow serialization, multiple account isolation, profile validation, native remember consent, restart without
   network, unremember/remove, expiry, unknown metadata formats, missing capabilities, OAuth
   refusal, invalid PKCE, redirecting token exchange and shutdown during sign-in.
 - `src/preload/hermes-gateway-decoding.test.ts` protects the IPC projection and credential-free

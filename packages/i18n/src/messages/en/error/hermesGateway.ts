@@ -10,6 +10,6 @@ export const messages = defineMessages("error.hermesGateway", {
     "Nothing was remembered. Turn off Remember to select this profile for this session.",
   "error.hermesGateway.storage": "The saved Hermes gateway settings could not be changed. No credentials were saved.",
   "error.hermesGateway.profile": "Sign in and select a profile returned by this gateway.",
-  "error.hermesGateway.busy": "This Hermes gateway is already signing in.",
+  "error.hermesGateway.busy": "Finish or cancel the current Hermes sign-in before starting another.",
   "error.hermesGateway.limit": "Remove a Hermes gateway before adding another.",
 });

@@ -306,16 +306,17 @@ try {
   rows = await Effect.runPromise(service.probe(gateway.url));
   const second = rows[1];
   assert.ok(second);
-  await Promise.all([
-    Effect.runPromise(service.signIn(first.id, "basic")),
-    Effect.runPromise(service.signIn(second.id, "basic")),
-  ]);
+  const firstSignIn = Effect.runPromise(service.signIn(first.id, "basic"));
+  await expectedFailure(service.signIn(second.id, "basic"), "busy");
+  await firstSignIn;
+  assert.ok(gateway.browserOpens === 1, "Overlapping sign-ins do not open another shared browser broker.");
+  await Effect.runPromise(service.signIn(second.id, "basic"));
   rows = service.list();
   const connected = rows[0];
   assert.ok(connected && connected.phase === "connected");
   assert.ok(
     rows[0]?.profiles[0]?.id !== rows[1]?.profiles[0]?.id,
-    "Concurrent connections at the same address keep separate identities.",
+    "Completed connections at the same address keep separate identities.",
   );
   const profile = connected.profiles[0]?.id;
   assert.ok(profile);
@@ -385,7 +386,9 @@ try {
     service.list().every((row) => row.phase === "signed-out"),
     "Expired native sessions are cleared without replay or refresh.",
   );
-  cases.push("native password PKCE, callback rejection, no secret IPC/storage/logs, concurrent session isolation");
+  cases.push(
+    "native password PKCE, callback rejection, no secret IPC/storage/logs, serialized browser auth and isolated sessions",
+  );
   cases.push(
     "profile validation, explicit native remember consent, session-only default, restart, unremember and forget",
   );

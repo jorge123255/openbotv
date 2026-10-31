@@ -163,8 +163,9 @@ function GatewayCard(props: {
       remember: props.entry.remembered,
     })),
   );
+  const signingIn = () => props.signingIn || props.entry.phase === "signing-in";
   const status = () =>
-    props.signingIn
+    signingIn()
       ? t("settings.hermesGateways.signingIn")
       : props.entry.phase === "connected"
         ? t("settings.hermesGateways.connected")
@@ -184,9 +185,9 @@ function GatewayCard(props: {
           </Badge>
         </ItemContent>
         <ItemActions>
-          <Show when={props.signingIn || props.entry.phase === "connected"}>
+          <Show when={signingIn() || props.entry.phase === "connected"}>
             <Button variant="outline" type="button" onClick={() => props.onDisconnect()}>
-              {props.signingIn ? t("common.cancel") : t("settings.hermesGateways.disconnect")}
+              {signingIn() ? t("common.cancel") : t("settings.hermesGateways.disconnect")}
             </Button>
           </Show>
           <Button variant="ghost" type="button" disabled={props.busy} onClick={() => props.onForget()}>
@@ -194,7 +195,7 @@ function GatewayCard(props: {
           </Button>
         </ItemActions>
       </Item>
-      <Show when={props.entry.phase !== "connected" && !props.signingIn}>
+      <Show when={props.entry.phase !== "connected" && !signingIn()}>
         <Item>
           <ItemContent>
             <Show
