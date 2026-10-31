@@ -700,6 +700,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:custom-agents
 
+      - name: Run the backup source stop E2E test
+        if: ${{ !cancelled() }}
+        run: node --import tsx scripts/instance-backup-stop-e2e.ts
+
       - name: Run the custom ACP agent login shell PATH E2E test
         if: ${{ !cancelled() }}
         run: bun run test:custom-agents:login-path
@@ -854,6 +858,7 @@ jobs:
           name: provider-fakes-e2e
           path: |
             .openbot-build/custom-acp-agent-e2e/
+            .openbot-build/instance-backup-stop-e2e/
             .openbot-build/custom-acp-agent-login-path-e2e/
             .openbot-build/codex-login-path-e2e/
             .openbot-build/antigravity-login-path-e2e/

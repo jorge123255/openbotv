@@ -292,7 +292,26 @@ echo OPENBOT_BACKUP_DIR=/var/backups/openbot >>/opt/openbot-docker/instances/mai
 
 A backup stops the container, waits until OpenBot closes its databases, writes the archive and starts
 the container again. The instance is offline while the archive is written. The output and the status
-show how long. A running turn stops, as on a restart. Each backup is a folder `<UTC time>` with:
+show how long. A running turn stops, as on a restart.
+
+For an operator-controlled move, `backup <name> --verify --keep-stopped` does not restart the source
+after it stops. This also applies when copying or verification fails. A nonzero exit from a stop
+that this command performs refuses this backup and keeps the source stopped. A failure before the
+stop, such as a missing
+key file, leaves the running state unchanged. Check the result and the actual source state.
+
+The manifest adds `keptStopped` to record this option. With this option, `downtimeSeconds` is the
+time from stop to archive creation, not the total downtime: the source stays offline afterward.
+Normal backups keep their existing restart and unclean-stop behavior. An already stopped source
+is never started by either mode. An already stopped or removed container is accepted with
+`stopExitCode: null`; the command does not establish whether its previous stop was clean.
+
+This option is not a persistent execution fence. An operator, update job or another copy can still
+start the same identity. It does not pause routines in the database, encrypt the archive, test
+credential decryption, or implement a Mac-to-Linux move. See the
+[full migration plan](architecture/instance-migration.md) for these required stages.
+
+Each backup is a folder `<UTC time>` with:
 
 | File | Contents |
 | --- | --- |

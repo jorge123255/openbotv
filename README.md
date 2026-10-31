@@ -119,6 +119,11 @@ move credentials or provide complete migration.
 The fork's [credential portability lab](docs/architecture/credential-portability.md) tests
 authenticated encryption with generated records only. Real credential migration remains unavailable.
 
+Moving an existing instance needs more than agent transfer. The
+[full migration plan](docs/architecture/instance-migration.md) covers IDs, history, logins, OS-bound
+credentials, verification and one-writer cutover. Cross-platform migration is not implemented yet.
+For Docker backups, `--keep-stopped` keeps the source stopped after copying, including a failure.
+
 ### Nix
 
 The flake installs the desktop app from the latest release on x64 or arm64 Linux and on Apple silicon:
