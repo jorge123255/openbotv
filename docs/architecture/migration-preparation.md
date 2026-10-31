@@ -24,13 +24,14 @@ independently validates the complete response, including all disabled operations
 
 `MigrationPreparationService` observes five integer counts in one SELECT on the initialized
 application database: agent records, conversation threads, message records, canonical attachment
-records, and agent routine definitions. Channel routines and channel messages are not counted. Message attachment indices are excluded to avoid counting the
-same attachment twice. No names, messages, paths, account metadata, credential stores, file content,
+records, and agent routine definitions. Channel routines and channel messages are not counted.
+Message attachment indices are excluded to avoid counting the same attachment twice. No names,
+messages, paths, account metadata, credential stores, file content,
 provider APIs, or directories are inventoried. These are provisional database counts. They are
 neither a verified file inventory nor a consistent database/filesystem snapshot and can become stale.
 
 The service owns `openbot-migration-preparation-v1.db` under Electron userData. Its constructor does
-no IO. Reading a missing journal returns an empty state without creating a file. A prepare/cancel
+no IO. Reading a missing journal with no sidecars returns an empty state without creating a file. A prepare/cancel
 uses a short SQLite transaction with a revision check and synchronous FULL. A prepared plan cannot
 be overwritten; cancel must name its matching ID and revision first. Each call closes its handle.
 This journal adds no application database migration.
@@ -42,6 +43,24 @@ Symlinks, hardlinks, WAL files and unexpected sidecars refuse. A failed/partial 
 for diagnosis and is never silently reset or repaired. The local file checks are defensive checks
 within the existing userData trust boundary, not protection from a hostile same-user process that
 can race filesystem changes. The SQLite journal is not a distributed lease or a cutover fence.
+
+First save prepares a complete, validated SQLite candidate in a private staging directory before
+publishing the final journal. Exclusive hard-link publication cannot replace an existing journal.
+An interrupted publication can leave two names for the same complete file. Recovery must verify
+the bounded private publication marker, file identity, hash and journal format before it detaches
+the known staging link. Unrecognized links and files remain refused and unchanged. An interrupted
+candidate that was never published does not become an empty final journal and does not block a new
+first-save attempt.
+
+Final-journal sidecars are checked even when the main journal is absent. An orphan `-journal`,
+`-wal` or `-shm` file or symlink refuses before SQLite can open or create the final journal. No
+unknown sidecar is deleted or replayed. Existing-plan transactions that leave a hot rollback
+journal after interruption therefore require diagnosis; this is not a general SQLite crash-repair
+feature. Tests of selected process-interruption windows do not establish power-loss durability or
+support on an untested operating system. Required filesystem sync failures refuse or leave an
+uncertain completed publication for a later state read; they never authorize deleting a valid plan.
+First-save publication currently refuses on Windows because this implementation has no verified
+Windows directory-sync adapter. The destination selector does not establish Windows host support.
 
 ## Verification and limits
 
@@ -59,9 +78,12 @@ Reports and UI screenshots are under `.openbot-build/migration-preparation{,-ui}
 credentials canaries and source records are generated in isolated fixture directories. The browser
 test uses the real settings container/store, production coordinator, production inventory adapter,
 real OpenBotDatabase and preload decoder. Its story-only binding injects the coordinator; actual IPC
-sender/payload/error behavior is tested separately with the real registered handlers. Service restart
-means constructing a new coordinator against the same journal, not restarting a packaged Electron
-app. No real provider, account, browser profile, credential store or live application is opened.
+sender/payload/error behavior is tested separately with the real registered handlers. Browser
+restart checks construct a new coordinator against the same journal. The service acceptance also
+kills real writer child processes before publication, after the final link and after the candidate
+link is removed, then checks the saved bytes and recovery behavior. It tests a competing writer and
+injected SQLite/sync failures. None of these checks restarts a packaged Electron app. No real
+provider, account, browser profile, credential store or live application is opened.
 
 Native Electron startup/packaging and the full application graph have not been exercised by this
 slice. The tests do not certify cross-platform data portability, full restore or production fencing.

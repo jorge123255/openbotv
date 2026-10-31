@@ -1,7 +1,10 @@
 // Real service and SQLite journal against generated facade data. No application or secrets load.
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { cp, link, mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import fs from "node:fs";
+import { cp, link, mkdir, mkdtemp, readdir, readFile, readlink, rm, symlink, writeFile } from "node:fs/promises";
+import { syncBuiltinESMExports } from "node:module";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type { AgentSummary, AttachmentSummary, ConversationSnapshot } from "@openbot/contracts/ipc";
@@ -19,6 +22,17 @@ import { MIGRATION_PREPARATION_JOURNAL } from "../src/main/migration-preparation
 const root = resolve(import.meta.dirname, "../.openbot-build/migration-preparation-e2e");
 const groups: Array<{ name: string; passed: boolean }> = [];
 const now = "2026-01-01T12:00:00.000Z";
+const CHILD = "--first-save-child";
+const PUBLICATION_PHASES = [
+  "before-link",
+  "after-link",
+  "after-unlink",
+  "initialization-failure",
+  "directory-sync-failure",
+  "after-link-sync-failure",
+  "during-update",
+] as const;
+type PublicationPhase = (typeof PUBLICATION_PHASES)[number];
 let base = "";
 let database: OpenBotDatabase | null = null;
 let inventoryReads = 0;
@@ -142,6 +156,138 @@ async function seed(): Promise<void> {
   );
 }
 
+async function runPublicationChild(): Promise<void> {
+  const id = process.argv[3] ?? "";
+  const phase = PUBLICATION_PHASES.find((value) => value === process.argv[4]);
+  if (process.argv.length !== 5 || id.length !== 36 || !/^[a-f0-9-]{36}$/.test(id) || !phase) process.exit(2);
+  const profile = join(root, `publication-${id}`);
+  if (!fs.lstatSync(profile).isDirectory() || fs.readFileSync(join(profile, "synthetic-fixture"), "utf8") !== id)
+    process.exit(2);
+  const finalPath = join(profile, MIGRATION_PREPARATION_JOURNAL);
+  const checkpoint = () => {
+    fs.writeSync(1, "PUBLICATION_CHECKPOINT\n");
+    if (fs.readSync(0, Buffer.alloc(1), 0, 1, null) !== 1) process.exit(3);
+  };
+  const originalLink = fs.linkSync;
+  const originalUnlink = fs.unlinkSync;
+  const originalFsync = fs.fsyncSync;
+  const originalExec = DatabaseSync.prototype.exec;
+  let directorySyncs = 0;
+  fs.linkSync = (source, target) => {
+    if (target === finalPath && phase === "before-link") checkpoint();
+    originalLink(source, target);
+    if (target === finalPath && phase === "after-link") checkpoint();
+  };
+  fs.unlinkSync = (path) => {
+    originalUnlink(path);
+    if (
+      typeof path === "string" &&
+      path.startsWith(`${profile}/.openbot-migration-preparation-publish-`) &&
+      path.endsWith("/journal.db") &&
+      phase === "after-unlink"
+    )
+      checkpoint();
+  };
+  fs.fsyncSync = (handle) => {
+    if (fs.fstatSync(handle).isDirectory()) {
+      directorySyncs++;
+      if (
+        (phase === "directory-sync-failure" && directorySyncs === 1) ||
+        (phase === "after-link-sync-failure" && directorySyncs === 3)
+      )
+        throw new Error("synthetic directory sync failure");
+    }
+    originalFsync(handle);
+  };
+  DatabaseSync.prototype.exec = function (sql) {
+    if (phase === "initialization-failure" && sql.includes("CREATE TABLE migration_preparation_state"))
+      throw new Error("synthetic first-save failure");
+    if (phase === "during-update" && sql === "COMMIT") checkpoint();
+    originalExec.call(this, sql);
+  };
+  syncBuiltinESMExports();
+  const childService = new MigrationPreparationService({
+    userDataPath: profile,
+    now: () => now,
+    readInventory: () => Effect.succeed({ agents: 0, conversations: 0, messages: 0, attachments: 0, routines: 0 }),
+  });
+  const current = await Effect.runPromise(childService.getState());
+  const operation =
+    phase === "during-update" && current.plan
+      ? childService.cancel({ planId: current.plan.id, expectedRevision: current.revision })
+      : childService.prepare({ destinationKind: "docker-host", expectedRevision: 0 });
+  const result = await Effect.runPromise(Effect.result(operation));
+  fs.writeSync(
+    1,
+    `${JSON.stringify(Result.isFailure(result) ? { outcome: "refused", code: result.failure.code } : { outcome: "saved" })}\n`,
+  );
+}
+
+async function publicationProfile(): Promise<string> {
+  const id = randomUUID();
+  const profile = join(root, `publication-${id}`);
+  await mkdir(profile, { mode: 0o700 });
+  await writeFile(join(profile, "synthetic-fixture"), id, { mode: 0o600 });
+  publicationProfiles.push(profile);
+  return profile;
+}
+const publicationProfiles: string[] = [];
+
+function startPublicationChild(profile: string, phase: PublicationPhase) {
+  const id = profile.slice(profile.lastIndexOf("publication-") + "publication-".length);
+  const child = spawn(process.execPath, ["--import", "tsx", resolve(import.meta.filename), CHILD, id, phase], {
+    cwd: resolve(import.meta.dirname, ".."),
+    stdio: ["pipe", "pipe", "pipe"],
+  });
+  let output = "";
+  let errors = "";
+  let checkpointResolve: (() => void) | null = null;
+  let checkpointReject: (() => void) | null = null;
+  const checkpoint = new Promise<void>((resolveReady, rejectReady) => {
+    checkpointResolve = resolveReady;
+    checkpointReject = () => rejectReady(new Error("synthetic child ended before checkpoint"));
+  });
+  // A completed-failure child does not use this promise; prevent an unused rejection there.
+  void checkpoint.catch(() => undefined);
+  const closed = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit) => {
+    child.once("error", () => {
+      checkpointReject?.();
+      resolveExit({ code: null, signal: null });
+    });
+    child.once("close", (code, signal) => {
+      checkpointReject?.();
+      resolveExit({ code, signal });
+    });
+  });
+  child.stdout.on("data", (bytes: Buffer) => {
+    output += bytes.toString("utf8");
+    if (output.includes("PUBLICATION_CHECKPOINT\n")) checkpointResolve?.();
+    if (output.length > 4096) child.kill("SIGKILL");
+  });
+  child.stderr.on("data", (bytes: Buffer) => {
+    errors += bytes.toString("utf8");
+    if (errors.length > 4096) child.kill("SIGKILL");
+  });
+  const deadline = setTimeout(() => child.kill("SIGKILL"), 10_000);
+  void closed.then(() => clearTimeout(deadline));
+  return {
+    child,
+    checkpoint,
+    closed,
+    output: () => output,
+    stop: async () => {
+      child.kill("SIGKILL");
+      await closed;
+    },
+  };
+}
+
+if (process.argv[2] === CHILD) {
+  await runPublicationChild();
+  // Child output uses synchronous writes and the service closes each journal handle before return.
+  process.exit(0);
+}
+
 try {
   assert.equal(process.argv.length, 2);
   await mkdir(root, { recursive: true, mode: 0o700 });
@@ -167,7 +313,13 @@ try {
     assert.equal(result.revision, 1);
     assert.ok(result.plan);
     preparedId = result.plan.id;
-    assert.deepEqual(result.plan.inventory, { agents: 1, conversations: 1, messages: 1, attachments: 1, routines: 1 });
+    assert.deepEqual(result.plan.inventory, {
+      agents: 1,
+      conversations: 1,
+      messages: 1,
+      attachments: 1,
+      routines: 1,
+    });
     assert.deepEqual(result.plan.blockers, [...MIGRATION_PREPARATION_BLOCKERS]);
     assert.deepEqual(result.plan.operations, { export: false, restore: false, activate: false });
     assert.equal(result.plan.observation, "metadata-only");
@@ -366,6 +518,202 @@ try {
     assert.equal(await hash(journal), before);
     assert.deepEqual(await Effect.runPromise(first.getState()), current);
   });
+  await check("absent-main-with-regular-or-symlink-sidecar-is-preserved", async () => {
+    for (const suffix of ["-wal", "-shm", "-journal"])
+      for (const kind of ["regular", "symlink"]) {
+        const profile = await publicationProfile();
+        const sidecar = join(profile, `${MIGRATION_PREPARATION_JOURNAL}${suffix}`);
+        const sentinel = join(profile, "untouched-sentinel");
+        await writeFile(sentinel, "synthetic sidecar target");
+        if (kind === "symlink") await symlink(sentinel, sidecar);
+        else await writeFile(sidecar, "synthetic orphan sidecar");
+        const before = await hash(sidecar);
+        const names = await readdir(profile);
+        const candidate = service(profile);
+        await refused(candidate.getState(), "journal-invalid");
+        await refused(candidate.prepare({ destinationKind: "docker-host", expectedRevision: 0 }), "journal-invalid");
+        assert.equal(await hash(sidecar), before);
+        assert.equal(await readFile(sentinel, "utf8"), "synthetic sidecar target");
+        if (kind === "symlink") {
+          assert.equal(fs.lstatSync(sidecar).isSymbolicLink(), true);
+          assert.equal(await readlink(sidecar), sentinel);
+        }
+        assert.deepEqual(await readdir(profile), names);
+      }
+  });
+  await check("first-save-initialization-and-prepublication-sync-failure-allow-safe-retry", async () => {
+    for (const phase of ["initialization-failure", "directory-sync-failure"] as const) {
+      const profile = await publicationProfile();
+      const run = startPublicationChild(profile, phase);
+      try {
+        assert.deepEqual(await run.closed, { code: 0, signal: null });
+        assert.deepEqual(JSON.parse(run.output()), { outcome: "refused", code: "journal-unavailable" });
+        assert.ok(!(await readdir(profile)).includes(MIGRATION_PREPARATION_JOURNAL));
+        assert.deepEqual(await Effect.runPromise(service(profile).getState()), { revision: 0, plan: null });
+        assert.equal(
+          (await Effect.runPromise(service(profile).prepare({ destinationKind: "docker-host", expectedRevision: 0 })))
+            .revision,
+          1,
+        );
+      } finally {
+        await run.stop();
+      }
+    }
+  });
+  await check("kill-before-link-keeps-final-absent-and-retry-safe", async () => {
+    const profile = await publicationProfile();
+    const run = startPublicationChild(profile, "before-link");
+    try {
+      await run.checkpoint;
+      run.child.kill("SIGKILL");
+      assert.equal((await run.closed).signal, "SIGKILL");
+      assert.ok(!(await readdir(profile)).includes(MIGRATION_PREPARATION_JOURNAL));
+      assert.deepEqual(await Effect.runPromise(service(profile).getState()), { revision: 0, plan: null });
+      assert.equal(
+        (await Effect.runPromise(service(profile).prepare({ destinationKind: "local-desktop", expectedRevision: 0 })))
+          .revision,
+        1,
+      );
+    } finally {
+      await run.stop();
+    }
+  });
+  await check("kill-after-link-recovers-only-verified-candidate-with-same-plan-bytes", async () => {
+    const profile = await publicationProfile();
+    const path = join(profile, MIGRATION_PREPARATION_JOURNAL);
+    const run = startPublicationChild(profile, "after-link");
+    try {
+      await run.checkpoint;
+      run.child.kill("SIGKILL");
+      assert.equal((await run.closed).signal, "SIGKILL");
+      assert.equal(fs.lstatSync(path).nlink, 2);
+      const before = await hash(path);
+      const state = await Effect.runPromise(service(profile).getState());
+      assert.equal(state.revision, 1);
+      assert.equal(state.plan?.status, "prepared");
+      assert.equal(fs.lstatSync(path).nlink, 1);
+      assert.equal(await hash(path), before);
+      assert.deepEqual(await Effect.runPromise(service(profile).getState()), state);
+      assert.ok(state.plan);
+      assert.equal(
+        (await Effect.runPromise(service(profile).cancel({ planId: state.plan.id, expectedRevision: 1 }))).revision,
+        2,
+      );
+    } finally {
+      await run.stop();
+    }
+  });
+  await check("kill-after-candidate-unlink-leaves-complete-readable-journal", async () => {
+    const profile = await publicationProfile();
+    const run = startPublicationChild(profile, "after-unlink");
+    try {
+      await run.checkpoint;
+      run.child.kill("SIGKILL");
+      assert.equal((await run.closed).signal, "SIGKILL");
+      const path = join(profile, MIGRATION_PREPARATION_JOURNAL);
+      const before = await hash(path);
+      assert.equal(fs.lstatSync(path).nlink, 1);
+      const state = await Effect.runPromise(service(profile).getState());
+      assert.equal(state.revision, 1);
+      assert.equal(state.plan?.status, "prepared");
+      assert.equal(await hash(path), before);
+    } finally {
+      await run.stop();
+    }
+  });
+  await check("competing-process-first-save-never-overwrites-complete-winner", async () => {
+    const profile = await publicationProfile();
+    const run = startPublicationChild(profile, "before-link");
+    try {
+      await run.checkpoint;
+      const winner = await Effect.runPromise(
+        service(profile).prepare({ destinationKind: "other-server", expectedRevision: 0 }),
+      );
+      const before = await hash(join(profile, MIGRATION_PREPARATION_JOURNAL));
+      run.child.stdin.write("x");
+      assert.deepEqual(await run.closed, { code: 0, signal: null });
+      assert.ok(run.output().includes('"code":"revision-conflict"'));
+      assert.equal(await hash(join(profile, MIGRATION_PREPARATION_JOURNAL)), before);
+      assert.deepEqual(await Effect.runPromise(service(profile).getState()), winner);
+    } finally {
+      await run.stop();
+    }
+  });
+  await check("unsafe-publication-markers-links-or-extra-entries-are-not-cleaned", async () => {
+    for (const kind of ["marker-symlink", "extra-entry", "bad-marker", "candidate-symlink"] as const) {
+      const profile = await publicationProfile();
+      const run = startPublicationChild(profile, "after-link");
+      try {
+        await run.checkpoint;
+        await run.stop();
+        const name = (await readdir(profile)).find((entry) =>
+          entry.startsWith(".openbot-migration-preparation-publish-"),
+        );
+        assert.ok(name);
+        const directory = join(profile, name);
+        const marker = join(directory, "publication.json");
+        const path = join(profile, MIGRATION_PREPARATION_JOURNAL);
+        if (kind === "marker-symlink") {
+          const moved = join(profile, "marker-target");
+          await cp(marker, moved);
+          await rm(marker);
+          await symlink(moved, marker);
+        }
+        if (kind === "extra-entry") await writeFile(join(directory, "unknown-entry"), "must remain");
+        if (kind === "bad-marker") await writeFile(marker, "{}");
+        if (kind === "candidate-symlink") {
+          await rm(join(directory, "journal.db"));
+          await link(path, join(profile, "unknown-hardlink"));
+          await symlink(path, join(directory, "journal.db"));
+        }
+        const before = await hash(path);
+        const names = await readdir(directory);
+        await refused(service(profile).getState(), "journal-invalid");
+        assert.equal(await hash(path), before);
+        assert.deepEqual(await readdir(directory), names);
+        if (kind === "extra-entry")
+          assert.equal(await readFile(join(directory, "unknown-entry"), "utf8"), "must remain");
+      } finally {
+        await run.stop();
+      }
+    }
+  });
+  await check("post-link-sync-failure-remains-complete-and-is-not-reset", async () => {
+    const profile = await publicationProfile();
+    const run = startPublicationChild(profile, "after-link-sync-failure");
+    try {
+      assert.deepEqual(await run.closed, { code: 0, signal: null });
+      assert.deepEqual(JSON.parse(run.output()), { outcome: "refused", code: "journal-unavailable" });
+      const path = join(profile, MIGRATION_PREPARATION_JOURNAL);
+      const before = await hash(path);
+      const state = await Effect.runPromise(service(profile).getState());
+      assert.equal(state.revision, 1);
+      assert.equal(state.plan?.status, "prepared");
+      await refused(
+        service(profile).prepare({ destinationKind: "docker-host", expectedRevision: 0 }),
+        "revision-conflict",
+      );
+      assert.equal(await hash(path), before);
+    } finally {
+      await run.stop();
+    }
+  });
+  await check("mid-update-kill-retains-transaction-sidecar-and-refuses-without-repair", async () => {
+    const profile = await publicationProfile();
+    await Effect.runPromise(service(profile).prepare({ destinationKind: "docker-host", expectedRevision: 0 }));
+    const run = startPublicationChild(profile, "during-update");
+    try {
+      await run.checkpoint;
+      await run.stop();
+      const path = join(profile, MIGRATION_PREPARATION_JOURNAL);
+      assert.ok((await readdir(profile)).includes(`${MIGRATION_PREPARATION_JOURNAL}-journal`));
+      const before = [await hash(path), await hash(`${path}-journal`)];
+      await refused(service(profile).getState(), "journal-invalid");
+      assert.deepEqual([await hash(path), await hash(`${path}-journal`)], before);
+    } finally {
+      await run.stop();
+    }
+  });
   await check("application-data-and-routine-intent-are-unchanged", async () => {
     assert.deepEqual(await Promise.all(appFiles.map((name) => hash(join(profile, name)))), appBefore);
     assert.ok(database);
@@ -381,9 +729,10 @@ try {
 } finally {
   closeFixtureDatabase();
   if (base) await rm(base, { recursive: true, force: true });
+  for (const profile of publicationProfiles) await rm(profile, { recursive: true, force: true });
   await mkdir(root, { recursive: true, mode: 0o700 });
   const report = {
-    passed: groups.length === 12 && groups.every((group) => group.passed),
+    passed: groups.length === 21 && groups.every((group) => group.passed),
     groups,
     realDataRead: false,
     credentialValuesRead: false,
