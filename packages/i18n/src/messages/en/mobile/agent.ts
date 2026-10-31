@@ -17,6 +17,12 @@ export const messages = defineMessages("mobile.agent", {
   "mobile.agent.appearance.preview": "Avatar preview for {name}",
   "mobile.agent.appearance.newAgent": "New agent",
   "mobile.agent.appearance.faces": "Shape and expression",
+  "mobile.agent.appearance.character": "Character",
+  "mobile.agent.appearance.characterShapes": "Shapes",
+  "mobile.agent.appearance.characterRobot": "Companion",
+  "mobile.agent.appearance.characterOrb": "Orb",
+  "mobile.agent.appearance.characterSeedLimit":
+    "Select a new shape to use Companion or Orb. Your current identity stays saved until you select a shape.",
   "mobile.agent.appearance.face": "Agent face {index}",
   "mobile.agent.appearance.moreFaces": "More faces",
   "mobile.agent.appearance.color": "Avatar color",
