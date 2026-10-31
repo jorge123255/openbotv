@@ -7,7 +7,17 @@ import { mockHostAnalytics } from "../src/preview/mock-agent-analytics";
 import { createMockOpenBot } from "./mock-openbot";
 
 function UsageStory(props: {
-  state: "ready" | "empty" | "partial" | "loading" | "error" | "unsupported" | "large" | "small" | "long";
+  state:
+    | "ready"
+    | "empty"
+    | "partial"
+    | "loading"
+    | "error"
+    | "unsupported"
+    | "large"
+    | "small"
+    | "long"
+    | "daily-only";
   narrow?: boolean;
   agentId?: string;
 }) {
@@ -46,6 +56,7 @@ function UsageStory(props: {
       return { ...data, totals: emptyAnalyticsTotals(), models: [], daily: [], agents: [], providerDaily: [] };
     if (props.state === "partial")
       return { ...data, totals: { ...data.totals, missingUsageTurns: 3, unpricedRecords: 2 } };
+    if (props.state === "daily-only") return { ...data, providerDaily: [] };
     return data;
   };
   onCleanup(() => {
@@ -85,3 +96,4 @@ export const SmallCosts: Story = { args: { state: "small" } };
 export const LongModelNames: Story = { args: { state: "long", narrow: true } };
 
 export const SingleAgent: Story = { args: { agentId: "chief" } };
+export const DailyTotalsOnly: Story = { args: { state: "daily-only" } };
