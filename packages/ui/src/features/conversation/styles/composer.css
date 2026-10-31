@@ -134,15 +134,15 @@
 
 .composer[data-compact] {
   grid-template-columns: 28px minmax(0, 1fr) auto;
-  min-height: 48px;
+  min-height: 72px;
   align-items: center;
   gap: 8px;
-  padding: 8px 10px;
+  padding: var(--openbot-space-4);
 }
 
 .composer:focus-within {
-  border-color: var(--openbot-text-dim);
-  box-shadow: 0 0 0 3px var(--openbot-hover);
+  border-color: var(--openbot-accent-strong);
+  box-shadow: var(--openbot-focus-ring);
 }
 
 .composer:has(.composer-editor-surface[aria-disabled="true"]) {

@@ -29,12 +29,12 @@
   position: relative;
   width: 100%;
   height: auto;
-  min-height: var(--openbot-control-md);
+  min-height: var(--openbot-control-lg);
   display: grid;
   grid-template-columns: var(--openbot-icon-md) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--openbot-space-2);
-  border: 0;
+  border: 1px solid transparent;
   border-radius: var(--openbot-radius-md);
   background: transparent;
   padding: 0 var(--openbot-space-2);
@@ -54,8 +54,8 @@
 }
 
 .settings-modal-nav-item[aria-current="page"] {
-  background: var(--openbot-bg-control-hover);
-  color: var(--openbot-text-primary);
+  background: var(--openbot-accent-soft);
+  color: var(--openbot-accent-text);
   font-weight: var(--openbot-weight-medium);
 }
 
@@ -98,7 +98,7 @@
 
 .settings-modal-title {
   margin: 0;
-  font-size: var(--openbot-text-2xl);
+  font-size: var(--openbot-text-3xl);
   font-weight: var(--openbot-weight-semibold);
   line-height: var(--openbot-leading-2xl);
   letter-spacing: var(--openbot-tracking-tight);
@@ -192,8 +192,8 @@
   width: 100%;
   display: grid;
   overflow: hidden;
-  border: 0;
-  border-radius: var(--openbot-radius-lg);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
   background: var(--openbot-bg-surface);
   box-shadow: none;
 }

@@ -1433,3 +1433,17 @@ button.chat-action-target:active,
   content: "·";
   margin-inline-end: var(--openbot-space-1);
 }
+
+/* The conversation keeps its message components, including tools and attachments. */
+.message-entry-user .ui-bubble-content {
+  background: var(--openbot-accent-soft);
+  border-color: var(--openbot-accent-strong);
+  color: var(--openbot-text-primary);
+}
+.message-entry-agent .ui-bubble-variant-secondary > .ui-bubble-content {
+  border-color: var(--openbot-border);
+  background: var(--openbot-bg-surface);
+}
+.message-entry :is(.ui-bubble-variant-secondary, .ui-bubble-variant-tinted) > .ui-bubble-content {
+  padding: var(--openbot-space-3) var(--openbot-space-4);
+}

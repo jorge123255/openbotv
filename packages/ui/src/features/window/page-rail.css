@@ -4,12 +4,16 @@
 .window-rail {
   position: relative;
   display: flex;
-  width: 52px;
+  width: var(--openbot-navigation-width);
   min-height: 0;
+  overflow-y: auto;
+  gap: var(--openbot-space-6);
   flex-direction: column;
   justify-content: space-between;
   align-items: center;
-  padding: calc(var(--left-header-height, 38px) + var(--openbot-space-1)) 0 var(--openbot-space-3);
+  padding: calc(var(--openbot-workspace-header-height) + var(--openbot-space-6)) var(--openbot-space-3)
+    var(--openbot-space-4);
+  border-right: 1px solid var(--openbot-border);
   -webkit-app-region: drag;
 }
 
@@ -17,13 +21,15 @@
  * the top padding of `.sidebar-topbar`, so it is on the center line of the server logo. */
 .window-rail-logo {
   position: absolute;
-  top: 0;
+  top: var(--openbot-space-6);
   right: 0;
   left: 0;
   display: flex;
   height: var(--left-header-height, 38px);
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  gap: var(--openbot-space-3);
+  padding-inline: var(--openbot-space-6);
   padding-top: 2px;
 }
 
@@ -47,7 +53,9 @@
 .window-rail-group {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  width: 100%;
+  flex: none;
   gap: var(--openbot-space-1-5);
   /* The window swallows mouse events over a drag area. With the gaps between the buttons in the
    * drag area, the pointer left the group between two buttons, and the tooltip closed instead of
@@ -58,15 +66,17 @@
 .window-rail-button {
   position: relative;
   display: flex;
-  width: var(--openbot-control-lg);
-  height: var(--openbot-control-lg);
+  width: 100%;
+  min-height: var(--openbot-control-xl);
+  height: auto;
+  gap: var(--openbot-space-3);
   align-items: center;
-  justify-content: center;
-  border: 0;
+  justify-content: flex-start;
+  border: 1px solid transparent;
   border-radius: var(--openbot-radius-lg);
   background: transparent;
-  padding: 0;
-  color: var(--openbot-text-muted);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  color: var(--openbot-text-secondary);
   font: inherit;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -81,8 +91,9 @@
 
 .window-rail-button[aria-current="page"],
 .window-rail-button[aria-current="page"]:hover:not(:disabled):not([data-disabled]) {
-  background: var(--openbot-bg-control-active);
-  color: var(--openbot-text-primary);
+  border-color: var(--openbot-accent-strong);
+  background: var(--openbot-accent-soft);
+  color: var(--openbot-accent-text);
 }
 
 .window-rail-button:focus-visible {
@@ -242,4 +253,51 @@
   > .agent-context-icon
   > * {
   fill-opacity: 1;
+}
+
+/* Labels share the existing controls and accessible names. */
+.window-rail-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--openbot-text-lg);
+}
+.window-rail-brand {
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
+}
+.window-rail-button > svg {
+  flex: none;
+}
+.window-rail-button.window-rail-usage {
+  width: var(--openbot-control-lg);
+  height: var(--openbot-control-lg);
+  min-height: var(--openbot-control-lg);
+  padding: 0;
+  justify-content: center;
+  align-self: flex-start;
+  margin-inline: var(--openbot-space-3);
+}
+@media (min-width: 721px) and (max-width: 1100px) {
+  .window-rail {
+    width: 64px;
+    padding-inline: var(--openbot-space-2);
+  }
+  .window-rail-label,
+  .window-rail-brand {
+    display: none;
+  }
+  .window-rail-logo {
+    padding-inline: 0;
+    justify-content: center;
+  }
+  .window-rail-button {
+    justify-content: center;
+    padding-inline: 0;
+  }
+  .window-rail-button.window-rail-usage {
+    margin-inline: 0;
+    align-self: center;
+  }
 }

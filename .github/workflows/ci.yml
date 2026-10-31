@@ -1074,6 +1074,7 @@ jobs:
           curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://127.0.0.1:6006/iframe.html
           bun scripts/marketplace-plugins-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/agent-avatar-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/workspace-appearance-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-task-attention-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-assignment-activity-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/usage-chart-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
@@ -1094,6 +1095,7 @@ jobs:
           path: |
             .openbot-build/marketplace-plugins-ui-e2e/
             .openbot-build/agent-avatar-ui-e2e/
+            .openbot-build/workspace-appearance-ui-e2e/
 
       - name: Upload offline migration assessment UI evidence
         if: always()

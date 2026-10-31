@@ -46,6 +46,21 @@ export const ExpandedSidebar: Story = {
   render: () => <SidebarStatePlayground compact={false} />,
 };
 
+/** Current activity and saved identities in the real app shell, with one sleeping agent. */
+export const RosterWorkspace: Story = {
+  render: () => (
+    <SidebarStatePlayground
+      compact={false}
+      options={{
+        agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+          ...agent,
+          updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
+        })),
+      }}
+    />
+  ),
+};
+
 /** The servers in a rail at the left of the sidebar, instead of the server menu. */
 export const ServerRailView: Story = {
   render: () => <SidebarStatePlayground compact={false} serverView="rail" />,

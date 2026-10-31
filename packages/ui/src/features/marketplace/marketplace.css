@@ -1423,3 +1423,122 @@ html:active-view-transition-type(marketplace-swap)::view-transition-new(marketpl
   height: var(--openbot-icon-sm);
   flex: none;
 }
+
+/* The marketplace uses the workspace navigation. Its own kinds form a compact strip. */
+.skills-marketplace {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+.skills-marketplace .marketplace-nav {
+  grid-column: 1;
+  grid-row: 2;
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3) var(--marketplace-inset);
+  border-right: 0;
+  border-bottom: 1px solid var(--openbot-border);
+}
+.marketplace-nav > .marketplace-nav-title {
+  margin: 0;
+  font-size: var(--openbot-text-lg);
+}
+.marketplace-nav .marketplace-nav-list {
+  display: flex;
+  gap: var(--openbot-space-2);
+}
+.marketplace-nav .marketplace-nav-item {
+  min-height: var(--openbot-control-lg);
+  padding-inline: var(--openbot-space-3);
+}
+.marketplace-nav-item[aria-current="page"],
+.marketplace-nav-item[aria-current="location"] {
+  color: var(--openbot-accent-text);
+  background: var(--openbot-accent-soft);
+}
+.marketplace-nav-group {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--openbot-space-2);
+  overflow-x: auto;
+}
+.marketplace-nav .marketplace-nav-heading {
+  flex: none;
+  margin: 0;
+}
+.skills-marketplace .skills-marketplace-body {
+  grid-column: 1;
+  grid-row: 3;
+}
+.marketplace-frame {
+  padding-block: var(--openbot-space-8);
+}
+.marketplace-frame > * {
+  width: min(100%, 1120px);
+}
+.marketplace-browse-copy {
+  position: relative;
+  padding-right: calc(var(--openbot-space-8) * 4);
+}
+.marketplace-browse-title {
+  font-size: var(--openbot-text-display);
+  line-height: var(--openbot-leading-display);
+}
+.marketplace-create-button {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: var(--openbot-accent);
+  color: var(--openbot-text-on-accent);
+}
+.marketplace-create-button:hover:not(:disabled) {
+  background: var(--openbot-accent-hover);
+}
+.marketplace-search.search-field {
+  min-height: var(--openbot-control-xl);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+}
+.marketplace-plugin-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: var(--openbot-space-4);
+}
+.marketplace-app-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 176px;
+  align-content: start;
+  align-items: start;
+  padding: var(--openbot-space-5);
+  gap: var(--openbot-space-4);
+  border: 1px solid var(--openbot-border-strong);
+  background: var(--openbot-bg-surface);
+  border-radius: var(--openbot-radius-card);
+}
+.marketplace-app-card .marketplace-app-row-copy {
+  gap: var(--openbot-space-2);
+}
+.marketplace-app-card .marketplace-app-row-name {
+  font-size: var(--openbot-text-xl);
+  font-weight: var(--openbot-weight-semibold);
+}
+.marketplace-app-card .marketplace-app-row-tagline {
+  white-space: normal;
+  line-height: var(--openbot-leading-lg);
+}
+.marketplace-app-card .marketplace-app-row-status {
+  grid-column: 2;
+  align-self: end;
+  margin-top: var(--openbot-space-2);
+}
+@media (max-width: 720px) {
+  .marketplace-browse-copy {
+    padding-right: 0;
+  }
+  .marketplace-create-button {
+    position: static;
+    justify-self: start;
+  }
+}

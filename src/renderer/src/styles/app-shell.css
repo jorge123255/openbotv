@@ -22,7 +22,7 @@
  */
 
 .app-frame {
-  --left-header-height: 38px;
+  --left-header-height: var(--openbot-workspace-header-height);
   --server-rail-width: 64px;
 
   position: relative;

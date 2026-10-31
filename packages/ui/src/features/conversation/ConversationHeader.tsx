@@ -68,7 +68,12 @@ export function ConversationHeader(props: ConversationHeaderProps) {
               onClick={() => (props.onOpenChat ?? props.onOpenSettings)()}
             >
               <AgentAvatar agent={agent()} />
-              <h1>{agent().name}</h1>
+              <span class="conversation-title-copy">
+                <h1>{agent().name}</h1>
+                <Show when={agent().description}>
+                  <span>{agent().description}</span>
+                </Show>
+              </span>
             </Button>
           )}
         </Show>

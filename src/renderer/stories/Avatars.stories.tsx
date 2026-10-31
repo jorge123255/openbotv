@@ -1,9 +1,10 @@
+import { avatarCandidateSeeds, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
 import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import { Button, Input } from "@openbot/ui";
 import { avatarImageDataUrl, normalizeAvatarFile } from "@openbot/ui/avatar-image";
 import { AgentAvatar } from "@openbot/ui/features/agents/AgentAvatar";
 import { TeamPersonAvatar } from "@openbot/ui/features/team/TeamPersonAvatar";
-import { createStore, For, Show } from "solid-js";
+import { createSignal, createStore, For, Show } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { STORY_AGENTS, STORY_PRESENCE } from "./fixtures";
 
@@ -235,6 +236,39 @@ export const SavedAnimatedImage: AgentStory = {
           Clear saved fixture
         </Button>
       </section>
+    );
+  },
+};
+
+/** Every supported silhouette uses the same live gaze and state changes as a saved bot. */
+export const SilhouetteFaces: AgentStory = {
+  render: () => {
+    const [mood, setMood] = createSignal<AvatarMood>("idle");
+    const seeds = avatarCandidateSeeds("visual-review", "chief", 0);
+    return (
+      <div class="grid gap-6 p-8">
+        <div class="flex gap-3">
+          {AVATAR_MOODS.map((entry) => (
+            <Button aria-pressed={mood() === entry ? "true" : "false"} onClick={() => setMood(entry)}>
+              {entry}
+            </Button>
+          ))}
+        </div>
+        <div class="flex flex-wrap gap-8">
+          {seeds.map((seed) => (
+            <section class="grid justify-items-center gap-3" aria-label={bloubAvatarProfile(seed, null).shape}>
+              <AgentAvatar
+                seed={seed}
+                mood={mood()}
+                motion="always"
+                followPointer
+                style={{ width: "96px", height: "96px" }}
+              />
+              <small>{bloubAvatarProfile(seed, null).shape}</small>
+            </section>
+          ))}
+        </div>
+      </div>
     );
   },
 };

@@ -31,10 +31,10 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
   const whatsNew = useWhatsNew();
   const { activeServer } = useServers();
   const platform = usePlatform();
-  /** macOS draws the window buttons in the top row of the rail. Windows and Linux show the logo there. */
+  /** The brand sits below the macOS window controls and above the navigation. */
   const logo = () => {
     const info = platform.appInfo();
-    return info && info.platform !== "darwin" ? { variant: info.variant } : undefined;
+    return info ? { variant: info.variant } : undefined;
   };
   /** Agents and Routines show the same page; they set the list of the sidebar. */
   function showSidebarView(view: SidebarView) {
@@ -72,7 +72,7 @@ export function WorkspacePageRail(props: { hidden: boolean }) {
       usageRows={usageRows()}
       openUrl={(url) => void appPort().openUrl(url)}
       customAgentUsage={localAgentUsage()}
-      onAgents={() => showSidebarView("agents")}
+      onAgents={windowPage.showAgents}
       onRoutines={() => showSidebarView("routines")}
       // A joined server without workflows shows its notice on the page.
       onWorkflows={() => windowPage.openWorkflows(null)}

@@ -25,6 +25,7 @@ function RailButton(props: {
   label: string;
   /** Renders the card while it is open. */
   card?: () => JSX.Element;
+  visualLabel?: string;
   current?: boolean;
   class?: string;
   onClick: (button: HTMLElement) => void;
@@ -40,6 +41,11 @@ function RailButton(props: {
       onClick={(event) => props.onClick(event.currentTarget)}
     >
       {props.children}
+      <Show when={!props.card}>
+        <span class="window-rail-label" aria-hidden="true">
+          {props.visualLabel ?? props.label}
+        </span>
+      </Show>
     </Button>
   );
   return (
@@ -228,7 +234,7 @@ export interface PageRailProps {
   /** The Help menu, between Marketplace and Settings. */
   help: JSX.Element;
   /**
-   * The OpenBot logo in the top row, for a window that has no macOS window buttons there. With
+   * The OpenBot logo above the navigation. With
    * `href`, the logo is a link to the OpenBot site.
    */
   logo?: { variant: AppLogoVariant; href?: string | undefined } | undefined;
@@ -282,6 +288,9 @@ function RailMoreMenu(props: {
           aria-current={currentInMenu() ? "page" : undefined}
         >
           <Ellipsis aria-hidden="true" />
+          <span class="window-rail-label" aria-hidden="true">
+            {t("app.rail.more")}
+          </span>
         </DropdownMenu.Trigger>
       </MotionTooltip>
       <DropdownMenu.Portal>
@@ -332,6 +341,9 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
           </MotionTooltip>
         )}
       </Show>
+      <span class="window-rail-brand" aria-hidden="true">
+        {t("app.rail.brand")}
+      </span>
     </div>
   );
 }
@@ -432,6 +444,7 @@ export function PageRail(props: PageRailProps) {
               ? t("app.rail.settingsNotice", { notice: props.settingsNotice })
               : t("app.rail.settings")
           }
+          visualLabel={t("app.rail.settings")}
           current={props.current === "settings"}
           onClick={props.onSettings}
         >

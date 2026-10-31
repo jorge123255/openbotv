@@ -191,7 +191,7 @@ export function AppAction(props: {
 }
 
 /** An app in the list: its logo, name and one line, and its status. The row opens the app page. */
-export function AppRow(props: { scope: MarketplaceScope; app: MarketplaceApp }) {
+export function AppRow(props: { scope: MarketplaceScope; app: MarketplaceApp; card?: boolean }) {
   const { t } = useText();
   let hit: HTMLButtonElement | undefined;
   // Both plugin lists stay mounted. Return focus to this row, not the first
@@ -199,7 +199,7 @@ export function AppRow(props: { scope: MarketplaceScope; app: MarketplaceApp }) 
   const focusRow = () => requestAnimationFrame(() => hit?.focus());
   const open = () => t("marketplace.open", { name: props.app.name });
   return (
-    <li class="marketplace-app-row">
+    <li class={props.card ? "marketplace-app-row marketplace-app-card" : "marketplace-app-row"}>
       <Button
         ref={hit}
         type="button"

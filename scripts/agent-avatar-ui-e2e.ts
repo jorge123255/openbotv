@@ -149,6 +149,53 @@ try {
     "Generated idle, working, waiting, failed, responded, connecting and asleep faces stay still on pointer input with reduced motion.",
   );
   await page.screenshot({ path: resolve(output, "reduced-motion.png") });
+
+  await open("silhouette-faces");
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.locator(".agent-avatar-mouth").first().waitFor();
+  const faces = page.locator(".agent-avatar-bloub");
+  assert.ok((await faces.count()) >= 7);
+  const paths = new Set<string>();
+  for (const mood of ["idle", "working", "waiting", "failed", "responded", "connecting", "asleep"]) {
+    await page.getByRole("button", { name: mood, exact: true }).click();
+    await page.mouse.move(mood === "working" ? 20 : 1200, mood === "waiting" ? 800 : 150);
+    // Wait for the observer to follow the actual eye paths on a live animation frame.
+    await page.waitForFunction(() => {
+      return [...document.querySelectorAll(".agent-avatar-bloub")].every((face) => {
+        const mouth = face.querySelector<SVGPathElement>(".agent-avatar-mouth g > path");
+        const eyes = face.querySelectorAll<SVGPathElement>(".bloub-avatar-svg mask > path[transform]");
+        if (!mouth || eyes.length < 2) return false;
+        const left = new DOMMatrix(eyes[0]?.getAttribute("transform") ?? undefined);
+        const right = new DOMMatrix(eyes[1]?.getAttribute("transform") ?? undefined);
+        const expected = `translate(${(left.e + right.e) / 2} ${(left.f + right.f) / 2})`;
+        return mouth.getAttribute("transform")?.startsWith(expected);
+      });
+    });
+    const geometry = await faces.evaluateAll((elements) =>
+      elements.map((face) => {
+        const mouth = face.querySelector<SVGPathElement>(".agent-avatar-mouth g > path");
+        const mask = face.querySelector(".agent-avatar-mouth clipPath path");
+        const body = face.querySelector(".bloub-avatar-svg > g:nth-of-type(2) > path:first-child");
+        return {
+          path: mouth?.getAttribute("d"),
+          transform: mouth?.getAttribute("transform"),
+          clipped: mask?.getAttribute("d") === body?.getAttribute("d"),
+        };
+      }),
+    );
+    for (const face of geometry) {
+      assert.ok(face.path);
+      paths.add(face.path);
+      assert.equal(face.clipped, true);
+      assert.ok(face.transform && !/NaN|Infinity/.test(face.transform));
+    }
+    await page.screenshot({ path: resolve(output, `silhouettes-${mood}.png`) });
+  }
+  assert.ok(paths.size >= 4, "State changes must render distinct mouth expressions.");
+  report.cases.push(
+    "All supported silhouettes follow live eye transforms and retain their body clip across seven state changes; representative screenshots saved.",
+  );
+
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;
 } catch (error) {

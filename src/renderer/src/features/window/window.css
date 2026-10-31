@@ -75,9 +75,9 @@
   .app-window > .app-frame-edge::before {
     position: absolute;
     z-index: -1;
-    inset: calc(var(--left-header-height) - 1px) var(--window-edge) var(--window-edge) 0;
+    inset: 0 var(--window-edge) var(--window-edge) 0;
     border: 1px solid var(--openbot-border);
-    border-radius: var(--openbot-radius-card);
+    border-radius: 0 0 var(--openbot-radius-card) var(--openbot-radius-card);
     background: var(--openbot-bg-canvas);
     content: "";
     pointer-events: none;
@@ -540,7 +540,7 @@
   /* The Marketplace page: the path of a page goes in the top row, as the usage title does. The side panel and the
    * list are below it. */
   .app-window > .app-frame-edge > .window-page > .skills-marketplace-page {
-    grid-template-rows: var(--left-header-height) minmax(0, 1fr);
+    grid-template-rows: var(--left-header-height) auto minmax(0, 1fr);
   }
 
   .app-window > .app-frame-edge > .window-page .skills-marketplace-topbar {
@@ -604,9 +604,9 @@
   margin: 0 0 var(--openbot-space-3);
   padding: 0 var(--openbot-space-2);
   color: var(--openbot-text-primary);
-  font-size: var(--openbot-text-lg);
+  font-size: var(--openbot-text-3xl);
   font-weight: var(--openbot-weight-semibold);
-  line-height: var(--openbot-leading-lg);
+  line-height: var(--openbot-leading-3xl);
 }
 
 /* The heading takes the focus when the page opens, only so a screen reader reads it. */
@@ -662,8 +662,8 @@
 }
 
 .settings-page-nav-group .settings-modal-nav-item[data-selected] {
-  background: var(--openbot-bg-control-hover);
-  color: var(--openbot-text-primary);
+  background: var(--openbot-accent-soft);
+  color: var(--openbot-accent-text);
   font-weight: var(--openbot-weight-medium);
 }
 

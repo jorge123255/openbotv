@@ -21,8 +21,9 @@
 
 /* The agent's name is the first tab, for the agent's own chat, with the shape of the thread tabs. */
 .conversation-title.ui-button[data-tab] {
-  height: var(--openbot-control-sm);
-  gap: var(--openbot-space-1-5);
+  height: auto;
+  min-height: var(--openbot-roster-avatar-size);
+  gap: var(--openbot-space-3);
   padding: 0 var(--openbot-space-2) 0 var(--openbot-space-1-5);
   border-radius: var(--openbot-radius-md);
   color: var(--openbot-text-secondary);
@@ -30,7 +31,7 @@
 
 .conversation-title.ui-button[data-tab] h1 {
   color: inherit;
-  font-size: var(--openbot-text-sm);
+  font-size: var(--openbot-text-2xl);
 }
 
 .conversation-title.ui-button[data-tab]:hover {
@@ -39,7 +40,7 @@
 }
 
 .conversation-title.ui-button[data-tab][data-selected] {
-  background: var(--openbot-bg-control-active);
+  background: transparent;
   color: var(--openbot-text-primary);
 }
 
@@ -623,4 +624,9 @@
   .agent-threads-tab-mark-slot {
     transition: none;
   }
+}
+
+/* A folded title keeps its description out of the measured icon-only tab. */
+.conversation-heading-group:has(.agent-threads-header[data-fold]) .conversation-title-copy > span {
+  display: none;
 }

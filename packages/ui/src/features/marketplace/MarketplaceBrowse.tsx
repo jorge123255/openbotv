@@ -165,9 +165,9 @@ function AppList(props: { scope: MarketplaceScope; lists: BrowseLists }) {
             </h4>
             {/* Each read of the host makes new app objects, so the rows are kept by id: the element
                 under the pointer or the focus stays. */}
-            <ul class="marketplace-app-list">
+            <ul class="marketplace-app-list marketplace-plugin-grid">
               <For each={group().apps} keyed={(app) => app.id}>
-                {(app) => <AppRow scope={props.scope} app={app()} />}
+                {(app) => <AppRow scope={props.scope} app={app()} card />}
               </For>
             </ul>
           </section>
@@ -262,6 +262,20 @@ export function MarketplaceBrowse(props: { scope: MarketplaceScope; lists: Brows
             <Heading as="h3" size="lg" class="marketplace-browse-title">
               {t(MARKETPLACE_TAB_LABEL[state().tab])}
             </Heading>
+            <Show when={state().tab === "apps"}>
+              <Button
+                type="button"
+                class="marketplace-create-button"
+                onClick={() =>
+                  nav().set((draft) => {
+                    draft.pluginMode = "create";
+                  })
+                }
+              >
+                <Plus aria-hidden="true" />
+                {t("marketplace.plugins.create")}
+              </Button>
+            </Show>
             <Text as="p" variant="body" tone="muted">
               {t(DESCRIPTION[state().tab])}
             </Text>
