@@ -158,7 +158,7 @@ async function fixture() {
           platform: "darwin",
           architecture: "arm64",
           appVersion: "1.2.3",
-          schemaVersion: 47,
+          schemaVersion: 48,
           executor: "process",
           dataRoot: "owned",
           persistence: "persistent",

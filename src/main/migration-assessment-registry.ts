@@ -90,4 +90,4 @@ export const MIGRATION_ASSESSMENT_TABLES = {
   "events-receipts": ["orchestration_events", "orchestration_command_receipts"],
 } as const;
 
-export const MIGRATION_ASSESSMENT_EXPECTED_SCHEMA = 47;
+export const MIGRATION_ASSESSMENT_EXPECTED_SCHEMA = 48;

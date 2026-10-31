@@ -318,12 +318,12 @@ try {
     db().replaceAgents("assessment-reset-paths", [sourceAgent], "agents.updated");
   });
   await check("future schema versions and oversized unknown names leave categories unverified", async () => {
-    db().connection.exec("UPDATE schema_migrations SET version=48 WHERE version=47");
+    db().connection.exec("UPDATE schema_migrations SET version=49 WHERE version=48");
     const future = await read();
     assert.equal(future.schema.recognized, false);
-    assert.equal(future.schema.observedVersion, 48);
+    assert.equal(future.schema.observedVersion, 49);
     assert.ok(future.categories.every((row) => row.rowCount === null));
-    db().connection.exec("UPDATE schema_migrations SET version=47 WHERE version=48");
+    db().connection.exec("UPDATE schema_migrations SET version=48 WHERE version=49");
     const longName = `PRIVATE_FIXTURE_${"x".repeat(130)}`;
     db().connection.exec(`CREATE TABLE ${longName}(value TEXT)`);
     const long = await read();
