@@ -87,6 +87,7 @@ import { marketplaceAgentIpcHandlers } from "./ipc/marketplace-agent-handlers";
 import { mcpServerIpcHandlers } from "./ipc/mcp-server-handlers";
 import { memoryIpcHandlers } from "./ipc/memory-handlers";
 import { messagingIpcHandlers } from "./ipc/messaging-handlers";
+import { migrationAssessmentIpcHandlers } from "./ipc/migration-assessment-handlers";
 import { migrationPreparationIpcHandlers } from "./ipc/migration-preparation-handlers";
 import { notificationIpcHandlers } from "./ipc/notification-handlers";
 import { ollamaQuotaIpcHandlers } from "./ipc/ollama-quota-handlers";
@@ -637,6 +638,7 @@ function registerIpcHandlers({
   hermesGateways,
   instanceTransfer,
   migrationPreparation,
+  migrationAssessment,
   voice,
   speech,
   elevenLabsSpeech,
@@ -753,6 +755,7 @@ function registerIpcHandlers({
         : resolve(__dirname, "../../resources/agent-import"),
     }),
     ...migrationPreparationIpcHandlers({ migrationPreparation }),
+    ...migrationAssessmentIpcHandlers({ migrationAssessment }),
     ...instanceTransferIpcHandlers({
       instanceTransfer,
       remoteServers,

@@ -25,6 +25,7 @@ import {
   SelectValue,
   SettingsSection,
 } from "@openbot/ui";
+import type { JSX } from "@solidjs/web";
 import { For, Show } from "solid-js";
 import { useText } from "../../text";
 
@@ -68,6 +69,7 @@ export interface MigrationPreparationViewProps {
   onPrepare: () => void;
   onCancel: () => void;
   onReload: () => void;
+  assessment?: JSX.Element;
 }
 
 /** A saved metadata plan. No transfer or activation action is available from this view. */
@@ -209,6 +211,7 @@ export function MigrationPreparationView(props: MigrationPreparationViewProps) {
                 </For>
               </ItemGroup>
             </SettingsSection>
+            <Show when={saved().status === "prepared"}>{props.assessment}</Show>
           </>
         )}
       </Show>

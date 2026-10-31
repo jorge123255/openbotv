@@ -251,6 +251,12 @@ import {
 import { McpOAuthStore } from "./mcp-oauth-store";
 import { MemoryReviewPreferenceStore } from "./memory-review-preference-store";
 import { MessagingCredentialStore } from "./messaging-credential-store";
+import {
+  MigrationAssessmentInventoryFailure,
+  readMigrationAssessmentInventory,
+} from "./migration-assessment-inventory";
+import { MigrationAssessmentService } from "./migration-assessment-service";
+import { readMigrationAssessmentSource } from "./migration-assessment-source";
 import { MigrationPreparationService } from "./migration-preparation";
 import { readMigrationPreparationInventory } from "./migration-preparation-inventory";
 import { NotificationPreferenceStore } from "./notification-preference-store";
@@ -627,6 +633,7 @@ export interface ApplicationServices {
   hermesGateways: HermesGatewaySetupService;
   instanceTransfer: InstanceTransferService;
   migrationPreparation: MigrationPreparationService;
+  migrationAssessment: MigrationAssessmentService;
   voice: VoiceTranscriptionService;
   speech: VoiceSpeechService;
   elevenLabsSpeech: VoiceElevenLabsSpeech;
@@ -2340,6 +2347,21 @@ export async function createApplicationServices({
     userDataPath: app.getPath("userData"),
     readInventory: () => readMigrationPreparationInventory(() => store.database.connection),
   });
+  const migrationAssessment = new MigrationAssessmentService({
+    userDataPath: app.getPath("userData"),
+    preparation: migrationPreparation,
+    readSource: () => readMigrationAssessmentSource({ appVersion: () => app.getVersion() }),
+    readInventory: () =>
+      Effect.gen(function* () {
+        const source = yield* readMigrationAssessmentSource({ appVersion: () => app.getVersion() });
+        return yield* readMigrationAssessmentInventory({
+          connection: () => store.database.connection,
+          userDataRoot: app.getPath("userData"),
+          managedRoot: resolve(store.sharedRoot, ".."),
+          sourcePlatform: source.platform,
+        });
+      }).pipe(Effect.mapError(() => new MigrationAssessmentInventoryFailure({ code: "unavailable" }))),
+  });
   // The same owners the Settings screens write through, so an import has their checks and restarts.
   const instanceTransfer = new InstanceTransferService({
     agents: service,
@@ -3345,6 +3367,7 @@ export async function createApplicationServices({
     hermesGateways,
     instanceTransfer,
     migrationPreparation,
+    migrationAssessment,
     voice,
     speech,
     elevenLabsSpeech,

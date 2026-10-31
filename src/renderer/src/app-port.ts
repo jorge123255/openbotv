@@ -35,6 +35,7 @@ export interface AppPort {
   hostedServers: OpenBotDesktopApi["hostedServers"];
   routineFeed: OpenBotDesktopApi["routineFeed"];
   migrationPreparation: OpenBotDesktopApi["migrationPreparation"];
+  migrationAssessment: OpenBotDesktopApi["migrationAssessment"];
   grokBot: OpenBotDesktopApi["grokBot"];
   events: OpenBotDesktopApi["events"];
   plugins: Pick<OpenBotDesktopApi["plugins"], "onOpenListing" | "takePendingListing">;
