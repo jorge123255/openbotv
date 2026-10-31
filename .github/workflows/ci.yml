@@ -976,6 +976,7 @@ jobs:
           bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
           bun scripts/ollama-quota-e2e.ts
           bun scripts/ollama-quota-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
+          bun scripts/channel-send-retry-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
         env:
           STORYBOOK_DISABLE_TELEMETRY: "1"
           OPENBOT_STORYBOOK_PORT: "6006"
@@ -996,6 +997,14 @@ jobs:
           path: |
             .openbot-build/ollama-quota-e2e/
             .openbot-build/ollama-quota-ui-e2e/
+          retention-days: 3
+
+      - name: Upload channel retry fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: channel-send-retry-e2e
+          path: .openbot-build/channel-send-retry-e2e/
           retention-days: 3
 
   all-checks-pass:

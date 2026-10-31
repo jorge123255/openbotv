@@ -150,6 +150,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
    * The id of the stored message is read from the page after the send. A failure throws to the
    * view, which keeps the message as not sent; its Retry sends the same operation id again.
    */
+  const sendBoundaries = new Map<string, number>();
   async function sendMessage(
     body: string,
     attachmentDraftIds: string[],
@@ -158,7 +159,11 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     clientMessageId?: string,
   ): Promise<SendMessageResult> {
     if (!env.connectionReady() || readOnly()) return { error: t("channel.error.action") };
-    const sequenceBefore = page()?.throughSequence ?? 0;
+    const operationId = clientMessageId ?? crypto.randomUUID();
+    // A lost response can follow a stored message. Keep the first boundary when Retry follows a
+    // refresh, or that refresh would put the message on the excluded side of the boundary.
+    const sequenceBefore = sendBoundaries.get(operationId) ?? page()?.throughSequence ?? 0;
+    sendBoundaries.set(operationId, sequenceBefore);
     // A request that opens with a member is addressed to that member, the way a reader writes it. A
     // mention later in the text is a reference that the owner of the work can see. The host reads
     // every opening mention from the text; the field names the first one for a host that reads one.
@@ -166,7 +171,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     try {
       const after = await channels.send({
         type: "send",
-        operationId: clientMessageId ?? crypto.randomUUID(),
+        operationId,
         channelId,
         text: body,
         recipientAgentId: mention?.id ?? null,
@@ -174,7 +179,10 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
         attachmentDraftIds,
       });
       const messageId = sentChannelMessageId(after, sequenceBefore, body, env.isOwnSender);
-      return messageId ? { messageId } : { error: t("channel.error.action") };
+      if (!messageId) return { error: t("channel.error.action") };
+      // Keep this boundary on error until Retry confirms the stored message.
+      sendBoundaries.delete(operationId);
+      return { messageId };
     } catch (error) {
       return { error: errorMessage(error, t("channel.error.action")) };
     }
@@ -272,7 +280,8 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     /** The agents that a mention can name: the members. A hidden agent gets no work here either. */
     mentionAgents: () => {
       const members = new Set(page()?.channel.members.map((member) => member.agentId));
-      return channels.agents().filter((agent) => members.has(agent.id));
+      const hidden = env.hiddenAgentIds();
+      return channels.agents().filter((agent) => members.has(agent.id) && !hidden.has(agent.id));
     },
     activeTurnId: () => activeRuns()[0] ?? null,
     prompt,
