@@ -1,5 +1,5 @@
 import type { OllamaQuotaSnapshot } from "@openbot/contracts/ipc";
-import { createStore, onSettled } from "solid-js";
+import { createStore, onSettled, reconcile } from "solid-js";
 import { createSimpleContext } from "../../simple-context";
 import { ollamaQuotaPort } from "./ollama-quota-port";
 
@@ -24,7 +24,9 @@ const context = createSimpleContext({
         .then((reading) => {
           if (generation !== epoch) return null;
           setState((draft) => {
-            draft.readings[agentId] = reading;
+            const previous = draft.readings[agentId];
+            if (previous && reading) reconcile(reading, "id")(previous);
+            else draft.readings[agentId] = reading;
             draft.now = Date.now();
           });
           return reading;
