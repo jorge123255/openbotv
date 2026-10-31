@@ -54,6 +54,52 @@ const cases: string[] = [];
 const formats: Record<string, string> = {};
 let currentPhase = "entry";
 let sequence = 0;
+type CanaryCategory = "identifier" | "geometry" | "document" | "other" | "unparsed";
+let canaryFailureCategories: CanaryCategory[] | undefined;
+
+/** Records only fixed categories, never the matched text, field name, or value. */
+function canaryCategories(text: string): CanaryCategory[] {
+  const categories = new Set<CanaryCategory>();
+  const inspect = (value: ReturnType<typeof parseBrowserToolText>, category: CanaryCategory): void => {
+    if (typeof value === "string" || typeof value === "number") {
+      if (/4242[\s.-]*4242[\s.-]*4242[\s.-]*4242/u.test(String(value)) || /(?<![0-9])737(?![0-9])/u.test(String(value)))
+        categories.add(category);
+    } else if (Array.isArray(value)) {
+      for (const item of value) inspect(item, category);
+    } else if (value !== null && typeof value === "object") {
+      for (const [key, item] of Object.entries(value)) {
+        const next = ["tabId", "activeTabId", "openerTabId", "ref", "id", "documentId", "frameId", "targetId"].includes(
+          key,
+        )
+          ? "identifier"
+          : ["bounds", "viewport", "x", "y", "width", "height", "deviceScaleFactor"].includes(key)
+            ? "geometry"
+            : ["title", "url", "text", "name", "value", "description", "states", "message"].includes(key)
+              ? "document"
+              : category;
+        inspect(item, next);
+      }
+    }
+  };
+  try {
+    inspect(parseBrowserToolText(text), "other");
+  } catch {
+    return ["unparsed"];
+  }
+  return categories.size > 0 ? [...categories].sort() : ["other"];
+}
+
+function failureReport(reason: string) {
+  return {
+    status: "failed",
+    runId,
+    sourceSha: argument("source-sha"),
+    phase: currentPhase,
+    cases,
+    reason,
+    ...(canaryFailureCategories === undefined ? {} : { canaryFailureCategories }),
+  };
+}
 
 /** A form a page can show: main-frame fields with native month and year selects, or a frame's one expiry field. */
 function checkoutForm(kind: "selects" | "expiry", method = "post"): string {
@@ -185,9 +231,37 @@ async function main(): Promise<void> {
     };
     /** No card value in a text that leaves the host. */
     const assertHidden = (value: string, where: string) => {
-      assert(!/4242[\s.-]*4242[\s.-]*4242[\s.-]*4242/u.test(value), `The card number is in ${where}.`);
-      assert(!/(?<![0-9])737(?![0-9])/u.test(value), `The security code is in ${where}.`);
+      try {
+        assert(!/4242[\s.-]*4242[\s.-]*4242[\s.-]*4242/u.test(value), `The card number is in ${where}.`);
+        assert(!/(?<![0-9])737(?![0-9])/u.test(value), `The security code is in ${where}.`);
+      } catch (error) {
+        canaryFailureCategories = canaryCategories(value);
+        throw error;
+      }
     };
+    const diagnosticCases: Array<{ value: string; categories: CanaryCategory[] }> = [
+      { value: JSON.stringify({ tabId: "00000000-737a-4000-b000-000000000000" }), categories: ["identifier"] },
+      { value: JSON.stringify({ elements: [{ name: "Code 737", value: "" }] }), categories: ["document"] },
+      { value: JSON.stringify({ elements: [{ name: "Security code", value: "737" }] }), categories: ["document"] },
+      { value: JSON.stringify({ title: "Card 4242 4242 4242 4242" }), categories: ["document"] },
+      { value: JSON.stringify({ elements: ['e1 textbox "Code" value="737"'] }), categories: ["document"] },
+      { value: JSON.stringify({ viewport: { height: 737 } }), categories: ["geometry"] },
+      { value: JSON.stringify({ revision: 737 }), categories: ["other"] },
+      { value: "Code 737", categories: ["unparsed"] },
+    ];
+    for (const sample of diagnosticCases) {
+      assert.throws(() => assertHidden(sample.value, "the synthetic diagnostic"));
+      assert.deepEqual(canaryFailureCategories, sample.categories);
+      assert.deepEqual(failureReport("Synthetic canary rejection.").canaryFailureCategories, sample.categories);
+    }
+    canaryFailureCategories = undefined;
+    assertHidden(
+      JSON.stringify({ title: "Checkout", elements: [{ name: "Security code", value: "" }] }),
+      "the clean diagnostic",
+    );
+    assert.equal(canaryFailureCategories, undefined);
+    assert.equal("canaryFailureCategories" in failureReport("Synthetic failure."), false);
+    recordCases("canary-diagnostic-categories-preserve-rejection", "canary-diagnostics-clear-after-regression");
     const contentsOf = (url: string) => {
       const contents = webContents.getAllWebContents().find((item) => !item.isDestroyed() && item.getURL() === url);
       assert(contents, "Missing fixture contents.");
@@ -440,10 +514,7 @@ async function main(): Promise<void> {
     await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
   } catch (error) {
     await mkdir(dirname(reportPath), { recursive: true });
-    await writeFile(
-      reportPath,
-      `${JSON.stringify({ status: "failed", runId, sourceSha: argument("source-sha"), phase: currentPhase, cases, reason: redactText(String(error)) }, null, 2)}\n`,
-    );
+    await writeFile(reportPath, `${JSON.stringify(failureReport(redactText(String(error))), null, 2)}\n`);
     process.exitCode = 1;
   } finally {
     phase("native-cleanup");

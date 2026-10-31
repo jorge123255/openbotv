@@ -22,8 +22,8 @@ interface SessionTokens {
   binding: string;
 }
 interface CookieFixtureOptions {
-  tls?: FixtureTls;
-  path?: "" | "/hermes";
+  tls?: FixtureTls | undefined;
+  path?: "" | "/hermes" | undefined;
   additionalCookies?: readonly string[];
   expiredTicket?: boolean;
   holdUpgrade?: () => Promise<void>;

@@ -732,6 +732,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:mcp-bridge-shutdown
 
+      - name: Run the host MCP transport E2E test
+        if: ${{ !cancelled() }}
+        run: bun scripts/host-tool-mcp-e2e.ts
+
       - name: Run the synthetic migration snapshot rehearsal
         if: ${{ !cancelled() }}
         run: node --import tsx scripts/instance-migration-rehearsal-e2e.ts
@@ -862,6 +866,7 @@ jobs:
             .openbot-build/acp-flavor-e2e/
             .openbot-build/acp-mcp-server-names-e2e/
             .openbot-build/mcp-bridge-shutdown-e2e/
+            .openbot-build/host-tool-mcp-e2e.json
             .openbot-build/instance-migration-rehearsal/report.json
             .openbot-build/instance-migration-path-e2e/report.json
             .openbot-build/instance-migration-projection-e2e/report.json
