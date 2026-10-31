@@ -38,6 +38,8 @@ const config: KnipConfig = {
     "cloudflared",
     // Copies a profile database read-only for the agent threads upgrade E2E script.
     "sqlite3",
+    // Creates temporary TLS certificates for the synthetic Hermes HTTPS/WSS gateway tests.
+    "openssl",
     // Speaks the English samples of the macOS dictation smoke test.
     "say",
     // Finds the child processes of the dev app in the channel E2E scripts.
