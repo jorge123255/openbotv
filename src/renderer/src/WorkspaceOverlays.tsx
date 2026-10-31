@@ -822,6 +822,7 @@ function ServerSettings() {
                 ? {}
                 : undefined
           }
+          migrationPreparation={server().kind === "local" ? { calls: appPort().migrationPreparation } : undefined}
           // The feed listens on this computer, so a calendar app on another one cannot read it.
           routineFeed={
             server().kind === "local"

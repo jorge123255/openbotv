@@ -221,6 +221,10 @@ For setup problems, data reset, and uninstall instructions, see
 [Troubleshooting](docs/TROUBLESHOOTING.md). OpenBot's data and network behavior is documented in
 [Privacy](PRIVACY.md).
 
+## Migration preparation
+
+Server settings → **Migration preparation** saves a local plan for a local desktop, Docker host, or other server. It records provisional counts and unresolved requirements and reloads after restart. Export, restore, and activation stay disabled. It does not copy credentials or move agents. See [the preparation architecture and synthetic checks](docs/architecture/migration-preparation.md).
+
 ## Development
 
 Development requires stable [Bun](https://bun.sh/) 1.4.2, Node.js 24 (the version in `.nvmrc`, matching

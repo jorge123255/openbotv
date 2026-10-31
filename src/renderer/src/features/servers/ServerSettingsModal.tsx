@@ -50,7 +50,7 @@ import {
   type HostedSiteDeleteResult,
 } from "@openbot/ui/features/settings/stores/hosted-sites-store";
 import { useText } from "@openbot/ui/text";
-import { createEffect, createSignal, onCleanup, Show, untrack } from "solid-js";
+import { createEffect, createMemo, createSignal, onCleanup, Show, untrack } from "solid-js";
 import { actionToast } from "../../action-toast";
 import { type ServerBrowserProfilesOptions, ServerBrowserProfilesPanel } from "../browser/ServerBrowserProfilesPanel";
 import { type ServerStorageOptions, ServerStoragePanel } from "../files/ServerStoragePanel";
@@ -67,6 +67,10 @@ import { type McpPanelDetail, type McpPanelSignIn, ServerMcpPanel } from "./Serv
 import { createServerMembersSection } from "./ServerMembersSection";
 import type { ServerMemoryLimitOptions } from "./ServerMemoryLimitSetting";
 import type { ServerMemoryReviewOptions } from "./ServerMemoryReviewSetting";
+import {
+  type ServerMigrationPreparationOptions,
+  ServerMigrationPreparationPanel,
+} from "./ServerMigrationPreparationPanel";
 import { createServerRolesSection, type ServerAgentAccessOptions } from "./ServerRolesSection";
 import { type ServerRoutineFeedOptions, ServerRoutineFeedPanel } from "./ServerRoutineFeedPanel";
 import type { ServerTimezoneOptions } from "./ServerTimezoneSetting";
@@ -186,6 +190,8 @@ export interface ServerSettingsModalProps {
    * host with `instance-transfer-v1` where the user is an owner or admin.
    */
   instanceTransfer?: ServerTransferOptions | undefined;
+  /** This computer only; no remote host preparation protocol exists. */
+  migrationPreparation?: ServerMigrationPreparationOptions | undefined;
   /**
    * The Updates section appears only when a caller supplies this: a remote host with
    * `host-update-v1` that this member administers.
@@ -259,6 +265,7 @@ export type ServerSettingsSection =
   | "import"
   | "grok-bot"
   | "transfer"
+  | "migration"
   | "routines"
   | "browser-profiles";
 type Section = ServerSettingsSection;
@@ -276,6 +283,7 @@ const sections = {
   updates: { title: "server.settings.updatesTitle", description: "server.settings.updatesDescription" },
   import: { title: "server.settings.importTitle", description: "server.settings.importDescription" },
   "grok-bot": { title: "server.settings.grokBotTitle", description: "server.settings.grokBotDescription" },
+  migration: { title: "migrationPreparation.title", description: "migrationPreparation.description" },
   transfer: { title: "server.settings.transferTitle", description: "server.settings.transferDescription" },
   routines: { title: "server.settings.routinesTitle", description: "server.settings.routinesDescription" },
   "browser-profiles": { title: "browser.profiles.title", description: "browser.profiles.subtitle" },
@@ -321,8 +329,12 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
     if (!options || !actionsAvailable() || !serverCanAdminister(props.server, "prompt-cache-ttl-v1")) return undefined;
     return { ...options, serverId: props.server.id };
   }
-  const availableInitialSection = (): Section | null =>
-    props.initialSection === "updates" && !props.hostUpdate ? null : (props.initialSection ?? null);
+  const migrationOptions = createMemo(() => (local() ? props.migrationPreparation : undefined));
+  const availableInitialSection = (): Section | null => {
+    if (props.initialSection === "updates" && !props.hostUpdate) return null;
+    if (props.initialSection === "migration" && !migrationOptions()) return null;
+    return props.initialSection ?? null;
+  };
   const published = () => (local() ? props.hostStatus?.phase === "online" : props.server.state === "online");
 
   async function run(key: string, action: () => Promise<void>): Promise<boolean> {
@@ -439,6 +451,13 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
     },
   );
 
+  createEffect(
+    () => section() === "migration" && !migrationOptions(),
+    (gone) => {
+      if (gone) setSection("general");
+    },
+  );
+
   /** A server with no Vault for this account has no Vault section. */
   createEffect(
     () => section() === "vault" && !props.vault,
@@ -494,6 +513,7 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
         value === "import" ||
         value === "grok-bot" ||
         value === "transfer" ||
+        (value === "migration" && Boolean(migrationOptions())) ||
         value === "routines" ||
         value === "browser-profiles"
       )
@@ -709,6 +729,12 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
                 <span>{t(sections["grok-bot"].title)}</span>
               </Tabs.Trigger>
             </Show>
+            <Show when={migrationOptions()}>
+              <Tabs.Trigger class="settings-modal-nav-item" value="migration">
+                <ArrowLeftRight aria-hidden="true" />
+                <span>{t(sections.migration.title)}</span>
+              </Tabs.Trigger>
+            </Show>
             <Show when={props.instanceTransfer}>
               <Tabs.Trigger class="settings-modal-nav-item" value="transfer">
                 <ArrowLeftRight aria-hidden="true" />
@@ -870,6 +896,15 @@ export function ServerSettingsModal(props: ServerSettingsModalProps) {
             <Tabs.Content value="grok-bot" class="settings-modal-tab-panel server-settings-panel" data-tab="grok-bot">
               <Show when={props.server.id} keyed>
                 {(_serverId) => <ServerGrokBotPanel api={grokBot().api} openUrl={grokBot().openUrl} />}
+              </Show>
+            </Tabs.Content>
+          )}
+        </Show>
+        <Show when={migrationOptions()}>
+          {(options) => (
+            <Tabs.Content value="migration" class="settings-modal-tab-panel server-settings-panel" data-tab="migration">
+              <Show when={props.server.id} keyed>
+                {(_serverId) => <ServerMigrationPreparationPanel {...options()} />}
               </Show>
             </Tabs.Content>
           )}
