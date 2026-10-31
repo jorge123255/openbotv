@@ -70,4 +70,8 @@ export const messages = defineMessages("prompt", {
   "prompt.browser.signInBlocked.waitingButton": "Waiting for the sign-in…",
   "prompt.browser.signInBlocked.page": "{host} on {server}",
   "prompt.inputRequiredAnnouncement": "Input required. {question}",
+  "prompt.hostTool.label": "Host tool approval",
+  "prompt.hostTool.allowOnce": "Allow once",
+  "prompt.hostTool.always": "Always",
+  "prompt.hostTool.never": "Never",
 });

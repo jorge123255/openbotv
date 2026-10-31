@@ -18,6 +18,7 @@ import { ConversationBrowserTakeover } from "./ConversationBrowserTakeover";
 import { ConversationQuestionPrompt } from "./ConversationQuestionPrompt";
 import { latestVisibleAgentMessageId } from "./conversation-read-state";
 import { useConversationViewScope } from "./conversation-scope";
+import { HostToolAskCard } from "./HostToolAskCard";
 import { createTurnSteps } from "./turn-steps";
 
 /** A thread takes files only from this computer, which reads every supported type. */
@@ -196,6 +197,7 @@ export function ConversationThread() {
               onClose={threadSearch.closeChatSearch}
             />
           </Show>
+          <HostToolAskCard agentId={current().agent.id} />
           <AgentThreadView
             scrollRef={setThreadScrollElement}
             task={current().threads.open ?? null}

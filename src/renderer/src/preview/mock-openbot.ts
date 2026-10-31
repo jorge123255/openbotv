@@ -88,6 +88,7 @@ import {
   type DirectTypingRealtimeEvent,
   type DynamicIslandPreference,
   type DynamicIslandPresentation,
+  decodeHostToolAnswer,
   decodeMachineAlertSettings,
   defaultProviderModel,
   type ExternalLinkBrowsers,
@@ -96,6 +97,7 @@ import {
   folderInside,
   type HostedSiteSummary,
   type HostStatus,
+  type HostToolAsk,
   hostAgentMemoryLimit,
   hostMemoryReview,
   isAgentMemoryLimit,
@@ -323,6 +325,8 @@ function mockCustomProviderModels(provider: CustomProviderSummary): ClientAgentM
 export interface MockOpenBotControls {
   api: OpenBotDesktopApi;
   emitAgentEvent: (event: AgentEvent) => void;
+  /** Stores one host-tool ask and resolves when `hostTools.answer` is called for it. */
+  emitHostToolAsk: (ask: HostToolAsk) => Promise<"allow-once" | "always" | "never">;
   onLatestConversationOpened: (listener: (agentId: string) => void) => () => void;
   onLatestDirectConversationOpened: (listener: (memberId: string) => void) => () => void;
   readConversationSnapshot: (agentId: string) => ConversationSnapshot;
@@ -1078,6 +1082,9 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       : mockChannels.listChannelRoutineRuns({ channelId: owner.id, routineId, limit }),
   );
   const billingPlans = previewBillingServers();
+  let hostToolAsk: HostToolAsk | null = null;
+  let resolveHostToolAsk: ((decision: "allow-once" | "always" | "never") => void) | null = null;
+  const hostToolAskListeners = new Set<(ask: HostToolAsk) => void>();
 
   const api: OpenBotDesktopApi = {
     getAppInfo: async () => clone(appInfo),
@@ -3205,11 +3212,34 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       discard: async () => undefined,
     },
     remoteDesktop: mockTeam.remoteDesktop,
+    hostTools: {
+      answer: async (input) => {
+        const decoded = decodeHostToolAnswer(input);
+        if (decoded === null) throw new Error("Invalid host tool answer.");
+        if (hostToolAsk?.requestId !== decoded.requestId) return;
+        hostToolAsk = null;
+        const resolve = resolveHostToolAsk;
+        resolveHostToolAsk = null;
+        resolve?.(decoded.decision);
+      },
+      onAsk: (listener) => {
+        hostToolAskListeners.add(listener);
+        if (hostToolAsk) listener(hostToolAsk);
+        return () => hostToolAskListeners.delete(listener);
+      },
+    },
   };
 
   return {
     api,
     emitAgentEvent,
+    emitHostToolAsk: (ask) => {
+      hostToolAsk = ask;
+      for (const listener of hostToolAskListeners) listener(ask);
+      return new Promise((resolve) => {
+        resolveHostToolAsk = resolve;
+      });
+    },
     onLatestConversationOpened: (listener) => {
       latestConversationListeners.add(listener);
       return () => latestConversationListeners.delete(listener);

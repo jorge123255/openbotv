@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 import { chatVisualItemType } from "@openbot/contracts/chat-visual";
 import { sortConversationMessages } from "@openbot/contracts/conversation-order";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
@@ -9,6 +12,7 @@ import type {
   AvatarImageInput,
   ConversationMessage,
   CreateAgentInput,
+  HostToolAsk,
   McpServerConfig,
   SidebarLayoutSnapshot,
   UpdateAgentInput,
@@ -41,6 +45,14 @@ import type { AgentWaits } from "../agent-waits/agent-waits";
 import { OPENBOT_BROWSER_NAMESPACE } from "../browser-tools";
 import type { ChannelService } from "../channel-service";
 import type { ProviderSession } from "../database/provider-sessions";
+import { callHostMcpTool } from "../host-tools/host-mcp";
+import { cancelHostToolAnswer, waitForHostToolAnswer } from "../host-tools/host-tool-asks";
+import { hostToolRequestFromCatalog, isHostCatalogTool } from "../host-tools/host-tool-catalog";
+import { runHostCommand } from "../host-tools/host-tool-executor";
+import { thisComputer } from "../host-tools/host-tool-machines";
+import { HOST_TOOL_ASK_DEADLINE_MS, HostToolPolicy, loadHostToolPolicy } from "../host-tools/host-tool-policy";
+import { runHostToolRequest } from "../host-tools/host-tool-runner";
+import type { HostToolRequest } from "../host-tools/host-tool-types";
 import type { MailboxStore } from "../mailbox-store";
 import { agentMcpServers } from "../mcp-provider-shapes";
 import type { MessagingThreads } from "../messaging/messaging-threads";
@@ -211,6 +223,15 @@ export interface OpenBotToolRouterOptions {
   visualPreview?: ChatVisualPreviewHost | null | undefined;
   /** Captures the desktop for `capture_screen`; null where this process has no desktop. */
   screenCapture?: ScreenCaptureHost | null | undefined;
+  /** The user-data directory. The host-tool policy file is `host-tool-review.json` inside it. */
+  userDataPath?: string | undefined;
+  /** Tells the desktop to show one host-tool ask. Absent in a process with no window. */
+  surfaceHostToolAsk?: ((ask: HostToolAsk) => void) | undefined;
+  /** Where one MCP server is reached for a host-tool call. Absent when this process has no gateway. */
+  hostMcpEndpoint?: (
+    config: McpServerConfig,
+    agentId: string,
+  ) => Effect.Effect<{ url: string; authorization: string | null } | { error: string }, unknown>;
   /** The MCP servers of this OpenBot server, for the MCP tools; null where nothing holds them. */
   mcpServers?: AgentMcpServers | null | undefined;
   /** The API keys that users saved for agents; null where nothing can save them. */
@@ -250,6 +271,14 @@ export class OpenBotToolRouter {
   readonly #approvalAutomation: ApprovalAutomationPolicy;
   readonly #visualPreview: ChatVisualPreviewHost | null;
   readonly #screenCapture: ScreenCaptureHost | null;
+  readonly #userDataPath: string | null;
+  readonly #surfaceHostToolAsk: ((ask: HostToolAsk) => void) | null;
+  readonly #hostMcpEndpoint:
+    | ((
+        config: McpServerConfig,
+        agentId: string,
+      ) => Effect.Effect<{ url: string; authorization: string | null } | { error: string }, unknown>)
+    | null;
   readonly #mcpServers: AgentMcpServers | null;
   readonly #apiKeys: AgentApiKeys | null;
   readonly #hooks: OpenBotToolRouterHooks;
@@ -284,6 +313,9 @@ export class OpenBotToolRouter {
     this.#approvalAutomation = options.approvalAutomation ?? NO_APPROVAL_AUTOMATION;
     this.#visualPreview = options.visualPreview ?? null;
     this.#screenCapture = options.screenCapture ?? null;
+    this.#userDataPath = options.userDataPath ?? null;
+    this.#surfaceHostToolAsk = options.surfaceHostToolAsk ?? null;
+    this.#hostMcpEndpoint = options.hostMcpEndpoint ?? null;
     this.#mcpServers = options.mcpServers ?? null;
     this.#apiKeys = options.apiKeys ?? null;
     this.#hooks = options.hooks;
@@ -477,6 +509,11 @@ export class OpenBotToolRouter {
             }
             if (toolRequest.params.tool === "capture_screen" || toolRequest.params.tool === "list_capture_sources") {
               const result = yield* this.#screenCaptureTool(client, toolRequest, toolRequest.params);
+              if (!toolRequest.signal?.aborted && client.running) client.respond(toolRequest.id, result);
+              return;
+            }
+            if (isHostCatalogTool(toolRequest.params.tool)) {
+              const result = yield* this.#hostCatalogTool(toolRequest.params, String(toolRequest.id));
               if (!toolRequest.signal?.aborted && client.running) client.respond(toolRequest.id, result);
               return;
             }
@@ -1146,6 +1183,128 @@ export class OpenBotToolRouter {
         Effect.catchTag("ChatVisualPreviewFailed", (failure) => Effect.succeed(openBotToolFailure(failure.reason))),
       );
   });
+
+  readonly #hostCatalogTool = Effect.fn("OpenBotToolRouter.hostCatalogTool")(function* (
+    this: OpenBotToolRouter,
+    params: DynamicToolCallParams,
+    requestId: string,
+  ) {
+    const agentId = this.#conversation.agentForThread(params.threadId);
+    if (!agentId) return openBotToolFailure(sourceText("error.agent.toolRequestInvalid"));
+    if (params.tool === "host_list_machines") {
+      return {
+        success: true,
+        contentItems: [{ type: "inputText" as const, text: JSON.stringify([thisComputer()]) }],
+      };
+    }
+    const mapped = hostToolRequestFromCatalog(params.tool, params.arguments, {
+      id: requestId,
+      agentId,
+      threadId: params.threadId,
+      turnId: params.turnId,
+    });
+    if (mapped === null || typeof mapped === "string") {
+      return openBotToolFailure(sourceText("error.agent.toolRequestInvalid"));
+    }
+    const policy = yield* this.#loadHostToolPolicy();
+    const computer = thisComputer();
+    const row = yield* Effect.promise(() =>
+      runHostToolRequest(mapped, {
+        policy,
+        computer,
+        execute: {
+          root: homedir(),
+          computer,
+          run: runHostCommand,
+          capture: () => this.#captureHostScreen(),
+          writeShot: (png, thumbnail) => this.#writeHostShot(requestId, png, thumbnail),
+        },
+        now: () => Date.now(),
+        ask: (request) => this.#askHostTool(request),
+        emitRow: () => undefined,
+        mcp: {
+          configs: this.#hooks.enabledMcpServers(),
+          forAgent: (_configs, id) => this.#hooks.enabledMcpServers(id),
+          call: (config, toolName, args) => this.#callHostMcp(agentId, config, toolName, args),
+        },
+      }),
+    );
+    return {
+      success: row.status === "completed",
+      contentItems: [{ type: "inputText" as const, text: row.text }],
+    };
+  });
+
+  #loadHostToolPolicy(): Effect.Effect<HostToolPolicy> {
+    const directory = this.#userDataPath;
+    if (directory === null) return Effect.succeed(new HostToolPolicy());
+    return Effect.promise(() => loadHostToolPolicy(join(directory, "host-tool-review.json")));
+  }
+
+  async #captureHostScreen(): Promise<{ png: Uint8Array; thumbnailPng: Uint8Array } | { denied: true }> {
+    const host = this.#screenCapture;
+    if (!host) return { denied: true };
+    try {
+      const image = await Effect.runPromise(host.capture({ target: "screen" }));
+      return { png: image.png, thumbnailPng: image.png };
+    } catch {
+      return { denied: true };
+    }
+  }
+
+  async #writeHostShot(
+    id: string,
+    png: Uint8Array,
+    thumbnail: Uint8Array,
+  ): Promise<{ path: string; thumbnailPath: string }> {
+    const safe = id.replaceAll(/[^A-Za-z0-9_-]/gu, "_");
+    const dir = join(this.#userDataPath ?? tmpdir(), "host-tool-shots");
+    await mkdir(dir, { recursive: true });
+    const path = join(dir, `${safe}.png`);
+    const thumbnailPath = join(dir, `${safe}-thumb.png`);
+    await writeFile(path, png);
+    await writeFile(thumbnailPath, thumbnail);
+    return { path, thumbnailPath };
+  }
+
+  async #callHostMcp(
+    agentId: string,
+    config: McpServerConfig,
+    toolName: string,
+    args: { readonly [key: string]: unknown },
+  ): Promise<string> {
+    const endpoint = this.#hostMcpEndpoint;
+    if (!endpoint) throw new Error("refused");
+    const resolved = await Effect.runPromise(endpoint(config, agentId));
+    if ("error" in resolved) throw new Error("refused");
+    return callHostMcpTool({
+      config,
+      endpoint: config.transport === "http" ? resolved : null,
+      toolName,
+      arguments: args,
+    });
+  }
+
+  #askHostTool(request: HostToolRequest): Promise<"allow-once" | "always" | "never" | "expired"> {
+    this.#surfaceHostToolAsk?.({
+      requestId: request.id,
+      agentId: request.agentId,
+      threadId: request.threadId,
+      turnId: request.turnId,
+      action: request.action,
+      detail: request.command ?? request.path ?? request.chars ?? request.action,
+    });
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        cancelHostToolAnswer(request.id);
+        resolve("expired");
+      }, HOST_TOOL_ASK_DEADLINE_MS);
+      void waitForHostToolAnswer(request.id).then((decision) => {
+        clearTimeout(timer);
+        resolve(decision);
+      });
+    });
+  }
 
   /**
    * `list_capture_sources` and `capture_screen`. The agent's Computer Use setting allows both. Each

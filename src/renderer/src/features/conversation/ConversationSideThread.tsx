@@ -14,6 +14,7 @@ import { usePlatform } from "../../platform";
 import { latestVisibleAgentMessageId } from "./conversation-read-state";
 import { useConversationViewScope } from "./conversation-scope";
 import type { SideThread } from "./conversation-types";
+import { HostToolAskCard } from "./HostToolAskCard";
 import { createTurnSteps } from "./turn-steps";
 
 /**
@@ -103,41 +104,44 @@ export function ConversationSideThread(props: { threadId: string }) {
     >
       <Show when={shown()}>
         {(current) => (
-          <AgentThreadView
-            task={current().thread.task}
-            limit={view.threads?.limit ?? 1}
-            agent={current().agent}
-            agents={view.agents}
-            messages={messages}
-            skills={installedSkills()}
-            skillsLoadFailed={installedSkillsLoadFailed()}
-            mcpServers={mcpServers()}
-            draft={draft()?.text ?? ""}
-            draftAttachments={draft()?.attachments}
-            onDraftChange={(text) => threadComposer.setText(draftKey(), text)}
-            onOpenDraftAttachment={(attachment) =>
-              canPreviewAttachment(attachment)
-                ? void previewAttachment(attachment)
-                : attachmentAction(attachment, "open")
-            }
-            onSend={(text) => sendSide(current().thread, text)}
-            onStop={() => current().thread.onStop()}
-            onOpenLink={(url) => void openExternalMessageUrl(url)}
-            onPreview={(attachment) => void previewAttachment(attachment)}
-            onAttachmentAction={attachmentAction}
-            approval={current().thread.approval}
-            onRespondApproval={(decision) =>
-              current().thread.onRespondApproval(decision, failureToast("prompt.approval.answerFailed"))
-            }
-            context={contextUsageView(current().thread.contextState)}
-            onCompactContext={current().thread.onCompactContext}
-            waitsForAnswer={waitsForAnswer()}
-            attention={answerCard()}
-            stepsAbove={turnSteps.stepsAbove}
-            factsAbove={turnSteps.factsAbove}
-            activeSteps={turnSteps.activeSteps()}
-            stepsOpenByDefault={showAgentSteps()}
-          />
+          <>
+            <HostToolAskCard agentId={current().agent.id} />
+            <AgentThreadView
+              task={current().thread.task}
+              limit={view.threads?.limit ?? 1}
+              agent={current().agent}
+              agents={view.agents}
+              messages={messages}
+              skills={installedSkills()}
+              skillsLoadFailed={installedSkillsLoadFailed()}
+              mcpServers={mcpServers()}
+              draft={draft()?.text ?? ""}
+              draftAttachments={draft()?.attachments}
+              onDraftChange={(text) => threadComposer.setText(draftKey(), text)}
+              onOpenDraftAttachment={(attachment) =>
+                canPreviewAttachment(attachment)
+                  ? void previewAttachment(attachment)
+                  : attachmentAction(attachment, "open")
+              }
+              onSend={(text) => sendSide(current().thread, text)}
+              onStop={() => current().thread.onStop()}
+              onOpenLink={(url) => void openExternalMessageUrl(url)}
+              onPreview={(attachment) => void previewAttachment(attachment)}
+              onAttachmentAction={attachmentAction}
+              approval={current().thread.approval}
+              onRespondApproval={(decision) =>
+                current().thread.onRespondApproval(decision, failureToast("prompt.approval.answerFailed"))
+              }
+              context={contextUsageView(current().thread.contextState)}
+              onCompactContext={current().thread.onCompactContext}
+              waitsForAnswer={waitsForAnswer()}
+              attention={answerCard()}
+              stepsAbove={turnSteps.stepsAbove}
+              factsAbove={turnSteps.factsAbove}
+              activeSteps={turnSteps.activeSteps()}
+              stepsOpenByDefault={showAgentSteps()}
+            />
+          </>
         )}
       </Show>
     </aside>

@@ -386,8 +386,22 @@ export function isToolItem(item: ThreadItem): boolean {
   return /(tool.*call|commandexecution|filechange|websearch|computeraction)/u.test(item.type.toLowerCase());
 }
 
+function hostToolResultText(item: ThreadItem): string | null {
+  if (getString(item, "namespace") !== "host") return null;
+  const text = getArray(item, "contentItems")
+    .flatMap((entry) => {
+      if (!isRecord(entry) || getString(entry, "type") !== "inputText") return [];
+      const value = getString(entry, "text");
+      return value === null ? [] : [value];
+    })
+    .join("\n");
+  return text.length > 0 ? text : null;
+}
+
 export function toolProgressText(item: ThreadItem, completed: boolean): string | null {
   if (!isToolItem(item)) return null;
+  const hostText = hostToolResultText(item);
+  if (hostText !== null) return hostText;
   if (completed && getString(item, "status") === "failed") {
     return "A tool step failed; reviewing the result and deciding what to try next…";
   }

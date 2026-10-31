@@ -28,6 +28,7 @@ import {
   shell,
 } from "electron";
 import { runCauseEffect } from "../backend/effect-boundary";
+import { answerHostTool } from "../backend/host-tools/host-tool-asks";
 import { OWNER_NOTIFICATION_KEY } from "./agent-notification-level-store";
 import { readAppVariant, resolveAppIconPath, resolveLogoColorIconPath } from "./app-icon";
 import { type ApplicationServices, createApplicationServices } from "./application-services";
@@ -74,6 +75,7 @@ import { eventsIpcHandlers } from "./ipc/events-handlers";
 import { githubConnectorIpcHandlers } from "./ipc/github-connector-handlers";
 import { grokBotIpcHandlers } from "./ipc/grok-bot-handlers";
 import { hostAdminIpcHandlers } from "./ipc/host-admin-handlers";
+import { hostToolIpcHandlers } from "./ipc/host-tool-handlers";
 import { hostedServerIpcHandlers } from "./ipc/hosted-server-handlers";
 import { hostedSiteIpcHandlers } from "./ipc/hosted-site-handlers";
 import { instanceTransferIpcHandlers } from "./ipc/instance-transfer-handlers";
@@ -734,6 +736,7 @@ function registerIpcHandlers({
       takePendingLink: () => takePendingDeepLink("agent-template"),
     }),
     ...grokBotIpcHandlers({ grokBotAccount }),
+    ...hostToolIpcHandlers({ answer: answerHostTool }),
     ...agentImportIpcHandlers({
       agentImport,
       hermesImport,

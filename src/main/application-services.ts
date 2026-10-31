@@ -113,6 +113,8 @@ import { AgentStore } from "../backend/agent-store";
 import { BrowserHost } from "../backend/browser-host";
 import { BrowserProfileStore } from "../backend/browser-profiles/browser-profile-store";
 import { runCauseEffect } from "../backend/effect-boundary";
+import { handleGrokHostToolFrame } from "../backend/host-tools/grok-host-tool-handler";
+import { waitForHostToolAnswer } from "../backend/host-tools/host-tool-asks";
 import { MailboxStore } from "../backend/mailbox-store";
 import { McpOAuth } from "../backend/mcp-oauth-provider";
 import { discordDriver } from "../backend/messaging/discord/discord-driver";
@@ -1674,6 +1676,15 @@ export async function createApplicationServices({
   await Effect.runPromise(agentApiKeys.syncVault().pipe(Effect.ignore));
   // The schedule triggers of workflows share the routine timer; built after the workflows below.
   let workflowTriggers: WorkflowTriggers | null = null;
+  const desktopCapture = hasSeparateAgentDisplay(process.platform)
+    ? null
+    : new ScreenCapturer({
+        platform: process.platform,
+        screenAccess: () => systemPreferences.getMediaAccessStatus("screen"),
+        displays: () => screen.getAllDisplays(),
+        primaryDisplayId: () => screen.getPrimaryDisplay().id,
+        getSources: (options) => desktopCapturer.getSources(options),
+      });
   const service: AgentService = new AgentService({
     store,
     mailbox,
@@ -1689,15 +1700,11 @@ export async function createApplicationServices({
       }),
     // `desktopCapturer` captures the display OpenBot is on. With an agent display of its own, that
     // is only the OpenBot window, so agents take their screenshots with the Computer Use driver.
-    screenCapture: hasSeparateAgentDisplay(process.platform)
-      ? null
-      : new ScreenCapturer({
-          platform: process.platform,
-          screenAccess: () => systemPreferences.getMediaAccessStatus("screen"),
-          displays: () => screen.getAllDisplays(),
-          primaryDisplayId: () => screen.getPrimaryDisplay().id,
-          getSources: (options) => desktopCapturer.getSources(options),
-        }),
+    userDataPath: app.getPath("userData"),
+    surfaceHostToolAsk: (ask) => {
+      sendToRenderer(BrowserWindow.getFocusedWindow() ?? windows.getMainWindow(), IPC_ENDPOINTS.hostTools.ask, ask);
+    },
+    screenCapture: desktopCapture,
     hostMemory,
     requestTimeoutMs: 30_000,
     offProviders: providerUse.off(),
@@ -1759,6 +1766,24 @@ export async function createApplicationServices({
       }),
       grokBotAccount: grokBotAccount.accountStore(),
       grokBotMachineIdPath: join(app.getPath("userData"), "openbot-grok-bot-machine-id"),
+      hostToolRunner: {
+        handle: (frame, context) =>
+          handleGrokHostToolFrame(frame, context, {
+            userDataPath: app.getPath("userData"),
+            capture: desktopCapture,
+            thumbnail: (png) => nativeImage.createFromBuffer(Buffer.from(png)).resize({ width: 320 }).toPNG(),
+            listMcp: (agentId) => service.mcpServersForAgent(agentId),
+            endpoint: (config, agentId) => service.mcpEndpoint(config, agentId),
+            ask: (request) => {
+              sendToRenderer(
+                BrowserWindow.getFocusedWindow() ?? windows.getMainWindow(),
+                IPC_ENDPOINTS.hostTools.ask,
+                request,
+              );
+              return waitForHostToolAnswer(request.requestId);
+            },
+          }),
+      },
     },
     // Appended to the stored servers at each spawn, so the same tools reach Codex, Claude and the
     // ACP providers. Null until the daemon runs, which is what keeps a machine with no driver from

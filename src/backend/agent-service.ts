@@ -57,6 +57,7 @@ import type {
   GenerateAgentProfileInput,
   HiddenAgentsSnapshot,
   HostAnalyticsInput,
+  HostToolAsk,
   ListChannelRoutineRunsInput,
   ListRoutineRunsInput,
   LocalBrowserSecretResponse,
@@ -175,7 +176,7 @@ import {
   startingChoice,
   startingModel,
 } from "./agent/model-choice";
-import { OpenBotToolRouter } from "./agent/openbot-tool-router";
+import { OpenBotToolRouter, type OpenBotToolRouterOptions } from "./agent/openbot-tool-router";
 import { PlanContinuation } from "./agent/plan-continuation";
 import { ProfileClients } from "./agent/profile-clients";
 import {
@@ -298,6 +299,12 @@ export interface AgentServiceOptions {
   visualPreview?: ChatVisualPreviewHost | null;
   /** Captures the desktop for `capture_screen`; null where this process has no desktop. */
   screenCapture?: ScreenCaptureHost | null;
+  /** The user-data directory. Host-tool Auto-review is a file in this directory. */
+  userDataPath?: string;
+  /** Shows a host-tool ask on the desktop. The main process owns the window. */
+  surfaceHostToolAsk?: (ask: HostToolAsk) => void;
+  /** Resolves one MCP server for a host-tool call. The main process does not own this. */
+  hostMcpEndpoint?: OpenBotToolRouterOptions["hostMcpEndpoint"];
   /**
    * What an agent's MCP server test waits for first, as the Test button does: the managed tool
    * runtimes a stdio command may need. Without it the test runs with what this machine holds.
@@ -1487,6 +1494,9 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       ...(options.approvalAutomation === undefined ? {} : { approvalAutomation: options.approvalAutomation }),
       ...(options.visualPreview === undefined ? {} : { visualPreview: options.visualPreview }),
       ...(options.screenCapture === undefined ? {} : { screenCapture: options.screenCapture }),
+      ...(options.userDataPath === undefined ? {} : { userDataPath: options.userDataPath }),
+      ...(options.surfaceHostToolAsk === undefined ? {} : { surfaceHostToolAsk: options.surfaceHostToolAsk }),
+      hostMcpEndpoint: (config, agentId) => this.#mcp.endpoint(config, agentId),
       mcpServers: mcpServersFromGateway(this.#mcp, options.prepareMcpTest),
       apiKeys: options.agentApiKeys ?? null,
       hooks: {
@@ -2056,6 +2066,16 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
 
   enabledMcpServers(): McpServerConfig[] {
     return this.#mcp.enabled();
+  }
+
+  /** The MCP servers this agent selected, for a host-tool call. */
+  mcpServersForAgent(agentId: string): McpServerConfig[] {
+    return this.#mcp.forAgent(this.enabledMcpServers(), agentId);
+  }
+
+  /** Where one selected MCP server is reached. A refusal carries `error`. */
+  mcpEndpoint(config: McpServerConfig, agentId: string) {
+    return this.#mcp.endpoint(config, agentId);
   }
 
   /**
