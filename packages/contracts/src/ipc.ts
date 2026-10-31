@@ -65,6 +65,7 @@ export * from "./ipc-marketplace-agents";
 export * from "./ipc-mcp-servers";
 export * from "./ipc-messaging";
 export * from "./ipc-notifications";
+export * from "./ipc-ollama-quota";
 export * from "./ipc-onepassword-connector";
 export * from "./ipc-prompt-cache";
 export * from "./ipc-provider-admin";

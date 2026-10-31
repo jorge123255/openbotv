@@ -46,6 +46,7 @@ import { reportErrorBanner, reportNotification } from "../../error-reports";
 import { deviceSendShortcut, sendShortcutAriaKey, sendShortcutHintKey } from "../../send-shortcut-preference";
 import { speechReading } from "../speech/speech-playback";
 import { stopSpokenReply } from "../speech/speech-replies";
+import { ConversationQuota } from "./ConversationQuota";
 import { copyComposerSelection, readComposerCopy } from "./composer-clipboard";
 import { useConversationViewScope } from "./conversation-scope";
 import { currentConversationTarget } from "./stores/composer-store";
@@ -452,6 +453,7 @@ export function ConversationComposer() {
               </Show>
             </div>
           </div>
+          <ConversationQuota />
           <Show when={providerWaitNotice()}>
             {(notice) => <ComposerNotice title={notice().title} body={notice().body} />}
           </Show>

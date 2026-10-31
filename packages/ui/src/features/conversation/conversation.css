@@ -38,6 +38,7 @@
 @import "./styles/panel-layout.css";
 @import "./styles/side-panel.css";
 @import "./styles/notices.css";
+@import "./styles/quota-notice.css";
 @import "./styles/context-usage.css";
 @import "./styles/composer-stack.css";
 @import "./styles/interaction-cards.css";

@@ -374,6 +374,7 @@ import type {
   TelegramOverview,
 } from "./ipc-messaging";
 import type { NotificationOpenedEvent, NotificationPreference } from "./ipc-notifications";
+import type { OllamaQuotaSnapshot } from "./ipc-ollama-quota";
 import type {
   OnePasswordConnectInput,
   OnePasswordConnectorStatus,
@@ -955,6 +956,12 @@ export const IPC_ENDPOINTS = {
     // This computer only. `providerAdmin` has no edit, so a joined admin cannot reach a stored key
     // through a changed address.
     update: request<UpdateCustomProviderInput, CustomProviderResult>()("custom-providers:update"),
+  },
+  // This computer only. Main resolves the agent's saved connection; no URL or key comes from the page.
+  ollamaQuota: {
+    read: request<string, OllamaQuotaSnapshot | null>()("ollama-quota:read"),
+    dismiss: request<string, void>()("ollama-quota:dismiss"),
+    changed: event<undefined>()("ollama-quota:changed"),
   },
   // Local model servers and ACP agents on this computer. Main makes every request, and a scan sends
   // no key. A joined host is never scanned.
@@ -1893,6 +1900,7 @@ export const IPC_GROUP_PATHS = {
   backgroundProcesses: "backgroundProcesses",
   skills: "skills",
   customProviders: "customProviders",
+  ollamaQuota: "ollamaQuota",
   providerDetection: "providerDetection",
   customAgents: "customAgents",
   acpRegistry: "acpRegistry",

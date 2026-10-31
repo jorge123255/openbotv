@@ -1,3 +1,4 @@
+import { OllamaQuotaProvider } from "../src/features/usage/ollama-quota-context";
 /**
  * What a story needs to mount the real agent chat: the app providers it reads, a mocked bridge,
  * and a complete set of `Conversation` props. `Conversation.stories.tsx` builds its variants on
@@ -79,9 +80,11 @@ export function StoryAppProviders(props: ParentProps) {
       <AuthProvider>
         <SetupProvider>
           <SettingsProvider>
-            <ServersProvider>
-              <UsageProvider>{props.children}</UsageProvider>
-            </ServersProvider>
+            <OllamaQuotaProvider>
+              <ServersProvider>
+                <UsageProvider>{props.children}</UsageProvider>
+              </ServersProvider>
+            </OllamaQuotaProvider>
           </SettingsProvider>
         </SetupProvider>
       </AuthProvider>

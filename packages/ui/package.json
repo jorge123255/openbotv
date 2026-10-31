@@ -132,6 +132,7 @@
     "./features/conversation/ComposerErrorBanner": "./src/features/conversation/ComposerErrorBanner.tsx",
     "./features/conversation/VoiceRecordingMorph": "./src/features/conversation/VoiceRecordingMorph.tsx",
     "./features/conversation/send-shortcut": "./src/features/conversation/send-shortcut.ts",
+    "./features/conversation/QuotaNotice": "./src/features/conversation/QuotaNotice.tsx",
     "./features/conversation/ComposerNotice": "./src/features/conversation/ComposerNotice.tsx",
     "./features/conversation/ContextUsage": "./src/features/conversation/ContextUsage.tsx",
     "./features/conversation/ConversationIcons": "./src/features/conversation/ConversationIcons.tsx",

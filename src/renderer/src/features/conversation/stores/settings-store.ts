@@ -164,8 +164,8 @@ export function createSettingsStore(deps: SettingsStoreDeps) {
     model: AgentModelId,
     provider: AgentProviderId,
     accountId?: string | null,
-  ): Promise<void> {
-    await selectModel(model, provider, true, true, accountId);
+  ): Promise<boolean> {
+    return selectModel(model, provider, true, true, accountId);
   }
 
   async function selectAndConfirmReasoning(effort: AgentReasoningEffort): Promise<void> {

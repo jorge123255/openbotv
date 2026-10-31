@@ -85,6 +85,7 @@ import { mcpServerIpcHandlers } from "./ipc/mcp-server-handlers";
 import { memoryIpcHandlers } from "./ipc/memory-handlers";
 import { messagingIpcHandlers } from "./ipc/messaging-handlers";
 import { notificationIpcHandlers } from "./ipc/notification-handlers";
+import { ollamaQuotaIpcHandlers } from "./ipc/ollama-quota-handlers";
 import { onePasswordConnectorIpcHandlers } from "./ipc/onepassword-connector-handlers";
 import { pluginIpcHandlers } from "./ipc/plugin-handlers";
 import { providerAdminIpcHandlers } from "./ipc/provider-admin-handlers";
@@ -386,6 +387,7 @@ const windowHolder = createMainWindowHolder();
 
 // Destructured so every `service.on("event", forwardX)` registration below reads as it always has.
 const {
+  forwardOllamaQuotaChange,
   forwardAgentEvent,
   forwardWorkflowNotice,
   forwardBrowserDisplayState,
@@ -618,6 +620,7 @@ function registerIpcHandlers({
   routineFeed,
   events,
   customProviderChanges,
+  ollamaQuota,
   customAgentChanges,
   acpRegistry,
   providerDetection,
@@ -721,6 +724,7 @@ function registerIpcHandlers({
     ...hostedServerIpcHandlers({ hostedServers }),
     ...localServerIpcHandlers({ localServers }),
     ...customProviderIpcHandlers(customProviderChanges),
+    ...ollamaQuotaIpcHandlers({ ollamaQuota }),
     ...customAgentIpcHandlers(customAgentChanges),
     ...acpRegistryIpcHandlers(acpRegistry, remoteServers),
     ...providerDetectionIpcHandlers({ detection: providerDetection, settings: providerDetectionSettings }),
@@ -1271,6 +1275,7 @@ if (!hasSingleInstanceLock) {
       });
       // Internal usage signals for analytics only. They are not agent events, so the renderer and
       // Team API clients never receive them.
+      teardown.push(0, "Ollama quota listener", built.ollamaQuota.onChanged(forwardOllamaQuotaChange));
       service.on("toolUsage", (usage) => built.analytics.handleToolUsage(usage));
       service.on("workflowRun", (end) => built.analytics.handleWorkflowRun(end));
       built.browser.onSiteVisited((visit) => built.analytics.handleSiteVisit(visit));

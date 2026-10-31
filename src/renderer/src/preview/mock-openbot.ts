@@ -1480,6 +1480,11 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       onAccount: () => () => undefined,
     },
     hostedServers: createMockHostedServers(billingPlans),
+    ollamaQuota: {
+      read: async () => null,
+      dismiss: async () => undefined,
+      onChanged: () => () => undefined,
+    },
     customProviders: {
       list: async () => clone(customProviders),
       /**

@@ -252,6 +252,7 @@ import {
   decodeMessagingOverviewReply,
   decodeTelegramOverviewReply,
 } from "./messaging-decoding";
+import { decodeOllamaQuota } from "./ollama-quota-decoding";
 import { decodeProviderRuntimeSnapshot } from "./provider-runtime";
 import { decodeRoutineFlowCanvas, decodeRoutineFlowLink } from "./routine-flow-decoding";
 import {
@@ -943,6 +944,11 @@ const openbotApi: OpenBotDesktopApi = {
     create: decodeServer,
     restart: decodeVoid,
     delete: decodeVoid,
+  }),
+  ollamaQuota: bridgeGroup(IPC_ENDPOINTS.ollamaQuota, {
+    read: decodeOllamaQuota,
+    dismiss: decodeVoid,
+    changed: decodeVoid,
   }),
   customProviders: bridgeGroup(IPC_ENDPOINTS.customProviders, {
     list: decodeCustomProviders,

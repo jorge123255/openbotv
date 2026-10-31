@@ -20,6 +20,7 @@ import { AgentLifecycleFailed, type AgentService } from "../backend/agent-servic
 import type { CustomProviderStore } from "./custom-provider-store";
 
 export interface CustomProviderChangeDependencies {
+  onChanged?: () => void;
   // Only the endpoint-change methods, so the order of writes can be checked without a running
   // backend.
   service: Pick<
@@ -45,6 +46,7 @@ export interface CustomProviderChanges {
 export function createCustomProviderChanges({
   service,
   customProviders,
+  onChanged = () => undefined,
 }: CustomProviderChangeDependencies): CustomProviderChanges {
   /**
    * One endpoint change at a time, from the first read to the last write.
@@ -77,7 +79,9 @@ export function createCustomProviderChanges({
     return before === "skipped-busy" ? before : outcome;
   });
   function serialize<T>(run: () => Effect.Effect<T, ProviderRuntimeFailure>): Effect.Effect<T, ProviderRuntimeFailure> {
-    return gate.withPermit(Effect.suspend(run));
+    return gate.withPermit(
+      Effect.sync(onChanged).pipe(Effect.andThen(Effect.suspend(run)), Effect.ensuring(Effect.sync(onChanged))),
+    );
   }
 
   return {
