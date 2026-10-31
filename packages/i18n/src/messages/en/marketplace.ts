@@ -48,6 +48,29 @@ export const messages = defineMessages("marketplace", {
   // The Marketplace window. {name} is an agent, app or skill name. {count} is a number.
   "marketplace.open": "Open {name}",
   "marketplace.tab.apps": "Apps",
+  "marketplace.plugins.title": "Plugins",
+  "marketplace.plugins.description": "Give your teammates tools, skills, and a style of their own.",
+  "marketplace.plugins.views": "Plugin views",
+  "marketplace.plugins.discover": "Discover",
+  "marketplace.plugins.manage": "Manage",
+  "marketplace.plugins.create": "Create",
+  "marketplace.plugins.permissions":
+    "Plugins can use the network and access data through their connected apps. Check the developer, connection details, and privacy policy before you connect.",
+  "marketplace.plugins.manageHint":
+    "Open a connection to review its details, reconnect it, or remove it. Access follows the existing app and teammate settings.",
+  "marketplace.plugins.empty": "No connections match. Discover a plugin or clear your search.",
+  "marketplace.plugins.managedCount": { one: "{count} connection", other: "{count} connections" },
+  "marketplace.plugins.createHint":
+    "Start with an MCP connection or a skill. These use the existing setup flows; a plugin bundle editor is not available yet.",
+  "marketplace.plugins.mcpTitle": "Connect a custom tool",
+  "marketplace.plugins.mcpHint":
+    "Add an MCP server with its command or address. Only connect a server you trust: a local server can run code on the host computer.",
+  "marketplace.plugins.hostOnly": "Custom connections are managed on the host computer.",
+  "marketplace.plugins.skillTitle": "Create a skill",
+  "marketplace.plugins.skillHint":
+    "Ask the selected teammate to make a reusable skill. Review the instructions before you use it.",
+  "marketplace.plugins.appearanceHint":
+    "To change a teammate’s shape, color, or animated image, open the teammate’s settings and select its avatar.",
   "marketplace.crumbs.label": "Location",
   "marketplace.search.label": "Search the marketplace",
   "marketplace.search.placeholder": "Search",

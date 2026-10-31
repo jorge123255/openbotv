@@ -35,7 +35,7 @@ export const MARKETPLACE_TABS: readonly MarketplaceTab[] = ["apps", "agents", "s
 /** The name of each tab. The header names the browse view after its tab. */
 export const MARKETPLACE_TAB_LABEL = {
   agents: "marketplace.tab.agents",
-  apps: "marketplace.tab.apps",
+  apps: "marketplace.plugins.title",
   skills: "marketplace.tab.skills",
 } as const satisfies Record<MarketplaceTab, string>;
 
@@ -49,6 +49,7 @@ export interface MarketplaceNavigationState {
   query: string;
   agentCategory: SkillCategory | null;
   agentsOwned: OwnedFilter | null;
+  pluginMode: "discover" | "manage" | "create";
   /** The order of a skill group page. */
   skillSort: MarketplaceSkillSort;
   skillSource: SkillSource | null;
@@ -82,6 +83,7 @@ function initialState(): MarketplaceNavigationState {
     query: "",
     agentCategory: null,
     agentsOwned: null,
+    pluginMode: "discover",
     skillSort: "installs",
     skillSource: null,
     missingApp: null,

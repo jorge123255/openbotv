@@ -59,8 +59,8 @@
 }
 
 .roster-filter[aria-pressed="true"] {
-  background: var(--openbot-bg-control-active);
-  color: var(--roster-accent);
+  background: var(--openbot-accent-soft);
+  color: var(--openbot-accent-text);
 }
 
 .roster-dot {
@@ -104,9 +104,17 @@
   --roster-accent: var(--openbot-warning);
 }
 
-.roster-row:hover,
-.roster-row-active {
+.roster-row:hover {
   background: var(--openbot-hover);
+}
+
+.roster-row-active {
+  background: var(--openbot-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
+}
+
+.roster-row-active:hover {
+  background: var(--openbot-accent-soft);
 }
 
 .roster-row-rising {

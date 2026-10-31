@@ -5,6 +5,7 @@ import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { AgentGrid, AppRow } from "./MarketplaceCards";
 import { type FilterGroup, MarketplaceFilter } from "./MarketplaceFilter";
 import { ListingPanel } from "./MarketplaceParts";
+import { MarketplacePlugins } from "./MarketplacePlugins";
 import { SkillLibrary } from "./MarketplaceSkills";
 import { CATEGORY_LABELS } from "./marketplace-listing";
 import {
@@ -19,7 +20,7 @@ import {
 
 const DESCRIPTION = {
   agents: "marketplace.description.agents",
-  apps: "marketplace.description.apps",
+  apps: "marketplace.plugins.description",
   skills: "marketplace.description.skills",
 } as const;
 
@@ -304,7 +305,11 @@ export function MarketplaceBrowse(props: { scope: MarketplaceScope; lists: Brows
                   </Text>
                 </div>
               </Show>
-              <AppList scope={props.scope} lists={props.lists} />
+              <MarketplacePlugins
+                scope={props.scope}
+                apps={props.lists.apps()}
+                discover={<AppList scope={props.scope} lists={props.lists} />}
+              />
             </div>
           </Match>
           <Match when={state().tab === "agents"}>
