@@ -159,7 +159,7 @@ export class CustomProviderStore {
     }));
   }
 
-  /** What a provider spawn needs. Only ever passed to `AgentService`, never to an IPC handler. */
+  /** For provider spawns and the confined local quota adapter. Never returned through IPC. */
   configs(): readonly CustomProviderConfig[] {
     return this.#entries.map(({ stored, secret }) => ({
       id: stored.id,

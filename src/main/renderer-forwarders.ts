@@ -619,7 +619,12 @@ export function createRendererForwarders({
     sendToRenderer(window, IPC_ENDPOINTS.servers.scopedDirectTyping, { serverId, event });
   }
 
+  function forwardOllamaQuotaChange(): void {
+    for (const target of appWindows()) sendToRenderer(target, IPC_ENDPOINTS.ollamaQuota.changed);
+  }
+
   return {
+    forwardOllamaQuotaChange,
     forwardAgentEvent,
     forwardWorkflowNotice,
     forwardMachineAlert,

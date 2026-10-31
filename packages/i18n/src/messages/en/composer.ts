@@ -1,6 +1,39 @@
 import { defineMessages } from "../../message";
 
 export const messages = defineMessages("composer", {
+  "composer.quota.label": "Ollama Cloud usage",
+  "composer.quota.connection": "Ollama Cloud · {name}",
+  "composer.quota.accountBinding": "Account bound to this saved connection. Its cloud models share the allowance.",
+  "composer.quota.checked": "Last checked {date}. Provider measurements can lag.",
+  "composer.quota.stale": "The last check failed or is out of date. Current headroom is unknown; warnings are paused.",
+  "composer.quota.unavailable": "Account usage is unavailable. Headroom is unknown.",
+  "composer.quota.unknown": "Unknown",
+  "composer.quota.used": "{percent}% used",
+  "composer.quota.reset": "resets {date}",
+  "composer.quota.window.included": "Included allowance",
+  "composer.quota.window.session": "Session allowance",
+  "composer.quota.window.weekly": "Weekly allowance",
+  "composer.quota.purchased":
+    "Purchased credits: {amount}. Separate from the included allowance; no percentage is available.",
+  "composer.quota.purchasedUnknown": "Purchased credit balance is unknown.",
+  "composer.quota.creditsBalance": "Purchased credits: {amount}.",
+  "composer.quota.warningWindow": "{window} {percent}% used (resets {reset})",
+  "composer.quota.switchQueued": "Your selected settings apply after this turn. Current work continues.",
+  "composer.quota.warningTitle": "Ollama allowance at 90% or more",
+  "composer.quota.warningBody": "{name}: {windows}. {credits} You can keep working or review a model switch.",
+  "composer.quota.reviewSwitch": "Review switch",
+  "composer.quota.dismiss": "Dismiss usage warning",
+  "composer.quota.noRecommendation":
+    "No verified Codex or Claude account is available as an alternative. Use the model picker to review other connections; their headroom may be unknown.",
+  "composer.quota.confirmTitle": "Switch the next turn?",
+  "composer.quota.confirmTarget": "Suggested available model: {model} · {provider} · {account}.",
+  "composer.quota.confirmCost":
+    "This provider uses a different allowance from Ollama. Its remaining quota and cost are unknown.",
+  "composer.quota.confirmContext": "Your next turn sends conversation context to this provider.",
+  "composer.quota.confirmHandover": "Current work finishes first. Your conversation and drafts stay here.",
+  "composer.quota.confirm": "Switch next turn",
+  "composer.quota.switchChanged":
+    "Usage, account or model availability changed, or the switch failed. Close this dialog and review again.",
   "composer.queueEdit.body": "You are editing a queued message. Save or cancel the edit to let it run.",
   "composer.queueEdit.cancel": "Cancel edit",
   "composer.providerWait.offlineTitle": "No internet connection",

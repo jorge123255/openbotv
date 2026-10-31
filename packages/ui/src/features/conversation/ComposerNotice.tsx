@@ -28,6 +28,7 @@ export function ComposerNotice(props: {
   action?: JSX.Element;
   conversationKey?: string | null | undefined;
   onDismiss?: () => void;
+  dismissLabel?: string;
 }) {
   const { t } = useText();
   return (
@@ -62,7 +63,7 @@ export function ComposerNotice(props: {
             type="button"
             size="sm"
             class="composer-notice-dismiss"
-            aria-label={t("composer.notice.dismiss")}
+            aria-label={props.dismissLabel ?? t("composer.notice.dismiss")}
             data-cuelume-tap="close"
             onClick={() => dismiss()()}
           >

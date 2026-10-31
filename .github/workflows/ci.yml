@@ -965,7 +965,7 @@ jobs:
       - name: Install the fixture browser
         run: bun node_modules/playwright-core/cli.js install --with-deps chromium
 
-      - name: Check Usage charts with mock analytics
+      - name: Check usage UI and Ollama quota with mocks
         shell: bash
         run: |
           mkdir -p .openbot-build/usage-chart-e2e
@@ -974,6 +974,8 @@ jobs:
           trap 'kill "$storybook_pid" 2>/dev/null || true' EXIT
           curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:6006/iframe.html
           bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
+          bun scripts/ollama-quota-e2e.ts
+          bun scripts/ollama-quota-ui-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
         env:
           STORYBOOK_DISABLE_TELEMETRY: "1"
           OPENBOT_STORYBOOK_PORT: "6006"
@@ -984,6 +986,16 @@ jobs:
         with:
           name: usage-chart-e2e
           path: .openbot-build/usage-chart-e2e/
+          retention-days: 3
+
+      - name: Upload Ollama quota fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ollama-quota-e2e
+          path: |
+            .openbot-build/ollama-quota-e2e/
+            .openbot-build/ollama-quota-ui-e2e/
           retention-days: 3
 
   all-checks-pass:

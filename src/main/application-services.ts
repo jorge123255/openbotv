@@ -248,6 +248,7 @@ import { McpOAuthStore } from "./mcp-oauth-store";
 import { MemoryReviewPreferenceStore } from "./memory-review-preference-store";
 import { MessagingCredentialStore } from "./messaging-credential-store";
 import { NotificationPreferenceStore } from "./notification-preference-store";
+import { OllamaQuotaService } from "./ollama-quota-service";
 import { OnePasswordConnectorService } from "./onepassword-connector-service";
 import { OnePasswordConnectorStore } from "./onepassword-connector-store";
 import { PromptCacheTtlPreferenceStore } from "./prompt-cache-ttl-preference-store";
@@ -435,6 +436,7 @@ const TEARDOWN_ORDER = {
   browserDock: 42,
   browserView: 45,
   providerDetection: 48,
+  ollamaQuota: 49,
   providerRuntimes: 50,
   cuaDriver: 55,
   /** Before the remote servers: each child detaches from its entry when it stops. */
@@ -604,6 +606,7 @@ export interface ApplicationServices {
   /** The terminal control of a self-hosted server. Null in every other build. */
   serverMode: ServerMode | null;
   customProviders: CustomProviderStore;
+  ollamaQuota: OllamaQuotaService;
   customProviderChanges: CustomProviderChanges;
   customAgentChanges: CustomAgentChanges;
   acpRegistry: AcpRegistry;
@@ -2196,7 +2199,17 @@ export async function createApplicationServices({
   const agentAdminSettings = createAgentAdminSettings({ agents: service, approvalAutomation });
   const agentHostSettings = createAgentHostSettings({ agents: service, busyMessageMode, agentDefaults });
   const browserProfiles = createBrowserProfileService({ store: browserProfileStore, agents: service, browser });
-  const customProviderChanges = createCustomProviderChanges({ service, customProviders });
+  const ollamaQuota = new OllamaQuotaService({
+    configs: () => customProviders.configs(),
+    agents: () => service.listAgents(),
+    models: () => service.listModels(),
+  });
+  teardown.push(TEARDOWN_ORDER.ollamaQuota, "Ollama quota reads", () => ollamaQuota.dispose());
+  const customProviderChanges = createCustomProviderChanges({
+    service,
+    customProviders,
+    onChanged: () => ollamaQuota.invalidate(),
+  });
   const customAgentChanges = createCustomAgentChanges({ service, customAgents });
   const acpRegistry = createAcpRegistry({
     directory: app.getPath("userData"),
@@ -3260,6 +3273,7 @@ export async function createApplicationServices({
     serverMode,
     customProviders,
     customProviderChanges,
+    ollamaQuota,
     customAgentChanges,
     acpRegistry,
     providerDetection,
