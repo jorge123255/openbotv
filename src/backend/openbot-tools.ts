@@ -353,6 +353,52 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
     shape: captureScreenToolShape,
   },
   {
+    name: "host_shell",
+    description:
+      "Run a shell command on a registered machine after Auto-review. Call host_list_machines for the machineId. Omit machineId when the list has one machine.",
+    shape: {
+      command: z.string().min(1),
+      machineId: z.string().min(1).optional(),
+      workingDirectory: z.string().optional(),
+    },
+  },
+  {
+    name: "host_screenshot",
+    description:
+      "Capture the screen of a registered machine after Auto-review. This is the screen of that machine, not a page preview. Call host_list_machines for the machineId.",
+    shape: { machineId: z.string().min(1).optional() },
+  },
+  {
+    name: "host_read_file",
+    description:
+      "Read a text file on a registered machine after Auto-review. Call host_list_machines for the machineId.",
+    shape: { path: z.string().min(1), machineId: z.string().min(1).optional() },
+  },
+  {
+    name: "host_list_directory",
+    description:
+      "List one directory on a registered machine after Auto-review. Call host_list_machines for the machineId.",
+    shape: { path: z.string().min(1), machineId: z.string().min(1).optional() },
+  },
+  {
+    name: "host_write_file",
+    description:
+      "Write a text file on a registered machine after Auto-review. Call host_list_machines for the machineId.",
+    shape: { path: z.string().min(1), fileText: z.string(), machineId: z.string().min(1).optional() },
+  },
+  {
+    name: "host_send_input",
+    description:
+      "Send text to a background shell on a registered machine after Auto-review. Call host_list_machines for the machineId.",
+    shape: { chars: z.string(), machineId: z.string().min(1).optional() },
+  },
+  {
+    name: "host_list_machines",
+    description:
+      "List the machines a host tool can use. Each entry has id, label, and connected. Pass id as machineId to host_shell, host_screenshot, and the file tools.",
+    shape: {},
+  },
+  {
     name: "list_sections",
     description:
       "List sidebar sections (folders), their stable ids, and agent assignments before choosing message recipients or grouping agents.",

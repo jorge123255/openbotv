@@ -9,6 +9,7 @@ import { dirname, join } from "node:path";
 import { decodeHostToolAnswer } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
+import { hostToolRequestFromCatalog } from "../src/backend/host-tools/host-tool-catalog";
 import { closeBackgroundShells, executeHostAction } from "../src/backend/host-tools/host-tool-executor";
 import { thisComputer } from "../src/backend/host-tools/host-tool-machines";
 import { HostToolPolicy } from "../src/backend/host-tools/host-tool-policy";
@@ -220,6 +221,33 @@ async function checkLocalExecChannel(): Promise<void> {
       server.close(() => resolve());
     });
   }
+}
+
+function checkCatalog(): void {
+  const context = { id: "tool-1", agentId: "a", threadId: "t", turnId: "u" };
+  const shell = hostToolRequestFromCatalog("host_shell", { command: "echo host-tool-ok", machineId: "Mac" }, context);
+  assert.equal(typeof shell, "object");
+  assert.ok(shell);
+  if (typeof shell === "string") throw new Error("host_shell returned text.");
+  assert.equal(shell.action, "shell");
+  assert.equal(shell.command, "echo host-tool-ok");
+  assert.equal(shell.machineId, "Mac");
+  const shot = hostToolRequestFromCatalog("host_screenshot", {}, context);
+  assert.ok(shot && typeof shot !== "string");
+  assert.equal(shot.action, "screenshot");
+  assert.equal("machineId" in shot, false);
+  const read = hostToolRequestFromCatalog("host_read_file", { path: "notes.txt" }, context);
+  assert.ok(read && typeof read !== "string" && read.action === "read-file");
+  const list = hostToolRequestFromCatalog("host_list_directory", { path: "." }, context);
+  assert.ok(list && typeof list !== "string" && list.action === "list-directory");
+  const write = hostToolRequestFromCatalog("host_write_file", { path: "a.txt", fileText: "hi" }, context);
+  assert.ok(write && typeof write !== "string");
+  assert.equal(write.action, "write-file");
+  assert.equal(write.fileText, "hi");
+  const input = hostToolRequestFromCatalog("host_send_input", { chars: "y" }, context);
+  assert.ok(input && typeof input !== "string" && input.action === "send-input" && input.chars === "y");
+  assert.equal(hostToolRequestFromCatalog("host_list_machines", {}, context), JSON.stringify([thisComputer()]));
+  assert.equal(hostToolRequestFromCatalog("capture_screen", {}, context), null);
 }
 
 function shellExec(id: string, machineId?: string): LocalExecRequestFrame {
@@ -543,6 +571,8 @@ try {
   assert.equal(decodeHostToolAnswer({ requestId: "r1", decision: "allow-once", gatewayToken: "secret" }), null);
   assert.equal(decodeHostToolAnswer({ requestId: "r1", decision: "allow-once", accessToken: "secret" }), null);
   mark("answer-decode");
+  checkCatalog();
+  mark("catalog");
   await mkdir(".openbot-build", { recursive: true });
   await writeFile(".openbot-build/host-tool-local-exec-e2e.json", JSON.stringify({ ok: true, checks }, null, 2));
 } finally {

@@ -1689,6 +1689,10 @@ export async function createApplicationServices({
       }),
     // `desktopCapturer` captures the display OpenBot is on. With an agent display of its own, that
     // is only the OpenBot window, so agents take their screenshots with the Computer Use driver.
+    userDataPath: app.getPath("userData"),
+    surfaceHostToolAsk: (ask) => {
+      sendToRenderer(BrowserWindow.getFocusedWindow() ?? windows.getMainWindow(), IPC_ENDPOINTS.hostTools.ask, ask);
+    },
     screenCapture: hasSeparateAgentDisplay(process.platform)
       ? null
       : new ScreenCapturer({

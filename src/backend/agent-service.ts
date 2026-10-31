@@ -57,6 +57,7 @@ import type {
   GenerateAgentProfileInput,
   HiddenAgentsSnapshot,
   HostAnalyticsInput,
+  HostToolAsk,
   ListChannelRoutineRunsInput,
   ListRoutineRunsInput,
   LocalBrowserSecretResponse,
@@ -298,6 +299,10 @@ export interface AgentServiceOptions {
   visualPreview?: ChatVisualPreviewHost | null;
   /** Captures the desktop for `capture_screen`; null where this process has no desktop. */
   screenCapture?: ScreenCaptureHost | null;
+  /** The user-data directory. Host-tool Auto-review is a file in this directory. */
+  userDataPath?: string;
+  /** Shows a host-tool ask on the desktop. The main process owns the window. */
+  surfaceHostToolAsk?: (ask: HostToolAsk) => void;
   /**
    * What an agent's MCP server test waits for first, as the Test button does: the managed tool
    * runtimes a stdio command may need. Without it the test runs with what this machine holds.
@@ -1487,6 +1492,8 @@ export class AgentService extends EventEmitter<AgentServiceEvents> {
       ...(options.approvalAutomation === undefined ? {} : { approvalAutomation: options.approvalAutomation }),
       ...(options.visualPreview === undefined ? {} : { visualPreview: options.visualPreview }),
       ...(options.screenCapture === undefined ? {} : { screenCapture: options.screenCapture }),
+      ...(options.userDataPath === undefined ? {} : { userDataPath: options.userDataPath }),
+      ...(options.surfaceHostToolAsk === undefined ? {} : { surfaceHostToolAsk: options.surfaceHostToolAsk }),
       mcpServers: mcpServersFromGateway(this.#mcp, options.prepareMcpTest),
       apiKeys: options.agentApiKeys ?? null,
       hooks: {

@@ -38,6 +38,23 @@ const shells = new Map<number, ChildProcess>();
 let nextShellId = 1;
 
 /** Stops background shells this process started. The end-to-end script calls this. */
+/** Runs one foreground command. Background shells use `executeHostAction` instead. */
+export function runHostCommand(command: string, cwd: string): Promise<HostCommandResult> {
+  return new Promise((resolve) => {
+    const child = spawn(command, { cwd, shell: true, stdio: ["ignore", "pipe", "pipe"] });
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk: Buffer | string) => {
+      stdout += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    });
+    child.stderr?.on("data", (chunk: Buffer | string) => {
+      stderr += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    });
+    child.on("error", () => resolve({ code: 1, stdout, stderr }));
+    child.on("close", (code) => resolve({ code: code ?? 1, stdout, stderr }));
+  });
+}
+
 export function closeBackgroundShells(): void {
   for (const child of shells.values()) {
     const pid = child.pid;

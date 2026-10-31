@@ -28,6 +28,27 @@ type AskDecision = "allow-once" | "always" | "never" | "expired";
  * One local-exec frame. Device, upload, and download never reach Auto-review.
  * The function does not retry.
  */
+/** The decide, select, and execute path for one host-tool request. */
+export async function runHostToolRequest(request: HostToolRequest, deps: HostToolRunnerDeps): Promise<HostToolRow> {
+  let row: HostToolRow | null = null;
+  const wrapped: HostToolRunnerDeps = {
+    ...deps,
+    emitRow: (next) => {
+      row = next;
+      deps.emitRow(next);
+    },
+  };
+  await gate({ kind: "exec", requestId: request.id, serverMessage: null }, request, wrapped);
+  return (
+    row ?? {
+      id: request.id,
+      action: request.action,
+      status: "failed",
+      text: sourceText("error.backend.hostToolRefused"),
+    }
+  );
+}
+
 export async function handleLocalExecFrame(
   frame: LocalExecRequestFrame,
   deps: HostToolRunnerDeps,

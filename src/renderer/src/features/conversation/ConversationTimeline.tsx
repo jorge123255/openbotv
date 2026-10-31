@@ -50,6 +50,7 @@ import { chatVisualPageUrl } from "./chat-visual-url";
 import { isIncomingAgentMessage } from "./conversation-read-state";
 import { conversationRuntime } from "./conversation-runtime";
 import { useConversationViewScope } from "./conversation-scope";
+import { HostToolAskCard } from "./HostToolAskCard";
 import { agentSkillsMode } from "./installed-skills-source";
 import { MarketplaceSuggestionChatCard, marketplaceSuggestionKnown } from "./MarketplaceSuggestionChatCard";
 import { McpSignInChatCard } from "./McpSignInChatCard";
@@ -1406,6 +1407,9 @@ export function ConversationTimeline() {
                 elementRef={setRequiredInteractionElement}
                 registerComposerAnswer={registerPromptComposerAnswer}
               />
+            </Show>
+            <Show when={!sideThreadOpen() && props.agent?.id}>
+              <HostToolAskCard agentId={props.agent?.id} />
             </Show>
             <Show keyed when={props.approval}>
               {(approval) => (

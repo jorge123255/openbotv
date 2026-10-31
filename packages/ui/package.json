@@ -137,6 +137,7 @@
     "./features/conversation/ContextUsage": "./src/features/conversation/ContextUsage.tsx",
     "./features/conversation/ConversationIcons": "./src/features/conversation/ConversationIcons.tsx",
     "./features/conversation/ConversationPrompts": "./src/features/conversation/ConversationPrompts.tsx",
+    "./features/conversation/HostToolApprovalCard": "./src/features/conversation/HostToolApprovalCard.tsx",
     "./features/conversation/DataTable": "./src/features/conversation/DataTable.tsx",
     "./features/conversation/FileReference": "./src/features/conversation/FileReference.ts",
     "./features/conversation/ImageGeneration": "./src/features/conversation/ImageGeneration.tsx",
