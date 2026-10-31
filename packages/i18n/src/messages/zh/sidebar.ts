@@ -4,7 +4,6 @@ import type { messages as source } from "../en/sidebar";
 export const messages = {
   "sidebar.frame.label": "助手导航",
   "sidebar.nav.label": "对话列表",
-  "sidebar.nav.freeArea": "侧边栏空白区",
   "sidebar.nav.actions": "侧边栏操作",
   "sidebar.deletedChannels.title": "已删除的频道",
   "sidebar.deletedChannels.empty": "没有已删除的频道。",
