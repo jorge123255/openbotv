@@ -262,6 +262,8 @@ export function createConversationViewScope(props: ConversationProps) {
   const {
     skillSettingsRequest,
     openSkillSettings,
+    instructionsSettingsRequest,
+    openInstructionsSettings,
     routineSettingsRequest,
     activeRightPanel,
     settingsOpen,
@@ -290,6 +292,7 @@ export function createConversationViewScope(props: ConversationProps) {
     openWorkspaceFolder,
     openWorkspaceFolderEntry,
     previewQuoteId,
+    previewFileKey,
     previewWorkspaceAgentId,
     sidebarFileBack,
     openSidebarFileBack,
@@ -758,6 +761,17 @@ export function createConversationViewScope(props: ConversationProps) {
     },
   });
   const { startVoiceRecording, stopVoiceRecording, stopVoiceRecordingAndSend, cancelVoiceRecording } = voice;
+  /**
+   * Copies a conversation through an answer into a new thread. The branch opens in the chat, and its
+   * composer takes the focus, so the user can type the new direction at once.
+   */
+  const branchThread = async (sourceTaskId: string | null, messageId: string) => {
+    const onBranch = props.threads?.onBranch;
+    if (!onBranch || !(await onBranch(sourceTaskId, messageId))) return;
+    // The branch shows first, so that its editor takes the request.
+    flush();
+    setThreadFocusRequest((current) => current + 1);
+  };
   /** Dictates into the open side thread's draft. */
   const startThreadVoiceRecording = () => {
     const key = threadComposer.openDraftKey();
@@ -1913,6 +1927,7 @@ export function createConversationViewScope(props: ConversationProps) {
     setThreadScrollElement,
     threadComposer,
     threadFocusRequest,
+    branchThread,
     threadVoiceLiveText,
     threadVoiceOwned,
     replyJump,
@@ -2057,6 +2072,7 @@ export function createConversationViewScope(props: ConversationProps) {
     openWorkspaceFolder,
     openWorkspaceFolderEntry,
     previewQuoteId,
+    previewFileKey,
     previewWorkspaceAgentId,
     sidebarFileBack,
     openSidebarFileBack,
@@ -2086,6 +2102,8 @@ export function createConversationViewScope(props: ConversationProps) {
     setPageContext,
     skillSettingsRequest,
     openSkillSettings,
+    instructionsSettingsRequest,
+    openInstructionsSettings,
     routineSettingsRequest,
     updateRuntimeSettings,
     scheduleUnreadDividerVisibilityUpdate,
