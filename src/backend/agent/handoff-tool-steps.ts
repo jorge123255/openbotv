@@ -30,7 +30,7 @@ function clip(text: string, limit: number): string {
   return text.length > limit ? `${text.slice(0, limit - 1)}…` : text;
 }
 
-function renderStep(item: DynamicRecord): string | null {
+export function renderStep(item: DynamicRecord): string | null {
   const status = field(item, "status") ?? "unknown";
   switch (getString(item, "type")) {
     case "commandExecution": {
@@ -55,7 +55,17 @@ function renderStep(item: DynamicRecord): string | null {
     case "dynamicToolCall": {
       const tool = field(item, "tool");
       const namespace = field(item, "namespace");
-      return tool ? `tool ${namespace ? `${namespace}/` : ""}${tool} (${status})` : null;
+      if (!tool) return null;
+      const line = `tool ${namespace ? `${namespace}/` : ""}${tool} (${status})`;
+      if (namespace !== "host") return line;
+      const text = getArray(item, "contentItems")
+        .flatMap((entry) => {
+          if (getString(entry, "type") !== "inputText") return [];
+          const value = field(entry, "text");
+          return value === null ? [] : [value];
+        })
+        .join("\n");
+      return text.length > 0 ? `${line}\n${text}` : line;
     }
     case "toolCall": {
       const name = field(item, "name");

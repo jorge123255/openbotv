@@ -1,7 +1,7 @@
 // Host shell, screenshot, and file actions on this computer.
 // bun scripts/host-tool-local-exec-e2e.ts
 import assert from "node:assert/strict";
-import { watch } from "node:fs";
+import { readFileSync, watch } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
@@ -9,6 +9,9 @@ import { dirname, join } from "node:path";
 import { decodeHostToolAnswer } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
+import { renderStep } from "../src/backend/agent/handoff-tool-steps";
+import { toolProgressText } from "../src/backend/agent/thread-items";
+import { grokLocalExecHeaders } from "../src/backend/grok-bot/grok-bot-agent-client";
 import { hostToolRequestFromCatalog } from "../src/backend/host-tools/host-tool-catalog";
 import { closeBackgroundShells, executeHostAction } from "../src/backend/host-tools/host-tool-executor";
 import { thisComputer } from "../src/backend/host-tools/host-tool-machines";
@@ -573,6 +576,65 @@ try {
   mark("answer-decode");
   checkCatalog();
   mark("catalog");
+  const drivers = readFileSync("src/backend/provider-drivers.ts", "utf8");
+  const grokStart = drivers.indexOf('id: "grok-bot"');
+  const grokEnd = drivers.indexOf('id: "acp"', grokStart);
+  const grokBlock = drivers.slice(grokStart, grokEnd);
+  assert.equal(grokBlock.includes("directInference"), false);
+  const clientSource = readFileSync("src/backend/grok-bot/grok-bot-agent-client.ts", "utf8");
+  assert.equal(clientSource.includes("sendGrokBotPrompt"), true);
+  assert.equal(clientSource.includes('namespace: "sand"'), true);
+  const gatewaySession = {
+    token: "gateway-bearer",
+    headers: { "x-anyrun-network-token": "net-1" },
+    accessToken: "user-sand-access-token",
+  };
+  const gatewayHeaders = grokLocalExecHeaders(gatewaySession);
+  assert.equal(gatewayHeaders.authorization, "Bearer gateway-bearer");
+  assert.equal(gatewayHeaders["x-anyrun-network-token"], "net-1");
+  assert.equal(JSON.stringify(gatewayHeaders).includes("user-sand-access-token"), false);
+  mark("grok-gateway");
+  const shellItem = {
+    type: "dynamicToolCall",
+    id: "s1",
+    namespace: "host",
+    tool: "host_shell",
+    status: "completed",
+    contentItems: [{ type: "inputText", text: "host-tool-ok\nexit 0" }],
+  };
+  assert.equal(toolProgressText(shellItem, true), "host-tool-ok\nexit 0");
+  const shotItem = {
+    type: "dynamicToolCall",
+    id: "p1",
+    namespace: "host",
+    tool: "host_screenshot",
+    status: "completed",
+    contentItems: [{ type: "inputText", text: "/tmp/screen.png\nThumbnail /tmp/thumb.png" }],
+  };
+  assert.equal(toolProgressText(shotItem, true)?.includes("/tmp/screen.png"), true);
+  assert.equal(toolProgressText(shotItem, true)?.includes("/tmp/thumb.png"), true);
+  const deniedItem = {
+    type: "dynamicToolCall",
+    id: "d1",
+    namespace: "host",
+    tool: "host_shell",
+    status: "failed",
+    contentItems: [{ type: "inputText", text: "Denied" }],
+  };
+  assert.equal(toolProgressText(deniedItem, true), "Denied");
+  const sandItem = {
+    type: "dynamicToolCall",
+    id: "sand-1",
+    namespace: "sand",
+    tool: "Shell",
+    status: "completed",
+    contentItems: [{ type: "inputText", text: "secret-output" }],
+  };
+  assert.notEqual(toolProgressText(sandItem, true), "secret-output");
+  const rendered = renderStep(shellItem);
+  assert.equal(rendered?.includes("host-tool-ok"), true);
+  assert.equal(rendered?.includes("exit 0"), true);
+  mark("host-rows");
   await mkdir(".openbot-build", { recursive: true });
   await writeFile(".openbot-build/host-tool-local-exec-e2e.json", JSON.stringify({ ok: true, checks }, null, 2));
 } finally {
