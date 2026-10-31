@@ -73,8 +73,10 @@ export interface GrokBotAgentClientOptions {
 
 /**
  * One OpenBot thread is one sand agent id from `POST /api/createAgent`.
- * A turn is `InferenceService.Stream` with the sand access token, not the Grok CLI and not
- * `sendPrompt`. Tool-call parts are not executed: BotAI runs those in its host runner.
+ * A turn is `POST /api/sendPrompt` on the sand gateway. The sand host runs the model.
+ * The user-visible reply is a text `send-message` card. OpenBot stores that card as the
+ * assistant message, then completes the turn. `InferenceService/Stream` runs only when
+ * `directInference` is set.
  */
 export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements AgentClient {
   readonly provider = "grok-bot" as const;
@@ -433,8 +435,9 @@ export class GrokBotAgentClient extends EventEmitter<ClientEvents> implements Ag
   }
 
   /**
-   * BotAI path: `/api/sendPrompt` on the in-box gateway, then follow `/api/getAgentTranscriptTail`
-   * until the assistant reply for this turn stops changing.
+   * BotAI path: `POST /api/sendPrompt` returns `{ accepted: true }`. The sand host owns the model
+   * stream and writes a text `send-message` card. Poll `/api/getAgentTranscriptTail` until that
+   * card stops changing, then project it as the assistant reply.
    */
   async #viaGateway(thread: SandThread, params: unknown): Promise<void> {
     const turn = thread.turn;

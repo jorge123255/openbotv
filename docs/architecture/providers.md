@@ -1025,16 +1025,22 @@ provider is not in `MANAGED_RUNTIME_PROVIDERS`.
 
 Sign-in is the Grok Bot account file. A new agent calls `EnsureSandBox`, then `POST /api/createAgent`
 on the gateway, and stores that sand agent id as the provider thread. A later turn calls
-`POST /aiserver.v1.InferenceService/Stream` with the sand access token and that id as `conversationId`.
-The same account's `GetSandUsageStatus` reading is the provider usage. Resume calls `listAgents` and
-keeps the id. It does not create a second sand agent.
+`POST /api/sendPrompt` on that gateway. The sand host runs the model. The text the user sees is a
+`send-message` card. `message.type` is `text` and `message.content` is the reply. OpenBot reads that
+card from `POST /api/getAgentTranscriptTail` and stores it as the assistant message. The turn then
+completes in OpenBot. A card with `message.channel` is not the chat reply. The same account's
+`GetSandUsageStatus` reading is the provider usage. Resume calls `listAgents` and keeps the id. It
+does not create a second sand agent.
 
-A complete `toolCallPart` is `item/tool/call` on OpenBot's tool router. The tool result goes back
-in the next `Stream` request. User images from `localImage` are data URLs in the user message, up to
-1 MiB. A larger file is replaced by the omission line BotAI uses when resize fails. Pixel resize is
-not copied. `x-cursor-checksum` uses BotAI `createCursorChecksum` and a UUID in
-`openbot-grok-bot-machine-id`. Resume reads `POST /api/getAgentTranscriptTail`. A `message` entry
-with `role` `user` or `assistant`, and ids `t<n>u` / `t<turn>a<n>`, become the next prompt.
+`InferenceService/Stream` with the user sand token is not this path. A caller can still set
+`directInference`. On that path, a complete `toolCallPart` is `item/tool/call` on OpenBot's tool
+router. The tool result goes back in the next `Stream` request. User images from `localImage` are
+data URLs in the user message, up to 1 MiB. A larger file is replaced by the omission line BotAI
+uses when resize fails. Pixel resize is not copied. `x-cursor-checksum` uses BotAI
+`createCursorChecksum` and a UUID in `openbot-grok-bot-machine-id`. Resume reads
+`POST /api/getAgentTranscriptTail`. A user `message`, an assistant `message`, and a text
+`send-message` card become the next prompt. Ids `t<n>u`, `t<turn>a<n>`, and `t<turn>s<n>` match
+those rows.
 
 ## Muse
 

@@ -2,20 +2,37 @@ import { type DynamicRecord, isDynamicRecord } from "@openbot/contracts/runtime-
 import type { GrokBotInferenceMessage } from "./grok-bot-inference";
 
 /**
- * BotAI transcript ids (`transcript-entry-ids.ts`): `t<n>u` is a user message and `t<turn>a<n>` is
- * an assistant message. `kind: "message"` also carries `role`. `send-message` cards stay out.
+ * BotAI transcript ids (`transcript-entry-ids.ts`): `t<n>u` is a user message, `t<turn>a<n>` is a
+ * private assistant row, and `t<turn>s<n>` is a SendMessage card. The host shows a text
+ * `send-message` card to the user. Plain assistant text stays out of the chat. A card with
+ * `message.channel` goes to another surface.
  */
 export function transcriptToMessages(body: unknown): GrokBotInferenceMessage[] {
   const entries = Array.isArray(body) ? body : isDynamicRecord(body) && Array.isArray(body.entries) ? body.entries : [];
   const messages: GrokBotInferenceMessage[] = [];
   for (const entry of entries) {
     if (!isDynamicRecord(entry)) continue;
+    const sendText = visibleSendMessageText(entry);
+    if (sendText !== null) {
+      messages.push({ role: "ASSISTANT", text: sendText });
+      continue;
+    }
     const role = transcriptRole(entry);
     const text = transcriptText(entry);
     if (!role || text.length === 0) continue;
     messages.push({ role, text });
   }
   return messages;
+}
+
+/** BotAI `quotableEntryText` for a host SendMessage that the chat shows. */
+function visibleSendMessageText(entry: DynamicRecord): string | null {
+  if (entry.kind !== "send-message" || !isDynamicRecord(entry.message)) return null;
+  const message = entry.message;
+  if (message.type !== "text" || typeof message.content !== "string") return null;
+  if (typeof message.channel === "string" && message.channel.length > 0) return null;
+  if (message.content.trim().length === 0) return null;
+  return message.content;
 }
 
 function transcriptRole(entry: DynamicRecord): "USER" | "ASSISTANT" | null {
