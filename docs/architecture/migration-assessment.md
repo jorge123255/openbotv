@@ -1,5 +1,8 @@
 # Offline destination assessment
 
+The proposed next stage is [authenticated destination verification](migration-destination-verification.md).
+It requires pairing and build-policy decisions; no destination connection is available yet.
+
 This stage extends [migration preparation](migration-preparation.md). In the local Server settings,
 save a preparation plan, then use **Offline destination assessment**. Declare a target platform,
 architecture, OpenBot version, schema version, executor boundary, data ownership and persistence.
