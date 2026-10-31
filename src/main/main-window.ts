@@ -804,7 +804,7 @@ export function loadDynamicIslandRenderer(window: BrowserWindow, display: Displa
  * A browser tab has its own session and keeps the page zoom that the default zoom roles gave it.
  * Any other focused contents is the app, so the step changes the saved interface size.
  */
-function zoomFocusedContents(interfaceSize: InterfaceSizeService, step: InterfaceSizeStep): void {
+function zoomFocusedContents(interfaceSize: Pick<InterfaceSizeService, "step">, step: InterfaceSizeStep): void {
   const focused = webContents.getFocusedWebContents();
   if (!focused || focused.session === session.defaultSession) {
     Effect.runFork(interfaceSize.step(step));
@@ -837,11 +837,12 @@ function hideMenuBar(window: BrowserWindow): void {
  * keep the size the user chose. A website in the browser keeps the zoom of the default roles.
  */
 export function configureApplicationMenu(
-  service: AgentService,
-  updater: UpdateService,
-  interfaceSize: InterfaceSizeService,
+  service: Pick<AgentService, "interruptAll">,
+  updater: Pick<UpdateService, "checkForUpdates">,
+  interfaceSize: Pick<InterfaceSizeService, "step">,
   translate: AppTranslate,
   getMainWindow: () => BrowserWindow | null,
+  runGrokBotUsageDiagnostic?: () => void,
 ): void {
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -896,6 +897,14 @@ export function configureApplicationMenu(
           { role: "reload" },
           { role: "forceReload" },
           { role: "toggleDevTools" },
+          ...(runGrokBotUsageDiagnostic
+            ? [
+                {
+                  label: translate("menu.grokBotUsageDiagnostic"),
+                  click: runGrokBotUsageDiagnostic,
+                },
+              ]
+            : []),
           { type: "separator" },
           {
             label: translate("menu.actualSize"),

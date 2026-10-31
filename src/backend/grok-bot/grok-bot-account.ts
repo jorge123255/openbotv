@@ -45,6 +45,11 @@ export interface GrokBotAccountRecord {
   gateway: GrokBotGatewaySession | null;
 }
 
+/** Diagnostic access never reads a file, decrypts credentials, or refreshes a session. */
+export type GrokBotCachedGateway =
+  | { readonly state: "not-loaded" | "signed-out" }
+  | { readonly state: "loaded"; readonly session: GrokBotGatewaySession | null };
+
 export interface GrokBotSignInOptions {
   timeoutMs: number;
   authFile: string;
@@ -134,13 +139,30 @@ function sessionFailure(): GrokBotAccountFailed {
 export class GrokBotAccountStore {
   readonly #path: string;
   readonly #cipher: SecretCipher;
+  #cachedGateway: GrokBotCachedGateway = { state: "not-loaded" };
+  #cacheRevision = 0;
 
   constructor(path: string, cipher: SecretCipher) {
     this.#path = path;
     this.#cipher = cipher;
   }
 
+  cachedGateway(): GrokBotCachedGateway {
+    const cached = this.#cachedGateway;
+    if (cached.state !== "loaded" || cached.session === null) return { ...cached };
+    return {
+      state: "loaded",
+      session: { url: cached.session.url, token: cached.session.token, headers: { ...cached.session.headers } },
+    };
+  }
+
+  forgetCachedGateway(): void {
+    this.#invalidateGateway();
+  }
+
   readonly load = Effect.fn("GrokBotAccountStore.load")(function* (this: GrokBotAccountStore) {
+    const revision = ++this.#cacheRevision;
+    this.#cachedGateway = { state: "not-loaded" };
     const read = yield* Effect.result(
       Effect.tryPromise({
         try: () => readFile(this.#path, "utf8"),
@@ -148,7 +170,10 @@ export class GrokBotAccountStore {
       }),
     );
     if (Result.isFailure(read)) {
-      if (isMissingFile(read.failure)) return null;
+      if (isMissingFile(read.failure)) {
+        if (revision === this.#cacheRevision) this.#cachedGateway = { state: "signed-out" };
+        return null;
+      }
       return yield* accountFailed();
     }
     const record = yield* Effect.try({
@@ -156,6 +181,13 @@ export class GrokBotAccountStore {
       catch: () => accountFailure(),
     });
     rememberRecord(record);
+    if (revision === this.#cacheRevision) {
+      const session = record.gateway;
+      this.#cachedGateway = {
+        state: "loaded",
+        session: session ? { url: session.url, token: session.token, headers: { ...session.headers } } : null,
+      };
+    }
     return record;
   });
 
@@ -163,10 +195,12 @@ export class GrokBotAccountStore {
     this: GrokBotAccountStore,
     record: GrokBotAccountRecord,
   ) {
+    this.#invalidateGateway();
     rememberRecord(record);
     const payload = this.#cipher.encrypt(JSON.stringify(record)).toString("base64");
     yield* writeJsonFileAtomically(this.#path, { version: 1, payload }, { createDirectory: true }).pipe(
       Effect.mapError(() => accountFailure()),
+      Effect.ensuring(Effect.sync(() => this.#invalidateGateway())),
     );
   });
 
@@ -174,21 +208,29 @@ export class GrokBotAccountStore {
     this: GrokBotAccountStore,
     options: { apiBaseUrl?: string; fetchImpl?: typeof fetch; now?: () => number },
   ) {
+    this.#invalidateGateway();
     return yield* refreshGrokBotAccessToken({
       authFile: this.#path,
       cipher: this.#cipher,
       ...(options.apiBaseUrl !== undefined ? { apiBaseUrl: options.apiBaseUrl } : {}),
       ...(options.fetchImpl !== undefined ? { fetchImpl: options.fetchImpl } : {}),
       ...(options.now !== undefined ? { now: options.now } : {}),
-    });
+    }).pipe(Effect.ensuring(Effect.sync(() => this.#invalidateGateway())));
   });
 
   readonly clear = Effect.fn("GrokBotAccountStore.clear")(function* (this: GrokBotAccountStore) {
+    this.#invalidateGateway();
     yield* Effect.tryPromise({
       try: () => rm(this.#path, { force: true }),
       catch: () => accountFailure(),
-    });
+    }).pipe(Effect.ensuring(Effect.sync(() => this.#invalidateGateway())));
+    this.#cachedGateway = { state: "signed-out" };
   });
+
+  #invalidateGateway(): void {
+    this.#cacheRevision += 1;
+    this.#cachedGateway = { state: "not-loaded" };
+  }
 }
 
 export const startGrokBotSignIn = Effect.fn("GrokBotAccount.signIn")(function* (options: GrokBotSignInOptions) {

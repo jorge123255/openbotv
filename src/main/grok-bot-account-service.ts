@@ -1,6 +1,7 @@
 import type { CreateGrokBotAgentInput, GrokBotComputerSummary } from "@openbot/contracts/ipc";
 import { IPC_ENDPOINTS } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
+import { createOpenBotLogger } from "@openbot/logging";
 import { Effect } from "effect";
 import {
   GrokBotAccountFailed,
@@ -18,12 +19,14 @@ import {
   readGrokBotComputer,
 } from "../backend/grok-bot/grok-bot-gateway";
 import { readGrokBotUsageSummary } from "../backend/grok-bot/grok-bot-usage";
+import { readGrokBotUsageDiagnostic } from "../backend/grok-bot/grok-bot-usage-diagnostic";
 import { type GrokBotImportStore, importGrokBotAgents } from "./grok-bot-agent-import";
 import { GrokBotComputerWindow } from "./grok-bot-computer-window";
 import { type RendererIpcWindow, sendToRenderer } from "./renderer-ipc";
 
 const GROK_BOT_SIGN_IN_TIMEOUT_MS = 10 * 60_000;
 const OFFICIAL_API = "https://api2.cursor.sh";
+const diagnosticLogger = createOpenBotLogger("grok-bot-cached-usage-diagnostic");
 
 export interface GrokBotAccountServiceOptions {
   path: string;
@@ -42,6 +45,7 @@ export class GrokBotAccountService {
   readonly #agentStore: GrokBotImportStore | undefined;
   #abort: AbortController | null = null;
   #computer = new GrokBotComputerWindow();
+  #diagnosticAbort: AbortController | null = null;
 
   constructor(options: GrokBotAccountServiceOptions) {
     this.#path = options.path;
@@ -61,6 +65,8 @@ export class GrokBotAccountService {
   });
 
   readonly start = Effect.fn("GrokBotAccountService.start")(function* (this: GrokBotAccountService) {
+    this.#diagnosticAbort?.abort();
+    this.#store.forgetCachedGateway();
     this.#abort?.abort();
     const controller = new AbortController();
     this.#abort = controller;
@@ -94,6 +100,7 @@ export class GrokBotAccountService {
   });
 
   readonly signOut = Effect.fn("GrokBotAccountService.signOut")(function* (this: GrokBotAccountService) {
+    this.#diagnosticAbort?.abort();
     this.#abort?.abort();
     this.#abort = null;
     yield* this.#store.clear();
@@ -115,6 +122,30 @@ export class GrokBotAccountService {
 
   readonly usage = Effect.fn("GrokBotAccountService.usage")(function* (this: GrokBotAccountService) {
     return yield* readGrokBotUsageSummary(this.#store);
+  });
+
+  /** Native opt-in action only. This is deliberately absent from renderer IPC and the Team API. */
+  readonly diagnoseCachedUsage = Effect.fn("GrokBotAccountService.diagnoseCachedUsage")(function* (
+    this: GrokBotAccountService,
+    optedIn: boolean,
+  ) {
+    if (!optedIn || this.#diagnosticAbort !== null) return;
+    const controller = new AbortController();
+    this.#diagnosticAbort = controller;
+    yield* readGrokBotUsageDiagnostic({
+      optedIn,
+      cachedGateway: () => this.#store.cachedGateway(),
+      signal: controller.signal,
+    }).pipe(
+      Effect.tap((report) =>
+        Effect.sync(() => diagnosticLogger.info("Cached Grok Bot usage capability check.", report)),
+      ),
+      Effect.ensuring(
+        Effect.sync(() => {
+          this.#diagnosticAbort = null;
+        }),
+      ),
+    );
   });
 
   readonly create = Effect.fn("GrokBotAccountService.create")(function* (
@@ -146,6 +177,8 @@ export class GrokBotAccountService {
   });
 
   dispose(): void {
+    this.#diagnosticAbort?.abort();
+    this.#store.forgetCachedGateway();
     this.#computer.close();
     this.#abort?.abort();
     this.#abort = null;

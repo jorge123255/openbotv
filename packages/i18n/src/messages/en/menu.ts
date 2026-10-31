@@ -6,6 +6,7 @@ export const messages = defineMessages("menu", {
   // the chat's right-click edit menu takes its labels from here.
   "menu.stopAllAgents": "Stop all agents",
   "menu.checkForUpdates": "Check for Updates…",
+  "menu.grokBotUsageDiagnostic": "Run read-only Grok Bot usage check",
   "menu.preferences": "Settings…",
   "menu.actualSize": "Actual Size",
   "menu.zoomIn": "Zoom In",
