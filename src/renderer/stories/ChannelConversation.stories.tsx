@@ -116,6 +116,7 @@ const waitingSubtasks: AwaitingReplyItem[] = [
 const stoppedTask = (agentId: string, long = false) => ({
   id: `stopped-${agentId}`,
   ownerAgentId: agentId,
+  instruction: "Check the source report before the team completes the launch post.",
   error: long
     ? "The automatic assignment limit was reached. Continue or reassign this task. The source report still needs review before the team can complete the work."
     : "The agent could not complete this task.",
@@ -147,6 +148,29 @@ export const StoppedTasks: Story = {
   args: {
     messages: longHistory(40),
     stopped: [stoppedTask(chief.id, true), stoppedTask(sales.id, true), stoppedTask(research.id, true)],
+  },
+};
+
+/** Identical stop reasons still identify the owner and the work, including a missing owner. */
+export const StoppedTaskIdentity: Story = {
+  args: {
+    messages: longHistory(40),
+    stopped: [
+      { ...stoppedTask(chief.id), id: "stopped-pricing", instruction: "Review the pricing section." },
+      { ...stoppedTask(chief.id), id: "stopped-sources", instruction: "Check the regional sales sources." },
+      {
+        ...stoppedTask(sales.id),
+        id: "stopped-unassigned",
+        ownerAgentId: null,
+        instruction: "Assign an owner for the launch post.",
+      },
+      {
+        ...stoppedTask("agent-removed"),
+        instruction:
+          "Review the long source report and confirm the owner, publication date and regional totals before the launch post is ready. Keep the detailed evidence in the report so the next reviewer can check every source.",
+      },
+      { ...stoppedTask(chief.id), id: "stopped-without-instruction", instruction: "   " },
+    ],
   },
 };
 
