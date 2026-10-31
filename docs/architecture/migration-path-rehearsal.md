@@ -63,6 +63,13 @@ routine intent and zero routine-run rows. It verifies database and fixture write
 Source, snapshot and restored target hashes must remain unchanged after both starts. CI uploads
 only `.openbot-build/instance-migration-projection-e2e/report.json`.
 
+Each start owns a generated container name. A hard timeout kills the Docker CLI with `SIGKILL`;
+cleanup then force-removes only that exact owned container and checks its absence. `--rm` alone
+does not establish cleanup after a client timeout. A separate synthetic Node wait process must
+print its ready marker, time out, and leave no owned container. It does not run the projection
+reader or application. If Docker cannot confirm cleanup, the check fails, retains the generated
+lab mounts, and records `pendingOwnedContainers` for diagnosis. No other container is removed.
+
 This is a restricted synthetic projection process, not OpenBot startup or a test of its actual
 query controllers. It imports no application graph, database facade, agent store, provider,
 connector, scheduler or secret store. Active/paused routine intent is preserved as data; execution

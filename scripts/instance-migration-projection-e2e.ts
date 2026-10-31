@@ -1,7 +1,7 @@
 // No app startup. The only host process started is a restricted reader of generated synthetic data.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { chmod, cp, lstat, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { Effect, Schema } from "effect";
@@ -25,6 +25,8 @@ const ReaderResult = Schema.Struct({
 });
 let lab: SyntheticSnapshotLab | null = null;
 const results: Array<typeof ReaderResult.Type> = [];
+const ownedContainers = new Set<string>();
+let timedOutFixtureCleaned = false;
 let unchanged = false;
 
 async function fingerprint(root: string): Promise<string> {
@@ -46,6 +48,56 @@ async function makeReadable(path: string): Promise<void> {
   assert.ok(stat.isDirectory() || stat.isFile());
   await chmod(path, stat.isDirectory() ? 0o755 : 0o444);
   if (stat.isDirectory()) for (const name of await readdir(path)) await makeReadable(join(path, name));
+}
+
+function runProjection(pack: string, waitForTimeout = false) {
+  const name = `openbot-projection-fixture-${randomUUID()}`;
+  ownedContainers.add(name);
+  try {
+    return spawnSync(
+      "docker",
+      [
+        "run",
+        "--name",
+        name,
+        "--rm",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges:true",
+        "--user=1000:1000",
+        "--memory=256m",
+        "--cpus=1",
+        "--pids-limit=64",
+        "--env=HOME=/nonexistent",
+        "--mount",
+        `type=bind,src=${pack},dst=/fixture,readonly`,
+        "--mount",
+        `type=bind,src=${resolve(import.meta.dirname, "migration-lab/projection-reader.mjs")},dst=/reader.mjs,readonly`,
+        "node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c",
+        "node",
+        ...(waitForTimeout
+          ? ["--eval", 'process.stdout.write("SYNTHETIC_PROJECTION_WAIT_READY\\n"); setInterval(() => {}, 1000);']
+          : ["/reader.mjs"]),
+      ],
+      { encoding: "utf8", timeout: waitForTimeout ? 3000 : 60_000, killSignal: "SIGKILL" },
+    );
+  } finally {
+    // A timed-out Docker CLI does not prove that its daemon-side container stopped.
+    spawnSync("docker", ["container", "rm", "--force", name], {
+      encoding: "utf8",
+      timeout: 10_000,
+      killSignal: "SIGKILL",
+    });
+    const remaining = spawnSync("docker", ["container", "ls", "--all", "--quiet", "--filter", `name=${name}`], {
+      encoding: "utf8",
+      timeout: 10_000,
+      killSignal: "SIGKILL",
+    });
+    assert.equal(remaining.status, 0, "OWNED_CONTAINER_CLEANUP_UNVERIFIED");
+    assert.equal(remaining.stdout.trim(), "", "OWNED_CONTAINER_CLEANUP_UNVERIFIED");
+    ownedContainers.delete(name);
+  }
 }
 
 try {
@@ -72,33 +124,18 @@ try {
   );
   await makeReadable(pack);
   for (let start = 0; start < 2; start++) {
-    const run = spawnSync(
-      "docker",
-      [
-        "run",
-        "--rm",
-        "--network=none",
-        "--read-only",
-        "--cap-drop=ALL",
-        "--security-opt=no-new-privileges:true",
-        "--user=1000:1000",
-        "--memory=256m",
-        "--cpus=1",
-        "--pids-limit=64",
-        "--env=HOME=/nonexistent",
-        "--mount",
-        `type=bind,src=${pack},dst=/fixture,readonly`,
-        "--mount",
-        `type=bind,src=${resolve(import.meta.dirname, "migration-lab/projection-reader.mjs")},dst=/reader.mjs,readonly`,
-        "node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c",
-        "node",
-        "/reader.mjs",
-      ],
-      { encoding: "utf8", timeout: 60_000 },
-    );
+    const run = runProjection(pack);
     assert.equal(run.status, 0, "Restricted projection failed; no full app startup was attempted.");
     results.push(Schema.decodeUnknownSync(ReaderResult)(JSON.parse(run.stdout.trim())));
   }
+  // This separate synthetic process must start before its intentional timeout counts as tested.
+  const timedOut = runProjection(pack, true);
+  assert.equal(timedOut.status, null);
+  assert.ok(timedOut.error && "code" in timedOut.error);
+  assert.equal(timedOut.error.code, "ETIMEDOUT");
+  assert.equal(timedOut.stdout, "SYNTHETIC_PROJECTION_WAIT_READY\n");
+  assert.equal(ownedContainers.size, 0);
+  timedOutFixtureCleaned = true;
   unchanged =
     JSON.stringify(baseline) ===
     JSON.stringify([
@@ -110,13 +147,16 @@ try {
 } catch {
   process.exitCode = 1;
 } finally {
-  if (lab) await Effect.runPromise(lab.dispose());
+  // Keep generated mounts if daemon-side cleanup could not be verified.
+  if (lab && ownedContainers.size === 0) await Effect.runPromise(lab.dispose());
   await mkdir(reportRoot, { recursive: true, mode: 0o700 });
   const report = {
-    passed: results.length === 2 && unchanged,
+    passed: results.length === 2 && unchanged && timedOutFixtureCleaned && ownedContainers.size === 0,
     readerStarts: results.length,
     results,
     sourceSnapshotTargetUnchanged: unchanged,
+    timedOutFixtureCleaned,
+    pendingOwnedContainers: [...ownedContainers],
     fullAppStartupBlocked: true,
     fullAppStartupTested: false,
     realCredentialsVerified: false,
