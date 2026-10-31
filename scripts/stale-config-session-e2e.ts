@@ -35,6 +35,23 @@ try {
     isGrokHookLoadDiagnostic("2026-10-30T19:00:00.000Z ERROR hooks: CursorHookNotRun provider request failed"),
     false,
   );
+  const ignoredAsyncHook =
+    'hook loading error error=UnsupportedField { name: "settings:session_start[0].hooks[0]", path: "/fixture/settings.json", field: Async, handling: FieldIgnored }';
+  for (const level of ["WARN", "WARNING"]) {
+    assert.equal(isGrokHookLoadDiagnostic(`2026-10-30T19:00:00.000Z ${level} ${ignoredAsyncHook}`), true);
+  }
+  for (const level of ["ERROR", "FATAL", "CRITICAL", "INFO"]) {
+    assert.equal(isGrokHookLoadDiagnostic(`2026-10-30T19:00:00.000Z ${level} ${ignoredAsyncHook}`), false);
+  }
+  assert.equal(isGrokHookLoadDiagnostic(ignoredAsyncHook), false);
+  assert.equal(isGrokHookLoadDiagnostic(`WARN ${ignoredAsyncHook.replace("field: Async", "field: Timeout")}`), false);
+  assert.equal(
+    isGrokHookLoadDiagnostic(`WARN ${ignoredAsyncHook.replace("handling: FieldIgnored", "handling: Rejected")}`),
+    false,
+  );
+  assert.equal(isGrokHookLoadDiagnostic(`WARN ${ignoredAsyncHook.replace(", handling: FieldIgnored", "")}`), false);
+  assert.equal(isGrokHookLoadDiagnostic(`WARN ${ignoredAsyncHook.replace("field: Async, ", "")}`), false);
+  assert.equal(isGrokHookLoadDiagnostic("WARN hook loading error error=PermissionDenied"), false);
   assert.equal(
     isRecoveredAcpSessionDiagnostic("2026-10-30T19:00:00.000Z ERROR acp: session/load -32016 Session not found"),
     true,

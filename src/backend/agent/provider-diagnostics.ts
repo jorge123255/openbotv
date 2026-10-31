@@ -228,14 +228,21 @@ function diagnosticLevel(message: string): string | null {
 /**
  * Whether a Grok CLI line is a hook-load notice, not a failed turn.
  *
- * Grok reads Cursor hook files and logs `CursorHookNotRun` or `async unsupported fields` at WARN
- * when it skips a hook it cannot run. The turn continues. The line also contains "error", "failed",
- * or "warning", so it used to become "A provider failed." An ERROR or FATAL line stays a failure.
+ * Grok reads Cursor hook files and logs `CursorHookNotRun`, `async unsupported fields`, or an
+ * `UnsupportedField` record for an ignored `Async` field at WARN. The turn continues. The line also
+ * contains "error", "failed", or "warning", so it used to become "A provider failed." An ERROR or
+ * FATAL line stays a failure.
  */
 export function isGrokHookLoadDiagnostic(message: string): boolean {
-  if (!/\bCursorHookNotRun\b/u.test(message) && !/\basync unsupported fields\b/iu.test(message)) return false;
   const level = diagnosticLevel(message);
-  return level !== "ERROR" && level !== "FATAL" && level !== "CRITICAL";
+  if (level === "ERROR" || level === "FATAL" || level === "CRITICAL") return false;
+  if (/\bCursorHookNotRun\b/u.test(message) || /\basync unsupported fields\b/iu.test(message)) return true;
+  return (
+    (level === "WARN" || level === "WARNING") &&
+    /\bhook loading error error=UnsupportedField\s*\{[^}\r\n]*\bfield:\s*Async,\s*handling:\s*FieldIgnored\s*\}/u.test(
+      message,
+    )
+  );
 }
 
 /**
