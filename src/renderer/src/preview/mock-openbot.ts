@@ -446,7 +446,8 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       message: null,
     };
   };
-  let analyticsPreference = clone<AnalyticsPreference>(options.analyticsPreference ?? { enabled: true });
+  // Synthetic previews stay local when Storybook is built with production-mode assets.
+  let analyticsPreference = clone<AnalyticsPreference>(options.analyticsPreference ?? { enabled: false });
   let approvalAutomation = clone<ApprovalAutomationPreference>(DEFAULT_APPROVAL_AUTOMATION_PREFERENCE);
   let busyMessageMode: BusyMessageModePreference = { mode: DEFAULT_BUSY_MESSAGE_MODE };
   let agentDefaults: AgentDefaults = { ...DEFAULT_AGENT_DEFAULTS };
