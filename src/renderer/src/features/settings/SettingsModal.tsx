@@ -50,6 +50,7 @@ import { renderProfileShareImage } from "./profile-share-image";
 import { createSettingsAgentsSection } from "./SettingsAgentsSection";
 import { SettingsDynamicIslandTab } from "./SettingsDynamicIslandTab";
 import { SettingsGeneralTab } from "./SettingsGeneralTab";
+import { SettingsHermesGatewaysTab } from "./SettingsHermesGatewaysTab";
 import { SettingsNotificationsTab } from "./SettingsNotificationsTab";
 import { SettingsVoiceTab } from "./SettingsVoiceTab";
 import { dynamicIslandSettingsShown, navItem, navItems, type SettingsTab, settingsTabShown } from "./settings-tabs";
@@ -203,7 +204,8 @@ export function SettingsModal(props: SettingsModalProps) {
         value === "profile" ||
         value === "billing" ||
         value === "mobile-connect" ||
-        value === "updates"
+        value === "updates" ||
+        value === "hermes-gateways"
       ) {
         setActiveTab(value);
       }
@@ -284,6 +286,9 @@ export function SettingsModal(props: SettingsModalProps) {
           </Tabs.List>
         }
       >
+        <Tabs.Content value="hermes-gateways" class="settings-modal-tab-panel" data-tab="hermes-gateways">
+          <SettingsHermesGatewaysTab mount={modalElement} />
+        </Tabs.Content>
         <Tabs.Content value="general" class="settings-modal-tab-panel" data-tab="general">
           {preferencesLoadError()}
           <SettingsGeneralTab

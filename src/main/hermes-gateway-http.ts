@@ -4,6 +4,7 @@ import { registerSecretValues } from "@openbot/logging";
 import { HermesGatewayFailure } from "./hermes-gateway-protocol";
 
 export type GatewayRoute =
+  | "/auth/native/token"
   | "/api/status"
   | "/api/auth/providers"
   | "/auth/password-login"
@@ -23,6 +24,7 @@ export function gatewayRequest(
   signal: AbortSignal,
   cookie: string,
   body?: string,
+  bearer?: string,
 ): Promise<GatewayReply> {
   const url = new URL(`${base.origin}${base.pathname.replace(/\/$/u, "")}${route}`);
   return new Promise((resolve, reject) => {
@@ -38,6 +40,7 @@ export function gatewayRequest(
           accept: "application/json",
           origin: base.origin,
           ...(cookie ? { cookie } : {}),
+          ...(bearer ? { authorization: `Bearer ${bearer}` } : {}),
           ...(body === undefined ? {} : { "content-type": "application/json" }),
         },
       },

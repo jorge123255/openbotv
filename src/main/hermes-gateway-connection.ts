@@ -2,6 +2,7 @@ import { registerSecretValue } from "@openbot/logging";
 import { Effect, Semaphore } from "effect";
 import WebSocket from "ws";
 import { type GatewayRoute, gatewayRequest, HermesGatewayCookies } from "./hermes-gateway-http";
+import { authorizeHermesPassword, type HermesGatewayBrowser } from "./hermes-gateway-native-auth";
 import {
   decodeGateway,
   GatewayIdentity,
@@ -21,6 +22,7 @@ export class HermesGatewayConnection {
   readonly #lifetime = new AbortController();
   readonly #lock = Semaphore.makeUnsafe(1);
   #authenticated = false;
+  #nativeAccess: { token: string; expiresAt: number } | null = null;
 
   private constructor(base: URL) {
     this.#base = base;
@@ -71,6 +73,34 @@ export class HermesGatewayConnection {
     });
   }).bind(this);
 
+  readonly signInBrowser = Effect.fn("HermesGatewayConnection.signInBrowser")(function (
+    this: HermesGatewayConnection,
+    provider: string,
+    openBrowser: HermesGatewayBrowser,
+  ) {
+    return this.#operate(async (signal) => {
+      this.#clearSession();
+      const discovery = await this.#discover(signal);
+      if (
+        !discovery.nativePassword ||
+        !discovery.providers.some((item) => item.name === provider && item.supports_password)
+      )
+        throw new HermesGatewayFailure({ code: "unsupported-auth" });
+      const tokens = await authorizeHermesPassword(this.#base, provider, signal, openBrowser);
+      this.#nativeAccess = { token: tokens.access_token, expiresAt: tokens.expires_at * 1_000 };
+      const identity = decodeGateway(GatewayIdentity, await this.#request("/api/auth/me", signal));
+      if (identity.provider !== provider || identity.user_id !== tokens.user_id)
+        throw new HermesGatewayFailure({ code: "authentication" });
+      const profiles = await this.#profiles(signal);
+      const ticket = decodeGateway(GatewayTicket, await this.#request("/api/auth/ws-ticket", signal, "{}"));
+      registerSecretValue(ticket.ticket);
+      await checkGatewaySocket(this.#base, ticket.ticket, signal);
+      signal.throwIfAborted();
+      this.#authenticated = true;
+      return { profiles, expiresAt: this.#nativeAccess.expiresAt };
+    });
+  }).bind(this);
+
   readonly listProfiles = Effect.fn("HermesGatewayConnection.listProfiles")(function (this: HermesGatewayConnection) {
     return this.#operate(async (signal) => {
       if (!this.#authenticated) throw new HermesGatewayFailure({ code: "authentication" });
@@ -84,8 +114,15 @@ export class HermesGatewayConnection {
     this.#clearSession();
   }
 
+  /** Application shutdown also waits for the aborted sign-in and callback listener to unwind. */
+  readonly dispose = Effect.fn("HermesGatewayConnection.dispose")(function (this: HermesGatewayConnection) {
+    this.close();
+    return this.#lock.withPermits(1)(Effect.succeed(undefined));
+  }).bind(this);
+
   #clearSession(): void {
     this.#authenticated = false;
+    this.#nativeAccess = null;
     this.#cookies.clear();
   }
 
@@ -117,7 +154,12 @@ export class HermesGatewayConnection {
       GatewayProviders,
       (await gatewayRequest(this.#base, "/api/auth/providers", signal, "")).body,
     );
-    return { authRequired: true as const, providers: providers.providers, oauth: "unavailable" as const };
+    return {
+      authRequired: true as const,
+      providers: providers.providers,
+      nativePassword: status.auth_flows?.includes("native_pkce") ?? false,
+      oauth: "unavailable" as const,
+    };
   }
 
   async #profiles(signal: AbortSignal) {
@@ -127,9 +169,18 @@ export class HermesGatewayConnection {
 
   async #request(route: GatewayRoute, signal: AbortSignal, body?: string): Promise<string> {
     const path = `${this.#base.pathname.replace(/\/$/u, "")}${route}`;
-    const reply = await gatewayRequest(this.#base, route, signal, this.#cookies.header(path), body);
+    if (this.#nativeAccess && this.#nativeAccess.expiresAt <= Date.now())
+      throw new HermesGatewayFailure({ code: "authentication" });
+    const reply = await gatewayRequest(
+      this.#base,
+      route,
+      signal,
+      this.#nativeAccess ? "" : this.#cookies.header(path),
+      body,
+      this.#nativeAccess?.token,
+    );
     signal.throwIfAborted();
-    this.#cookies.record(this.#base, reply.cookies);
+    if (!this.#nativeAccess) this.#cookies.record(this.#base, reply.cookies);
     return reply.body;
   }
 }

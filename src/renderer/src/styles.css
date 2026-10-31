@@ -48,6 +48,7 @@
 @import "@openbot/ui/features/transfer/instance-transfer.css";
 @import "@openbot/ui/features/settings/settings-modal.css";
 @import "./features/settings/settings-modal.css";
+@import "./features/settings/hermes-gateways.css";
 @import "@openbot/ui/features/window/page-rail.css";
 @import "./features/window/window.css";
 @import "@openbot/ui/features/settings/opencode-key-dialog.css";

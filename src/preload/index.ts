@@ -244,6 +244,7 @@ import {
   decodeGrokBotStatus,
   decodeGrokBotUsageSummary,
 } from "./grok-bot-decoding";
+import { decodeHermesGatewaySetups } from "./hermes-gateway-decoding";
 import { decodeHostReleaseStatusFromMain } from "./host-release-decoding";
 import { decodeMacAutomationResults } from "./mac-automation-decoding";
 import {
@@ -978,6 +979,14 @@ const openbotApi: OpenBotDesktopApi = {
     delete: decodeCustomAgentResult,
     check: decodeCustomAgentCheckResult,
     usage: decodeCustomAgentUsage,
+  }),
+  hermesGateways: bridgeGroup(IPC_ENDPOINTS.hermesGateways, {
+    list: decodeHermesGatewaySetups,
+    probe: decodeHermesGatewaySetups,
+    signIn: decodeHermesGatewaySetups,
+    selectProfile: decodeHermesGatewaySetups,
+    disconnect: decodeHermesGatewaySetups,
+    forget: decodeHermesGatewaySetups,
   }),
   providerDetection: bridgeGroup(IPC_ENDPOINTS.providerDetection, {
     scanModelServers: decodeDetectedModelServers,

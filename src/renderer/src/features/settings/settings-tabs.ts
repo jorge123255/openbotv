@@ -25,7 +25,8 @@ export type SettingsTab =
   | "billing"
   | "mobile-connect"
   | "updates"
-  | "hosted-servers";
+  | "hosted-servers"
+  | "hermes-gateways";
 
 /**
  * A row of a tab that the settings search finds. The title key is also the anchor of the row: the
@@ -154,6 +155,13 @@ export const navItems: ReadonlyArray<SettingsNavItem> = [
     descriptionKey: "settings.tab.billing.description",
     icon: CreditCard,
     rows: [],
+  },
+  {
+    value: "hermes-gateways",
+    titleKey: "settings.hermesGateways.title",
+    descriptionKey: "settings.hermesGateways.description",
+    icon: Server,
+    rows: [{ titleKey: "settings.hermesGateways.title", descriptionKey: "settings.hermesGateways.addressHint" }],
   },
   {
     value: "mobile-connect",

@@ -93,6 +93,22 @@ The account service also sends an event when it makes a new account (with the ap
 and when it saves the first website visit of an account. A payment event and a revenue event include
 that first visit when the account has one.
 
+## Hermes gateway setup
+
+When you check a Hermes gateway address, the desktop app contacts that gateway for public status
+and sign-in provider information. Password sign-in opens the gateway's own page in your system
+browser. Your password is entered there; OpenBot's renderer does not receive it. The gateway
+returns a single-use, PKCE-bound code to a temporary loopback listener. OpenBot's main process
+exchanges the code directly with that same gateway, keeps bearer tokens in memory, reads profile
+names, and checks one authenticated socket upgrade. No chat message or local conversation is sent.
+Sign-in codes, verifier values and tokens are excluded from renderer responses and logs.
+
+Connection setup is temporary by default. If you choose Remember, a native confirmation asks to
+save only the gateway address and selected profile in this device's app settings. No password,
+bearer token or refresh token is saved. Remembered gateways do not connect automatically after a
+restart. Disconnect clears the active local session; Remove also clears remembered metadata.
+These actions do not revoke a remote token or sign out your system browser.
+
 ## AI conversation context
 
 When a provider session is replaced, OpenBot sends a bounded excerpt of the current conversation
