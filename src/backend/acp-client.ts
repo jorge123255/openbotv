@@ -10,6 +10,8 @@ import {
   type InitializeResponse,
   type LoadSessionRequest,
   type LoadSessionResponse,
+  type NewSessionRequest,
+  type NewSessionResponse,
   type PermissionOption,
   type PromptResponse,
   RequestError,
@@ -1561,7 +1563,17 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
               currentModelId = currentModelFromSessionSetup(response);
             } else {
               const response = providerResult(
-                yield* Effect.result(providerCall(() => connection().newSession({ cwd, ...directories, mcpServers }))),
+                yield* Effect.result(
+                  Effect.tryPromise({
+                    try: (signal) =>
+                      connection().request<NewSessionResponse>(
+                        "session/new",
+                        { cwd, ...directories, mcpServers } satisfies NewSessionRequest,
+                        { cancellationSignal: signal },
+                      ),
+                    catch: providerFailure,
+                  }),
+                ),
               );
               id = response.sessionId;
               configOptions = response.configOptions ?? [];
@@ -1624,6 +1636,11 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
           mcp.close();
           if (transport) yield* transport.stop(Effect.void).pipe(Effect.ignore);
         }),
+    ).pipe(
+      // A live ACP process can leave new/load/resume unanswered. Bound only this owned setup,
+      // close its bridge on interruption, and never bind a session from a late response.
+      Effect.interruptible,
+      this.#startTimeout(this.#startTimeoutMs ?? this.#requestTimeoutMs),
     );
   });
 
@@ -1653,11 +1670,15 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     method: "load" | "resume",
   ): Effect.fn.Return<LoadSessionResponse | ResumeSessionResponse, ProviderClientOperationError> {
     const restore = (current: ClientSideConnection) =>
-      providerCall(() =>
-        method === "resume"
-          ? current.resumeSession(request satisfies ResumeSessionRequest)
-          : current.loadSession(request),
-      );
+      Effect.tryPromise({
+        try: (signal) =>
+          method === "resume"
+            ? current.request<ResumeSessionResponse>("session/resume", request satisfies ResumeSessionRequest, {
+                cancellationSignal: signal,
+              })
+            : current.request<LoadSessionResponse>("session/load", request, { cancellationSignal: signal }),
+        catch: providerFailure,
+      });
     let failure: unknown;
     let recovery: "wait-for-start" | "list-sessions" | null = null;
     try {
