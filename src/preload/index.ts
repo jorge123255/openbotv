@@ -30,6 +30,7 @@ import {
   decodeHostAgentMemoryLimit,
   decodeHostMemoryReview,
   decodeHostTimezoneSettings,
+  decodeHostToolAsk,
   decodeHostUpdateStatus,
   decodeInstanceExportResult,
   decodeInstanceTransferPreview,
@@ -1367,6 +1368,10 @@ const openbotApi: OpenBotDesktopApi = {
     openLocation: decodeVoid,
     getRemovableRuntimes: decodeRemovableRuntimes,
     removeRemovableRuntimes: decodeRemovableRuntimes,
+  }),
+  hostTools: bridgeGroup(IPC_ENDPOINTS.hostTools, {
+    answer: decodeVoid,
+    ask: dropInvalid(decodeHostToolAsk),
   }),
   remoteDesktop: bridgeGroup(IPC_ENDPOINTS.remoteDesktop, {
     checkSetup: decodeRemoteDesktopSetupFromMain,

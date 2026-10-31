@@ -10,6 +10,7 @@ import type {
   ResetAgentSessionSettingInput,
   SetAgentSessionSettingInput,
 } from "./ipc-agent-session-settings";
+
 // The one channel list. Each endpoint holds its wire value, the group it belongs to, and whether it
 // is a request the renderer invokes or an event the main process sends. That is what lets a
 // registrar bind its handlers as an object keyed by endpoint, so a channel with no handler, and a
@@ -312,6 +313,7 @@ import type { HiddenAgentsSnapshot, SetAgentHiddenInput } from "./ipc-hidden-age
 import type { HostAnalytics, HostAnalyticsInput } from "./ipc-host-analytics";
 import type { HostReleaseStatus } from "./ipc-host-release";
 import type { HostTimezoneSettings } from "./ipc-host-timezone";
+import type { HostToolAnswer, HostToolAsk } from "./ipc-host-tools";
 import type {
   DeleteHostedSiteInput,
   HostedSiteList,
@@ -1893,6 +1895,11 @@ export const IPC_ENDPOINTS = {
     disconnect: request<string, void>()("remote-desktop:disconnect"),
     event: event<RemoteDesktopSession[]>()("remote-desktop:event"),
   },
+
+  hostTools: {
+    answer: request<HostToolAnswer, void>()("host-tools:answer"),
+    ask: event<HostToolAsk>()("host-tools:ask"),
+  },
 } as const;
 
 export type IpcEndpoints = typeof IPC_ENDPOINTS;
@@ -1965,6 +1972,7 @@ export const IPC_GROUP_PATHS = {
   host: "host",
   events: "events",
   remoteDesktop: "remoteDesktop",
+  hostTools: "hostTools",
 } as const satisfies { readonly [Group in keyof IpcEndpoints]: string | null };
 
 export type IpcGroupName = keyof IpcEndpoints;

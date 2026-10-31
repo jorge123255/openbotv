@@ -6,6 +6,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { decodeHostToolAnswer } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isNumber, isString } from "@openbot/contracts/runtime-values";
 import { sourceText } from "@openbot/i18n/source";
 import { closeBackgroundShells, executeHostAction } from "../src/backend/host-tools/host-tool-executor";
@@ -534,6 +535,14 @@ try {
   mark("local-exec-channel");
   await checkRunner();
   mark("runner-gate");
+  assert.deepEqual(decodeHostToolAnswer({ requestId: "r1", decision: "allow-once" }), {
+    requestId: "r1",
+    decision: "allow-once",
+  });
+  assert.equal(decodeHostToolAnswer({ requestId: "r1", decision: "accept" }), null);
+  assert.equal(decodeHostToolAnswer({ requestId: "r1", decision: "allow-once", gatewayToken: "secret" }), null);
+  assert.equal(decodeHostToolAnswer({ requestId: "r1", decision: "allow-once", accessToken: "secret" }), null);
+  mark("answer-decode");
   await mkdir(".openbot-build", { recursive: true });
   await writeFile(".openbot-build/host-tool-local-exec-e2e.json", JSON.stringify({ ok: true, checks }, null, 2));
 } finally {

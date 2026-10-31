@@ -32,6 +32,7 @@ import { ComposerVoiceControls, type VoicePhase } from "@openbot/ui/features/con
 import { type TextValue, useText } from "@openbot/ui/text";
 import type { JSX } from "@solidjs/web";
 import { children, createEffect, createSignal, For, onSettled, Show, untrack } from "solid-js";
+import { HostToolApprovalCard, type HostToolApprovalCardProps } from "../HostToolApprovalCard";
 
 const HOLD_TEXT = {
   "agent-restarting": "conversation.threads.hold.agentRestarting",
@@ -132,6 +133,8 @@ export interface AgentThreadViewProps {
   /** The approval that the thread's running turn waits for. */
   approval?: AgentApproval | undefined;
   onRespondApproval: (decision: "accept" | "decline") => Promise<boolean>;
+  /** A host-tool ask for this thread. Absent when no host tool is waiting. */
+  hostToolAsk?: HostToolApprovalCardProps | undefined;
   /** How full the thread's context is, when its provider reported it. */
   context?: ContextUsageView | undefined;
   /** Compacts the thread's context now. Missing when the host cannot. */
@@ -324,6 +327,20 @@ export function AgentThreadView(props: AgentThreadViewProps) {
                   agentName={props.agent.name}
                   onApprove={() => props.onRespondApproval("accept")}
                   onReject={() => props.onRespondApproval("decline")}
+                />
+              </div>
+            )}
+          </Show>
+          <Show keyed when={props.hostToolAsk}>
+            {(ask) => (
+              <div class="virtual-chat-row">
+                <HostToolApprovalCard
+                  actionLabel={ask.actionLabel}
+                  detail={ask.detail}
+                  pending={ask.pending}
+                  onAllowOnce={ask.onAllowOnce}
+                  onAlways={ask.onAlways}
+                  onNever={ask.onNever}
                 />
               </div>
             )}
