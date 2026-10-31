@@ -230,7 +230,6 @@ export class SyntheticSnapshotLab {
   get paths() {
     return this.#paths;
   }
-  #childBaseline: ReturnType<typeof databaseInventory> | null = null;
   #stopped = false;
   #manifestDigest: string | null = null;
   private constructor(base: string) {
@@ -383,6 +382,8 @@ export class SyntheticSnapshotLab {
       catch: failure,
     }),
   );
+
+  #childBaseline: ReturnType<typeof databaseInventory> | null = null;
 
   readonly restoreRelocatedOffline = Effect.fn("SyntheticSnapshotLab.restoreRelocatedOffline")(
     (
