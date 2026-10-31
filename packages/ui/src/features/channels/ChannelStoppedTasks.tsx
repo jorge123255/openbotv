@@ -4,7 +4,7 @@ import { For, Show } from "solid-js";
 import { useText } from "../../text";
 
 export function ChannelStoppedTasks(props: {
-  tasks: Pick<ChannelTask, "id" | "ownerAgentId" | "error">[];
+  tasks: Pick<ChannelTask, "id" | "ownerAgentId" | "instruction" | "error">[];
   members: Pick<ChannelMember, "agentId">[];
   name: (agentId: string | null) => string;
   onResume: (taskId: string, recipientAgentId: string | null) => Promise<boolean>;
@@ -19,7 +19,13 @@ export function ChannelStoppedTasks(props: {
               class="channel-paused-task"
               aria-label={t("channel.stoppedTask.label", { name: props.name(task.ownerAgentId) })}
             >
-              <p class="channel-paused-task-reason">{task.error ? sourceText(task.error) : null}</p>
+              <div class="channel-paused-task-copy">
+                <strong>{t("channel.stoppedTask.label", { name: props.name(task.ownerAgentId) })}</strong>
+                <p class="channel-paused-task-instruction" title={task.instruction.trim() || task.id}>
+                  {task.instruction.trim() || task.id}
+                </p>
+                <p class="channel-paused-task-reason">{task.error ? sourceText(task.error) : null}</p>
+              </div>
               <div class="channel-paused-task-actions">
                 {/* `resume` keeps the owner, and the service stops the task again when the owner left
                     the channel, so only Reassign can start it. */}

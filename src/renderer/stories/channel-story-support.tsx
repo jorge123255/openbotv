@@ -5,6 +5,7 @@
  * builds its variants on it, and the diagram workspace story shows it when a channel is open.
  */
 
+import type { ChannelTask } from "@openbot/contracts/ipc";
 import { Button } from "@openbot/ui";
 import type { AgentMessage } from "@openbot/ui/data";
 import type { ChannelWorker } from "@openbot/ui/features/channels/ChannelActivityIndicator";
@@ -94,7 +95,7 @@ export interface ChannelStoryProps {
   messages?: AgentMessage[];
   workers?: ChannelWorker[];
   awaiting?: AwaitingReplyItem[];
-  stopped?: { id: string; ownerAgentId: string; error: string }[];
+  stopped?: Pick<ChannelTask, "id" | "ownerAgentId" | "instruction" | "error">[];
   archived?: boolean;
   activeTurnId?: string | null;
   unreadCount?: number;
@@ -104,7 +105,7 @@ export interface ChannelStoryProps {
 /** The channel chat on a mocked bridge, for a story that shows a channel or composes screens. */
 export function StoryChannelConversation(props: ChannelStoryProps) {
   const name = () => props.name ?? "Project room";
-  const agentName = (id: string | null) => STORY_AGENTS.find((agent) => agent.id === id)?.name ?? "Unassigned";
+  const agentName = (id: string | null) => STORY_AGENTS.find((agent) => agent.id === id)?.name ?? id ?? "Unassigned";
   const source: ConversationChannelSource = {
     id: "story-channel",
     name,

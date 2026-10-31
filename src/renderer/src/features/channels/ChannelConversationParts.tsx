@@ -114,7 +114,7 @@ export function ChannelAboveComposer(props: { channelId: string }) {
   const { t } = useText();
   const page = useOpenChannel(props.channelId);
   const name = (id: string | null) =>
-    channels.agents().find((agent) => agent.id === id)?.name ?? t("sidebar.section.unassigned");
+    channels.agents().find((agent) => agent.id === id)?.name ?? id ?? t("sidebar.section.unassigned");
   const resumeTask = (taskId: string, recipientAgentId: string | null) =>
     channels.command({
       type: recipientAgentId ? "reassign" : "resume",

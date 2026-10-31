@@ -70,12 +70,22 @@
 .channel-paused-task + .channel-paused-task {
   border-top: 1px solid var(--openbot-accent-soft);
 }
-.channel-paused-task-reason {
+.channel-paused-task-copy {
   min-width: 0;
   flex: 1 1 24ch;
-  margin: 0;
   overflow-wrap: anywhere;
+  color: var(--openbot-text-primary);
   font-size: var(--openbot-text-sm);
+}
+.channel-paused-task-instruction {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: var(--openbot-space-1) 0;
+}
+.channel-paused-task-reason {
+  margin: 0;
 }
 .channel-paused-task-actions {
   display: flex;
