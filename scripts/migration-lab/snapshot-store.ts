@@ -321,26 +321,31 @@ export class SyntheticSnapshotLab {
     for (const entry of [...entries].reverse()) await chmod(join(target, entry.path), entry.mode);
   }
 
+  async #verifiedSnapshot() {
+    if (!this.#manifestDigest) throw new LabFailure({ code: "NO_SNAPSHOT" });
+    const bytes = await readFile(join(this.#paths.snapshot, "manifest.json"));
+    let manifest: SnapshotManifest;
+    try {
+      manifest = Schema.decodeUnknownSync(Manifest)(JSON.parse(bytes.toString("utf8")));
+    } catch {
+      throw new LabFailure({ code: "INVALID_MANIFEST" });
+    }
+    for (const entry of manifest.entries) relativePath(entry.path);
+    if (sha256(bytes) !== this.#manifestDigest) throw new LabFailure({ code: "SNAPSHOT_CHANGED" });
+    const tree = join(this.#paths.snapshot, "tree");
+    if (JSON.stringify(await inventory(tree)) !== JSON.stringify(manifest.entries))
+      throw new LabFailure({ code: "INVENTORY_MISMATCH" });
+    const databases = manifest.databases.map((item) => databaseInventory(tree, item.path));
+    if (JSON.stringify(databases) !== JSON.stringify(manifest.databases))
+      throw new LabFailure({ code: "DATABASE_INVALID" });
+    const pathsVerified = await checkRelationships(tree);
+    return { manifest, tree, databases, pathsVerified };
+  }
+
   readonly restoreOffline = Effect.fn("SyntheticSnapshotLab.restoreOffline")(() =>
     Effect.tryPromise({
       try: async () => {
-        if (!this.#manifestDigest) throw new LabFailure({ code: "NO_SNAPSHOT" });
-        const bytes = await readFile(join(this.#paths.snapshot, "manifest.json"));
-        let manifest: SnapshotManifest;
-        try {
-          manifest = Schema.decodeUnknownSync(Manifest)(JSON.parse(bytes.toString("utf8")));
-        } catch {
-          throw new LabFailure({ code: "INVALID_MANIFEST" });
-        }
-        for (const entry of manifest.entries) relativePath(entry.path);
-        if (sha256(bytes) !== this.#manifestDigest) throw new LabFailure({ code: "SNAPSHOT_CHANGED" });
-        const tree = join(this.#paths.snapshot, "tree");
-        if (JSON.stringify(await inventory(tree)) !== JSON.stringify(manifest.entries))
-          throw new LabFailure({ code: "INVENTORY_MISMATCH" });
-        const databases = manifest.databases.map((item) => databaseInventory(tree, item.path));
-        if (JSON.stringify(databases) !== JSON.stringify(manifest.databases))
-          throw new LabFailure({ code: "DATABASE_INVALID" });
-        const pathsVerified = await checkRelationships(tree);
+        const { manifest, tree, databases, pathsVerified } = await this.#verifiedSnapshot();
         if ((await readdir(this.#paths.base)).includes("target")) throw new LabFailure({ code: "TARGET_NOT_EMPTY" });
         const stage = await mkdtemp(join(this.#paths.base, "stage-"));
         try {
