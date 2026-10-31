@@ -116,6 +116,9 @@ The fork's [synthetic migration read acceptance](docs/architecture/migration-rea
 checks restored fixture history through the real conversation reader. It does not start the app,
 move credentials or provide complete migration.
 
+The fork's [credential portability lab](docs/architecture/credential-portability.md) tests
+authenticated encryption with generated records only. Real credential migration remains unavailable.
+
 ### Nix
 
 The flake installs the desktop app from the latest release on x64 or arm64 Linux and on Apple silicon:
