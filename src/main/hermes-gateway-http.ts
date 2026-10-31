@@ -89,10 +89,9 @@ export class HermesGatewayCookies {
       const separator = pair.indexOf("=");
       const name = pair.slice(0, separator).trim();
       const value = pair.slice(separator + 1).trim();
-      if (
-        !/^(?:__Host-|__Secure-)?hermes_(?:session_(?:at|rt|provider)|webapp_signin)(?:_[A-Za-z0-9_-]+)?$/u.test(name)
-      )
-        continue;
+      const cookieName =
+        /^(?:__Host-|__Secure-)?hermes_(session_(?:at|rt|provider)|webapp_signin)(?:_[A-Za-z0-9_-]+)?$/u.exec(name);
+      if (!cookieName) continue;
       const attrs = new Map(
         attributes.map((attribute) => {
           const index = attribute.indexOf("=");
@@ -120,7 +119,9 @@ export class HermesGatewayCookies {
       }
       const raw = unquoteCookie(value);
       if (raw === null || /[^\x21-\x7e]/u.test(raw)) continue;
-      const providerHint = /hermes_session_provider(?:_|$)/u.test(name);
+      // The captured role comes from the start of the complete cookie name. Suffix text must
+      // never turn an AT/RT/binding cookie into a nonsecret routing hint.
+      const providerHint = cookieName[1] === "session_provider";
       // Remote cookie input must not register short words in the process-wide redactor. Official
       // AT/RT values and the 64-character Webapp binding exceed this floor. Short custom tokens
       // are unsupported rather than accepted without redaction. The routing hint is not a secret.

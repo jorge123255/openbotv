@@ -24,7 +24,7 @@ interface SessionTokens {
 interface CookieFixtureOptions {
   tls?: FixtureTls;
   path?: "" | "/hermes";
-  rejectedCookies?: readonly string[];
+  additionalCookies?: readonly string[];
   expiredTicket?: boolean;
   holdUpgrade?: () => Promise<void>;
 }
@@ -101,7 +101,7 @@ async function cookieFixture(options: CookieFixtureOptions = {}) {
       `${name("rt")}=${wireValue(tokens.rt)}; ${attributes}${30 * 24 * 3600}`,
       `${name("provider")}=basic; ${attributes}${30 * 24 * 3600}`,
       `${name("binding")}=${tokens.binding}; ${attributes}${30 * 24 * 3600}`,
-      ...(options.rejectedCookies ?? []),
+      ...(options.additionalCookies ?? []),
     ]);
   };
 
@@ -344,7 +344,7 @@ export async function checkRejectedCookieRedaction(tls?: FixtureTls) {
   const attributes = `Path=/hermes; ${tls ? "Secure; " : ""}HttpOnly; Max-Age=3600`;
   const gateway = await cookieFixture({
     tls,
-    rejectedCookies: [
+    additionalCookies: [
       `hermes_session_rt_domain=${markers[0]}; ${attributes}; Domain=127.0.0.1`,
       `hermes_session_rt_path=${markers[1]}; Path=/elsewhere; HttpOnly; Max-Age=3600`,
       `hermes_session_rt_httponly=${markers[2]}; Path=/hermes; Max-Age=3600`,
@@ -366,6 +366,58 @@ export async function checkRejectedCookieRedaction(tls?: FixtureTls) {
         "Rejected and short secret cookies must not reach an authenticated request.",
       );
     }
+  } finally {
+    client.close();
+    await gateway.close();
+  }
+}
+
+/** A token cookie must not become a provider hint because of text in its gateway suffix. */
+export async function checkCookieSuffixRedaction(tls?: FixtureTls, path: "" | "/hermes" = "/hermes") {
+  const prefix = tls ? (path ? "__Secure-" : "__Host-") : "";
+  const attributes = `Path=${path || "/"}; ${tls ? "Secure; " : ""}HttpOnly; Max-Age=3600`;
+  const secrets = ["session_at", "session_rt", "webapp_signin"].map((role) => ({
+    name: `${prefix}hermes_${role}_hermes_session_provider`,
+    raw: randomBytes(32).toString("base64").replaceAll("+", "-").replaceAll("/", "_"),
+  }));
+  const shortName = `${prefix}hermes_session_at_hermes_session_provider_short`;
+  const short = "ix";
+  const shortBefore = redactText(short);
+  const hintName = `${prefix}hermes_session_provider_hermes_session_at`;
+  const hint = "nonsecret-provider-routing-label";
+  const hintBefore = redactText(hint);
+  const gateway = await cookieFixture({
+    tls,
+    path,
+    additionalCookies: [
+      ...secrets.map(({ name, raw }) => `${name}=${wireValue(raw)}; ${attributes}`),
+      `${shortName}=${short}; ${attributes}`,
+      `${hintName}=${hint}; ${attributes}`,
+    ],
+  });
+  const client = await Effect.runPromise(HermesGatewayConnection.create(gateway.url));
+  try {
+    await Effect.runPromise(client.signInPassword("basic", "alice", LOGIN_PASSWORD));
+    for (const { name, raw } of secrets) {
+      assert.ok(
+        !redactText(raw).includes(raw) && !redactText(wireValue(raw)).includes(raw),
+        "Token roles must stay secret when the gateway suffix contains provider-hint text.",
+      );
+      assert.ok(
+        gateway.requests.some((request) => request.cookies.get(name) === raw),
+        "An accepted adversarial-suffix token remains protected on authenticated transport.",
+      );
+    }
+    assert.ok(
+      gateway.requests.every((request) => !request.cookies.has(shortName)),
+      "A misleading gateway suffix must not bypass the minimum secret-token length.",
+    );
+    assert.ok(redactText(short) === shortBefore, "A rejected short suffix token must not change global masking.");
+    assert.ok(
+      gateway.requests.some((request) => request.cookies.get(hintName) === hint),
+      "A genuine provider hint remains usable when its suffix contains token-role text.",
+    );
+    assert.ok(redactText(hint) === hintBefore, "A genuine provider hint must remain nonsecret.");
   } finally {
     client.close();
     await gateway.close();

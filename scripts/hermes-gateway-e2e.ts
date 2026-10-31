@@ -18,6 +18,7 @@ import type { HermesGatewayFailure } from "../src/main/hermes-gateway-protocol";
 
 import {
   checkCookieSocketFailures,
+  checkCookieSuffixRedaction,
   checkQuotedCookieLifecycle,
   checkRejectedCookieRedaction,
 } from "./hermes-gateway-cookie-fixture";
@@ -474,6 +475,8 @@ async function trustedTlsChild() {
   await checkQuotedCookieLifecycle(tls);
   await checkQuotedCookieLifecycle(tls, "");
   await checkRejectedCookieRedaction(tls);
+  await checkCookieSuffixRedaction(tls);
+  await checkCookieSuffixRedaction(tls, "");
   const untrustedKey = process.argv[5];
   const untrustedCert = process.argv[6];
   assert.ok(untrustedKey && untrustedCert);
@@ -493,6 +496,7 @@ async function trustedTlsChild() {
 
 try {
   if (process.argv[2] === "--cookie-quoted") await checkQuotedCookieLifecycle();
+  else if (process.argv[2] === "--cookie-suffix") await checkCookieSuffixRedaction();
   else if (process.argv[2] === "--cookie-rejected") await checkRejectedCookieRedaction();
   else if (process.argv[2] === "--trusted-tls") await trustedTlsChild();
   else {
@@ -500,6 +504,8 @@ try {
     checks.push(
       "quoted padded AT/RT raw and wire redaction; full suffixed cookie set; concurrent account and refresh isolation",
     );
+    await checkCookieSuffixRedaction();
+    checks.push("anchored cookie roles prevent adversarial suffixes from bypassing token redaction or minimum length");
     await checkRejectedCookieRedaction();
     checks.push("rejected and short cookies and nonsecret provider hints cannot poison global redaction");
     await checkCookieSocketFailures();

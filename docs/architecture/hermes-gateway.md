@@ -44,6 +44,9 @@ worked. It does not mean that JSON-RPC chat works. No JSON-RPC frame is sent.
 - Discovery sends and accepts no session cookie. Authenticated replies accept only host-only,
   HttpOnly Hermes session cookies with a matching path and valid expiry. HTTPS cookies must be
   Secure. The jar accepts the `__Host-`, `__Secure-` and gateway-suffixed Hermes names.
+  Cookie type comes from the anchored full-name match, never a substring in the gateway suffix.
+  The pinned gateway emits a 16-character hex suffix. Adversarial fixture names also test the
+  adapter's broader accepted suffix grammar, including token names with provider-hint text.
 - Cookie attributes, path and expiry are checked before secret registration. Accepted AT, RT and
   binding values are registered in both their original wire form and their decoded raw form.
   Starlette can quote the padded base64 that the password provider emits; transport keeps those
@@ -86,6 +89,8 @@ The adapter keeps those replacements, keeps accounts separate, and makes no extr
 A rejected binding or final 401 clears local authentication. There is no client refresh endpoint
 or password replay. The fixture checks raw, wire and structured token redaction and proves that
 rejected cookies, short secret values and provider hints do not change unrelated log masking.
+Adversarial suffix cases check that AT, RT and binding cookies keep secret protection, that short
+values still fail the token-length rule, and that genuine provider hints remain nonsecret.
 
 The socket fixture enforces one-use tickets and TTL, refuses an expired ticket without replay,
 and supports cancellation before upgrade admission. It checks REST/WS Origin headers and exact
