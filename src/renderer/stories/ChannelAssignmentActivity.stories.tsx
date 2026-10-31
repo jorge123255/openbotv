@@ -198,7 +198,7 @@ export const Contrast: Story = {
             action: "assigned",
             agentId: "chief",
             timestamp: "2026-10-31T12:04:00.000Z",
-            task: views.get("working-task"),
+            task: requireFixture(views.get("working-task"), "The working assignment task"),
           }}
           agents={STORY_AGENTS}
           onSelectAgent={() => {
