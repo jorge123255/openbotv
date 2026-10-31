@@ -1,6 +1,9 @@
 # Authenticated migration destination verification: proposed design
 
-Status: **design only; pairing and build policy need an owner decision**. This document follows
+Status: **first scope approved; live implementation unavailable**. The owner approved explicitly
+paired verified servers and an exact same verified build, with mismatches blocked. The
+[synthetic verifier](synthetic-destination-verification.md) tests a candidate admission policy only.
+This document follows
 [migration preparation](migration-preparation.md) and [offline assessment](migration-assessment.md).
 It adds no endpoint, transport, credential, persistence, pairing, certificate exception or permission.
 Export, restore and activation remain unavailable. All current declarations remain unauthenticated.
@@ -30,19 +33,20 @@ Electron build configuration or build scripts. This is a source-audit limit, not
 unrelated artifact digest exists elsewhere. Runtime/recipe digests for other components do not identify
 the complete running migration destination.
 
-## Decision required: first trusted destination
+## First trusted destination
 
-Choose the first supported trust model before implementation. The full-house request permits local,
-Docker and user-chosen servers; it does not select a new account requirement or trust bootstrap.
+The owner selected explicitly paired verified servers for the first version, with standalone pairing
+to follow. The full-house request permits local, Docker and user-chosen servers. It does not authorize
+a new unverified first-key bootstrap. The options below record the design alternatives.
 
 | Option | User workflow | Benefit and constraint |
 | --- | --- | --- |
-| A: existing paired HTTPS host first — recommended first slice | Select a paired HTTPS host with approved trust provenance or independent fingerprint confirmation. Require source-owner and destination-owner/admin authority. | Reuses an explicitly approved pin. Excludes WebRTC-only, HTTP-only and never-paired hosts initially. Confirm this scope before making it the only path. |
+| A: existing paired HTTPS host first | Select a paired HTTPS host with approved trust provenance or independent fingerprint confirmation. Require source-owner and destination-owner/admin authority. | Reuses an explicitly approved pin. Excludes WebRTC-only, HTTP-only and never-paired hosts initially; separate adapters can follow. |
 | B: standalone console pairing | Open the destination console and compare its public-key fingerprint through a separate trusted channel. Approve a short-lived, read-only pairing on both ends. | Fits account-independent self-hosting. Needs a reviewed bootstrap, mutual authentication, expiry/revocation and certificate-provisioning workflow. No trust on first use or fingerprint from the same untrusted response. |
 | C: operator-managed PKI | Provision a trusted CA and client/server certificates outside the migration flow. | Fits managed servers. Requires certificate issuance, renewal, revocation and private-key lifecycle policy. This slice must not configure those credentials. |
 
-Recommendation: choose A for the first connected implementation, then design B as a separate adapter
-so standalone hosting remains possible. This is a proposal, not a selected policy. Do not silently
+The approved scope starts with explicitly trusted paired servers. The proposed first live transport
+is A's HTTPS adapter; B remains a separate adapter so standalone hosting remains possible. Do not silently
 add B or C as fallback when A fails. Do not transfer a source host private key to make another host
 appear paired. The destination keeps its own identity; source identities/history are transfer data
 for a later, separately verified step.
@@ -56,9 +60,10 @@ grants consent to move secrets.
 Whether a later cutover preserves the source logical host ID through handover or relinks clients to
 the destination identity is a separate future decision; this receipt must not decide it.
 
-## Decision required: exact build
+## Exact build
 
-Confirm which trusted artifact identifies a destination: installed desktop/server package, container
+The approved rule requires the exact same verified build and blocks a mismatch. A live adapter still
+needs a defined trusted artifact: installed desktop/server package, container
 image, or an operator-approved manifest for a development checkout. Define the complete executable
 and runtime scope, digest format, publisher trust and update policy before reporting an exact match.
 Version, Git commit, an image tag or an arbitrary digest supplied by the destination is insufficient.
@@ -89,7 +94,8 @@ client adapters and their permission rules unchanged.
 The first endpoint issues no reservation, session transfer, upload permission, schedule change or
 execution command. Its authorization is read-only and separate from any future cutover grant.
 Do not read real credentials or create durable ongoing access in the synthetic implementation.
-Generated fixture keys belong to an owned temporary scope and must be cleaned up. A later live adapter
+The current slice imports public RFC vectors only. Future TLS fixtures may generate owned temporary
+credentials, with cleanup, as part of their separately reviewed tests. A later live adapter
 may use existing authorized connection state only within the approved trust model.
 
 ## Plan and response binding
@@ -164,7 +170,7 @@ Preserve #63's `destinationVerified:false`, `inventoryComplete:false`, all six b
 operations. New evidence is a separate additive contract. It cannot promote an offline declaration,
 reserve the target or authorize export, restore, activation or a second source writer.
 
-## First integrated implementation after the decisions
+## Production implementation after the synthetic slice
 
 1. Add a trusted artifact/build-identity provider and a strict optional contract/codec. Freeze its
    canonical signed bytes, bounds and vectors. Use synthetic keys and manifests only during development.
@@ -187,9 +193,11 @@ cleanup; DNS/endpoint-policy refusal before request; fixed-error redaction; no l
 credential-store reads, routine execution or migration actions. Assert TLS refusals and redirect targets receive no credential
 or follow-up request. Keep existing released-client and offline-assessment behavior intact.
 
-## Current stop condition
+## Current implementation limit
 
-The owner must choose the initial pairing scope (A, B or C) and trusted build-artifact policy.
-The recommended bounded start is A with an explicitly approved manifest policy, while retaining B
-as the path for standalone hosting. No production endpoint, verifier or synthetic protocol has been
-implemented before that decision. The existing app remains offline-only for migration assessment.
+The owner approved explicitly paired verified servers and exact same verified builds. The synthetic
+slice verifies public fixture signatures, supplied artifact bytes and exact platform/architecture/
+runtime/artifact identity; it does not measure a real installation. No production endpoint, live
+transport, pairing record, build provider or application verifier is available. The actual app remains
+offline-only for migration assessment. A later live slice must implement the artifact/transport and
+trust-provenance requirements above without substituting version labels for exact build identity.
