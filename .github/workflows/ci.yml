@@ -960,6 +960,30 @@ jobs:
           # This output is not published. Skip Solid's per-component docgen analysis.
           OPENBOT_STORYBOOK_CHECK: "true"
 
+      - name: Install the fixture browser
+        run: bun node_modules/playwright-core/cli.js install --with-deps chromium
+
+      - name: Check Usage charts with mock analytics
+        shell: bash
+        run: |
+          mkdir -p .openbot-build/usage-chart-e2e
+          bun run storybook --no-open --ci --quiet > .openbot-build/usage-chart-e2e/storybook.log 2>&1 &
+          storybook_pid=$!
+          trap 'kill "$storybook_pid" 2>/dev/null || true' EXIT
+          curl --fail --silent --output /dev/null --retry 30 --retry-connrefused --retry-all-errors --retry-delay 1 http://localhost:6006/iframe.html
+          bun scripts/usage-chart-e2e.ts --url=http://localhost:6006 --browser-channel=chromium
+        env:
+          STORYBOOK_DISABLE_TELEMETRY: "1"
+          OPENBOT_STORYBOOK_PORT: "6006"
+
+      - name: Upload Usage chart evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: usage-chart-e2e
+          path: .openbot-build/usage-chart-e2e/
+          retention-days: 3
+
   all-checks-pass:
     # A summary of every job. Branch protection requires `Check`, not this job. A lane that
     # `detect` skipped counts as passed; a failed or cancelled job, including `detect` itself,

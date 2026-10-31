@@ -4183,10 +4183,10 @@ index 0000000000000000000000000000000000000000..6c83e0ffb1f9258a9e2eead2d5c670a5
 +
 diff --git a/node_modules/solid-recharts/dist/solid2.js b/dist/solid2.js
 new file mode 100644
-index 0000000000000000000000000000000000000000..89948a25bc993728c9608060640f1ffcbbfccc62
+index 0000000000000000000000000000000000000000..497fc6977d29d6466559a8e92b2a1a765f0a3503
 --- /dev/null
 +++ b/dist/solid2.js
-@@ -0,0 +1,62 @@
+@@ -0,0 +1,66 @@
 +// Solid 2 adapter for the published Solid 1 chart sources. Uses the host runtime only.
 +export * from "solid-js";
 +import * as solid from "solid-js";
@@ -4240,7 +4240,11 @@ index 0000000000000000000000000000000000000000..89948a25bc993728c9608060640f1ffc
 +    get(_target, key) {
 +      if (key === solid.$PROXY) return true;
 +      for (let index = sources.length - 1; index >= 0; index--) {
-+        const value = resolve(sources[index])?.[key];
++        const source = resolve(sources[index]);
++        // An omit/merge view's private metadata describes that source, not this proxy.
++        // Preserve explicit symbol props without forwarding virtual runtime symbols.
++        if (source == null || (typeof key === "symbol" && !Object.prototype.propertyIsEnumerable.call(source, key))) continue;
++        const value = source[key];
 +        if (value !== undefined) return value;
 +      }
 +    },
