@@ -542,6 +542,9 @@ export class TurnLifecycle {
         const turn = getRecord(params, "turn");
         const turnId = getString(turn, "id");
         if (!turnId) return;
+        // A fast stream can end before this event is read. The end already settled the turn.
+        // Starting it again marks the row running and the chat stays on thinking.
+        if (this.hasEnded(turnId)) return;
         if (this.#compaction.claimTurn(agentId, threadId, turnId)) return;
         this.#compaction.beginTurn(threadId);
         // The provider started this turn itself. A delivery that is starting now waits for its own turn.
@@ -692,7 +695,15 @@ export class TurnLifecycle {
         const turnId = getString(turn, "id");
         if (!turnId) return;
         const status = getString(turn, "status") ?? "completed";
-        if (status === "failed" && !this.#turnErrors.has(turnId)) {
+        const completedError = getRecord(turn, "error");
+        const completedMessage = getString(completedError, "message");
+        const hadStoredError = this.#turnErrors.has(turnId);
+        // The provider can put the reason on `turn/completed` and also send `error`. Keep the
+        // reason when the `error` event has not been read yet, so a failed delivery names it.
+        if (status === "failed" && completedMessage && !hadStoredError) {
+          this.#turnErrors.set(turnId, completedMessage);
+        }
+        if (status === "failed" && !hadStoredError && !completedMessage) {
           this.#hooks.emitFailure?.({
             code: "agent_error",
             agentId,

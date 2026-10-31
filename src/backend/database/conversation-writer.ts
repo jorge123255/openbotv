@@ -172,11 +172,14 @@ export class ConversationWriter {
               : eventType === "turn.interrupted-by-restart"
                 ? "interrupted"
                 : "completed";
+          // `turn_id` is the primary key. A Grok Bot turn can be stored on the sand session
+          // thread while recovery names the agent's public thread. A thread filter then matches
+          // no row, and the chat stays on thinking after the delivery is already interrupted.
           db.prepare(
             `UPDATE projection_turns
              SET status = ?, completed_at = ?, last_event_sequence = ?
-             WHERE thread_id = ? AND turn_id = ?`,
-          ).run(status, new Date().toISOString(), sequence, snapshot.threadId, payload.turnId);
+             WHERE turn_id = ?`,
+          ).run(status, new Date().toISOString(), sequence, payload.turnId);
         }
         // The ordinals follow the snapshot, so any turn can have moved.
         refreshThreadOrder(db, threadId);
@@ -565,11 +568,13 @@ export class ConversationWriter {
               : input.eventType === "turn.interrupted-by-restart"
                 ? "interrupted"
                 : "completed";
+          // `turn_id` is the primary key. Match it alone so a recovery write for the public
+          // thread still closes a turn row that was stored on the provider session thread.
           db.prepare(
             `UPDATE projection_turns
              SET status = ?, completed_at = ?, last_event_sequence = ?
-             WHERE thread_id = ? AND turn_id = ?`,
-          ).run(status, new Date().toISOString(), sequence, input.threadId, input.detail.turnId);
+             WHERE turn_id = ?`,
+          ).run(status, new Date().toISOString(), sequence, input.detail.turnId);
         }
         if (input.eventType === "turn.interrupted-by-restart") {
           // Restart recovery runs before any provider starts, so no turn of this thread runs.
