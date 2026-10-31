@@ -78,3 +78,7 @@ the destination and preserve work accepted after the snapshot. This lab supplies
 
 Fork PR #53 separately adds the Docker backup source-stop option and the broader migration design.
 The local-VM design and Hermes gateway setup are separate work; this lab changes neither.
+
+The next [path and projection stage](migration-path-rehearsal.md) adds a separate synthetic-only
+relocation method. The original mapping-only restore remains available. Inventory proof now also
+includes schema objects and internal SQLite table rows, including sequence state.
