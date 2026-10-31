@@ -30,7 +30,15 @@ const MAX_INITIALIZE_BYTES = 64 * 1024;
 const MAX_AGENT_NAME_LENGTH = 80;
 
 /** The headers of the Streamable HTTP transport. Every other header of the provider stays here. */
-const FORWARDED_REQUEST_HEADERS = ["accept", "content-type", "mcp-session-id", "mcp-protocol-version", "last-event-id"];
+const FORWARDED_REQUEST_HEADERS = [
+  "accept",
+  "content-type",
+  "mcp-session-id",
+  "mcp-protocol-version",
+  "mcp-method",
+  "mcp-name",
+  "last-event-id",
+];
 const FORWARDED_RESPONSE_HEADERS = ["content-type", "cache-control", "mcp-session-id", "mcp-protocol-version"];
 
 /** The port and the secret, kept so that a session resumed after a restart reaches the same address. */
@@ -449,6 +457,13 @@ function upstreamHeaders(
   for (const name of FORWARDED_REQUEST_HEADERS) {
     const value = request.headers[name];
     if (isString(value)) headers.set(name, value);
+  }
+  // MCP tool schemas can mirror arguments into Mcp-Param-* headers. Keep the provider's encoding;
+  // the upstream server checks these values against the body. Other provider headers stay local.
+  for (const [name, value] of Object.entries(request.headers)) {
+    if (name.startsWith("mcp-param-") && name.length > "mcp-param-".length && isString(value)) {
+      headers.set(name, value);
+    }
   }
   headers.set("authorization", `Bearer ${token}`);
   return headers;

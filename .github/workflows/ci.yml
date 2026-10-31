@@ -686,6 +686,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun run test:mcp-bridge-shutdown
 
+      - name: Run the MCP proxy routing headers E2E test
+        if: ${{ !cancelled() }}
+        run: bun scripts/mcp-proxy-headers-e2e.ts
+
       - name: Run the provider shutdown E2E test
         if: ${{ !cancelled() }}
         run: bun run test:provider-shutdown
@@ -777,6 +781,7 @@ jobs:
             .openbot-build/acp-flavor-e2e/
             .openbot-build/acp-mcp-server-names-e2e/
             .openbot-build/mcp-bridge-shutdown-e2e/
+            .openbot-build/mcp-proxy-headers-e2e/
             .openbot-build/provider-shutdown-e2e/
             .openbot-build/stale-config-session-e2e/
             .openbot-build/acp-turn-stall-e2e/
