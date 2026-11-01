@@ -39,6 +39,54 @@ let store: AgentStore | undefined;
 const open = async (id: string) => {
   await page.goto(new URL(`/iframe.html?id=${id}&viewMode=story`, target).href, { waitUntil: "domcontentloaded" });
 };
+// These bounds checks cover the review defect: text can overlap even without parent overflow.
+const assertChatCardLayout = async (replies: number, markers: boolean) => {
+  const result = await page.evaluate(() => {
+    const errors: string[] = [];
+    const visible = (element: Element) => element.getBoundingClientRect().height > 0;
+    const check = (container: Element, parts: Element[]) => {
+      const frame = container.getBoundingClientRect();
+      for (const [index, part] of parts.entries()) {
+        const box = part.getBoundingClientRect();
+        if (box.left < frame.left - 1 || box.right > frame.right + 1)
+          errors.push(`${part.className} extends outside its card`);
+        for (const other of parts.slice(index + 1)) {
+          const next = other.getBoundingClientRect();
+          if (
+            Math.min(box.right, next.right) - Math.max(box.left, next.left) > 1 &&
+            Math.min(box.bottom, next.bottom) - Math.max(box.top, next.top) > 1
+          )
+            errors.push(`${part.className} overlaps ${other.className}`);
+        }
+      }
+    };
+    const rows = [...document.querySelectorAll(".awaiting-replies-item")].filter(visible);
+    for (const row of rows) {
+      check(
+        row,
+        [
+          ...row.querySelectorAll(".awaiting-replies-name, .awaiting-replies-preview, .awaiting-replies-state, button"),
+        ].filter(visible),
+      );
+      for (const text of row.querySelectorAll<HTMLElement>(
+        ".awaiting-replies-name, .awaiting-replies-detail, .awaiting-replies-state-label, button",
+      )) {
+        if (text.scrollWidth > text.clientWidth + 1) errors.push(`${text.className} clips text`);
+      }
+    }
+    const contents = [...document.querySelectorAll(".chat-action-marker-content")].filter(visible);
+    for (const content of contents) {
+      check(content, [...content.children].filter(visible));
+      for (const time of content.querySelectorAll("time")) {
+        if (!time.textContent?.trim() || !time.getAttribute("datetime")) errors.push("Marker lost its date");
+      }
+    }
+    return { errors, replies: rows.length, markers: contents.length };
+  });
+  assert.deepEqual(result.errors, [], report.step);
+  assert.equal(result.replies, replies);
+  if (markers) assert.ok(result.markers > 0, "The fixture must include action markers.");
+};
 try {
   const base = "existing-bot-identity";
   for (const kind of ["robot", "orb"] as const) {
@@ -126,6 +174,7 @@ try {
       }
       return buttons.length > 0;
     });
+    await assertChatCardLayout(2, true);
     await page.screenshot({ path: resolve(output, `character-settings-${width}.png`) });
   }
   await page.getByRole("button", { name: "Maximize side panel", exact: true }).click();
@@ -200,6 +249,39 @@ try {
   report.cases.push(
     "A completed reply shares the roster reply mood, and returning focus restores both characters to idle.",
   );
+
+  await open("conversation-awaiting-replies--narrow-long-names");
+  await page.locator(".awaiting-replies-item").first().waitFor();
+  const replyHeader = page.locator(".awaiting-replies .task-list-header");
+  for (const width of [240, 320]) {
+    report.step = `Long reply names at ${width}px`;
+    await page.setViewportSize({ width, height: 1000 });
+    await assertChatCardLayout(4, false);
+    assert.deepEqual(
+      await page
+        .locator(".awaiting-replies-item")
+        .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-state"))),
+      ["replied", "working", "failed", "asked"],
+    );
+    await replyHeader.focus();
+    for (const button of await page.locator(".awaiting-replies-item button").all()) {
+      await page.keyboard.press("Tab");
+      await button.scrollIntoViewIfNeeded();
+      assert.equal(await button.evaluate((element) => element === document.activeElement), true);
+      assert.ok(await button.getAttribute("aria-labelledby"), "Reply actions retain the agent name.");
+      await button.click({ trial: true });
+    }
+    await page.screenshot({ path: resolve(output, `narrow-reply-cards-${width}.png`), fullPage: true });
+  }
+  await replyHeader.click();
+  assert.equal(await replyHeader.getAttribute("aria-expanded"), "false");
+  await replyHeader.click();
+  assert.equal(await replyHeader.getAttribute("aria-expanded"), "true");
+  await assertChatCardLayout(4, false);
+  report.cases.push(
+    "Narrow chat cards keep names, states, actions and marker dates separate; long-name reply actions remain keyboard reachable and the list can close and reopen.",
+  );
+  await page.setViewportSize({ width: 1672, height: 941 });
 
   await open("identity-agentavatar--living-characters");
   await page.locator('[data-character="robot"]').waitFor();
@@ -314,7 +396,7 @@ try {
     .evaluate(() =>
       [
         ...document.querySelectorAll<HTMLElement>(
-          ".conversation-header, .conversation-header button, .companion-stage, .companion-stage button, .settings-panel",
+          ".conversation-header, .conversation-header button, .companion-stage, .companion-stage button, .settings-panel, .awaiting-replies-item, .awaiting-replies-name, .awaiting-replies-state, .chat-action-marker-content, .chat-action-marker-content > *",
         ),
       ].map((element) => {
         const box = element.getBoundingClientRect();

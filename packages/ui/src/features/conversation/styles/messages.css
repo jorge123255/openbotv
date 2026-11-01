@@ -525,6 +525,8 @@
 
 .chat-action-marker-content {
   max-width: 100%;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--openbot-space-1);
 }
 
@@ -758,7 +760,9 @@
 .chat-action-marker-label,
 .chat-action-marker-time {
   flex: 0 0 auto;
-  white-space: nowrap;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .chat-action-marker-time {

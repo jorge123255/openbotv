@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- Keep reply names, states and actions separate in narrow chat cards. Wrap action-marker dates instead of crowding the target label.
+
 - Keep the character inside the chat beside agent settings. Fit header controls to the available chat width and hide the character when the side panel is maximized.
 
 - Share the runtime mood between the roster and chat character, including failed turns and recent replies.

@@ -146,3 +146,23 @@ export const UsageLimit: Story = {
     ],
   },
 };
+
+/** Long names, detail and an actionable wait in a card narrower than the full window. */
+export const NarrowLongNames: Story = {
+  args: {
+    onOpenAgent: fn(),
+    onSteer: fn(),
+    items: [
+      { ...researchReplied, name: "Research and source verification", deliveryId: "long-research-reply" },
+      {
+        id: "long-sales-wait",
+        agent: sales,
+        name: "Sales outbound and account follow-up",
+        state: "working",
+        wait: { kind: "waiting", reason: "question", detail: "Which region should we launch in first?" },
+      },
+      { id: "long-failed", name: "Support and customer feedback", state: "failed", detail: "The retry needs a review" },
+      { id: "long-asked", name: "Scheduling and reminders", state: "asked" },
+    ],
+  },
+};
