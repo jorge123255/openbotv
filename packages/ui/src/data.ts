@@ -5,6 +5,7 @@ import type {
   AgentModelId,
   AgentReasoningEffort,
   AttachmentSummary,
+  AvatarCharacter,
   AvatarHue,
   ChannelRoutingConversationEvent,
   ChannelTaskState,
@@ -295,6 +296,7 @@ export interface AgentProfile {
   threadId: string | null;
   /** The agent's working directory. Absent for profiles built before it was tracked. */
   workspacePath?: string;
+  avatarCharacter?: AvatarCharacter | undefined;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   avatarUrl: string | null;
@@ -313,7 +315,7 @@ export interface AgentProfile {
 /** The agent fields that the composer, the queue, rich text and the browser dock read. */
 export type ComposerAgent = Pick<
   AgentProfile,
-  "id" | "name" | "title" | "description" | "avatarSeed" | "avatarHue" | "avatarUrl"
+  "id" | "name" | "title" | "description" | "avatarSeed" | "avatarHue" | "avatarUrl" | "avatarCharacter"
 >;
 
 /** The skill fields that the composer, the queue and rich text read. */

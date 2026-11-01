@@ -1,5 +1,5 @@
 import { BloubBot } from "@norbert_bodziony/bloub";
-import { avatarCharacter, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
+import { type AvatarCharacter, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { render } from "@solidjs/web";
 import { flush } from "solid-js";
@@ -29,17 +29,18 @@ export {
   type ShapeSafeStateId,
 } from "@openbot/brand/bloub-avatar-motion";
 
-export function createStaticAvatarSvg(seed: string, hue: AvatarHue | null): SVGSVGElement {
-  const character = avatarCharacter(seed);
-  if (character.kind !== "shape") {
+export function createStaticAvatarSvg(
+  seed: string,
+  hue: AvatarHue | null,
+  character: AvatarCharacter = "shape",
+): SVGSVGElement {
+  if (character !== "shape") {
     const host = document.createElement("span");
     host.style.cssText = "position:fixed;left:-10000px;visibility:hidden";
     document.body.appendChild(host);
-    const kind = character.kind;
+    const kind = character;
     const dispose = render(
-      () => (
-        <CharacterAvatar kind={kind} seed={character.seed} hue={hue} mood="idle" motion="idle" followPointer={false} />
-      ),
+      () => <CharacterAvatar kind={kind} seed={seed} hue={hue} mood="idle" motion="idle" followPointer={false} />,
       host,
     );
     try {

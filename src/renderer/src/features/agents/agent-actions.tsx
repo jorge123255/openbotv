@@ -83,7 +83,9 @@ const AgentActions = createSimpleContext({
     function requestNewAgent(draft: NewAgentDraft) {
       const createModelSupported =
         activeServer()?.kind !== "remote" || activeServerSupportsCapability(TEAM_AGENT_CREATE_MODEL_CAPABILITY);
-      return agentsPort().agent.createAgent(newAgentInput(draft, createModelSupported));
+      return agentsPort().agent.createAgent(
+        newAgentInput(draft, createModelSupported, activeServer()?.kind === "local"),
+      );
     }
 
     /** Synchronous, so a caller that also selects the agent does both in the same update. */

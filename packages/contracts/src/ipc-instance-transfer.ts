@@ -9,7 +9,7 @@
 
 import { type AgentProviderId, isAgentProvider, isAgentProviderRef } from "./agent-providers";
 import { INPUT_LIMITS } from "./input-limits";
-import { type AvatarHue, isAvatarHue } from "./ipc-agent-identity";
+import { type AvatarCharacter, type AvatarHue, isAvatarCharacter, isAvatarHue } from "./ipc-agent-identity";
 import {
   AGENT_IMPORT_LIMITS,
   type AgentImportPreviewAgent,
@@ -34,6 +34,7 @@ export interface InstanceTransferAgent {
   id: string;
   name: string;
   title: string;
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   avatarUrl: string | null;
@@ -144,6 +145,7 @@ function decodeTransferAgent(value: unknown): InstanceTransferAgent {
     !isIdentifier(agent.id) ||
     !isBoundedString(agent.name, INPUT_LIMITS.agentName) ||
     !isBoundedString(agent.title, INPUT_LIMITS.agentTitle) ||
+    (agent.avatarCharacter !== undefined && !isAvatarCharacter(agent.avatarCharacter)) ||
     !isString(agent.avatarSeed) ||
     !(agent.avatarHue === null || isAvatarHue(agent.avatarHue)) ||
     !isNullableBoundedString(agent.avatarUrl, 2048)
@@ -153,6 +155,7 @@ function decodeTransferAgent(value: unknown): InstanceTransferAgent {
     id: agent.id,
     name: agent.name,
     title: agent.title,
+    ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
     avatarSeed: agent.avatarSeed,
     avatarHue: agent.avatarHue,
     avatarUrl: agent.avatarUrl,

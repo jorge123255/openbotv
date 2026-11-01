@@ -1,7 +1,13 @@
 import { createAgentTemplateShareUrl, isAgentTemplateId, isAgentTemplateShareOrigin } from "./agent-template-links";
 import { isAvatarMimeType, isValidAvatarImage } from "./avatar-images";
 import { INPUT_LIMITS } from "./input-limits";
-import { type AvatarHue, isAvatarHue, isAvatarSeed } from "./ipc-agent-identity";
+import {
+  type AvatarCharacter,
+  type AvatarHue,
+  isAvatarCharacter,
+  isAvatarHue,
+  isAvatarSeed,
+} from "./ipc-agent-identity";
 import type { AvatarImageInput, ClientAgentSummary } from "./ipc-agents";
 import type { MarketplaceAgentRoutine, MarketplaceAgentSkill } from "./ipc-marketplace-agents";
 import { isReleasedRoutineSchedule } from "./ipc-routines";
@@ -20,6 +26,8 @@ export interface AgentTemplateSnapshot {
   name: string;
   title: string;
   description: string;
+  /** Local appearance choice; absence keeps the full seed as a shape. Not in frozen Team DTOs. */
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   skills: AgentTemplateSkill[];
@@ -154,6 +162,7 @@ export function isAgentTemplateSnapshot(value: unknown): value is AgentTemplateS
     isString(value.description) &&
     value.description.trim().length > 0 &&
     value.description.length <= INPUT_LIMITS.agentDescription &&
+    (value.avatarCharacter === undefined || isAvatarCharacter(value.avatarCharacter)) &&
     isAvatarSeed(value.avatarSeed) &&
     (value.avatarHue === null || isAvatarHue(value.avatarHue)) &&
     Array.isArray(value.skills) &&
@@ -185,7 +194,11 @@ export function agentTemplateSnapshotProblem(value: AgentTemplateSnapshot): Agen
   if (value.title.length > INPUT_LIMITS.agentTitle) return { kind: "title" };
   if (!value.description.trim()) return { kind: "noInstructions" };
   if (value.description.length > INPUT_LIMITS.agentDescription) return { kind: "instructions" };
-  if (!isAvatarSeed(value.avatarSeed) || (value.avatarHue !== null && !isAvatarHue(value.avatarHue)))
+  if (
+    (value.avatarCharacter !== undefined && !isAvatarCharacter(value.avatarCharacter)) ||
+    !isAvatarSeed(value.avatarSeed) ||
+    (value.avatarHue !== null && !isAvatarHue(value.avatarHue))
+  )
     return { kind: "avatar" };
   if (value.skills.length > AGENT_TEMPLATE_LIMITS.skills) return { kind: "skills" };
   if (value.skills.filter((skill) => skill.kind === "embedded").length > AGENT_TEMPLATE_LIMITS.embeddedSkills)
@@ -234,6 +247,7 @@ export function toAgentTemplateSnapshot(value: AgentTemplateSnapshot): AgentTemp
     name: value.name.trim(),
     title: value.title.trim(),
     description: value.description.trim(),
+    ...(value.avatarCharacter === undefined ? {} : { avatarCharacter: value.avatarCharacter }),
     avatarSeed: value.avatarSeed,
     avatarHue: value.avatarHue,
     skills: value.skills.map((skill) =>
@@ -268,6 +282,7 @@ export function decodeHostAgentTemplatePreview(value: unknown): AgentTemplatePre
     !isString(value.name) ||
     !isString(value.title) ||
     !isString(value.description) ||
+    (value.avatarCharacter !== undefined && !isAvatarCharacter(value.avatarCharacter)) ||
     !isAvatarSeed(value.avatarSeed) ||
     (value.avatarHue !== null && !isAvatarHue(value.avatarHue)) ||
     !Array.isArray(value.skills) ||
@@ -283,6 +298,7 @@ export function decodeHostAgentTemplatePreview(value: unknown): AgentTemplatePre
       name: value.name,
       title: value.title,
       description: value.description,
+      ...(value.avatarCharacter === undefined ? {} : { avatarCharacter: value.avatarCharacter }),
       avatarSeed: value.avatarSeed,
       avatarHue: value.avatarHue,
       skills: value.skills,

@@ -59,6 +59,7 @@ export function toAgentProfile(stored: ClientAgentSummary): AgentProfile {
     ...(stored.pendingRuntime === undefined ? {} : { pendingRuntime: stored.pendingRuntime }),
     threadId: stored.threadId,
     workspacePath: stored.workspacePath,
+    ...(stored.avatarCharacter === undefined ? {} : { avatarCharacter: stored.avatarCharacter }),
     avatarSeed: stored.avatarSeed,
     avatarHue: stored.avatarHue,
     avatarUrl: stored.avatarUrl,
@@ -249,6 +250,7 @@ export function agentProfilesEqual(left: AgentProfile, right: AgentProfile): boo
     left.busyMessageMode === right.busyMessageMode &&
     left.taskLimit === right.taskLimit &&
     left.threadId === right.threadId &&
+    left.avatarCharacter === right.avatarCharacter &&
     left.avatarSeed === right.avatarSeed &&
     left.avatarHue === right.avatarHue &&
     left.avatarUrl === right.avatarUrl &&

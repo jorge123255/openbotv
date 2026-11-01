@@ -8,7 +8,7 @@ import {
   POSES,
   RAYON,
 } from "@norbert_bodziony/bloub";
-import { avatarCharacter } from "@openbot/brand/bloub-avatar";
+import type { AvatarCharacter } from "@openbot/brand/bloub-avatar";
 import {
   type AvatarMood,
   avatarMoodIsBusy,
@@ -58,7 +58,8 @@ function slowerBlock(state: ShapeSafeStateId): Block {
 }
 
 interface AgentAvatarProps {
-  agent?: Pick<AgentProfile, "avatarSeed" | "avatarHue" | "avatarUrl"> | undefined;
+  agent?: Pick<AgentProfile, "avatarSeed" | "avatarHue" | "avatarUrl" | "avatarCharacter"> | undefined;
+  character?: AvatarCharacter | undefined;
   seed?: string | undefined;
   hue?: AvatarHue | null;
   url?: string | null | undefined;
@@ -79,9 +80,9 @@ interface AgentAvatarProps {
 
 export function AgentAvatar(props: AgentAvatarProps) {
   const seed = () => props.seed ?? props.agent?.avatarSeed ?? "agent";
-  const character = createMemo(() => avatarCharacter(seed()));
+  const character = () => props.character ?? props.agent?.avatarCharacter ?? "shape";
   const characterKind = () => {
-    const kind = character().kind;
+    const kind = character();
     return kind === "shape" ? "orb" : kind;
   };
   const hue = () => (props.hue !== undefined ? props.hue : (props.agent?.avatarHue ?? null));
@@ -110,11 +111,11 @@ export function AgentAvatar(props: AgentAvatarProps) {
       when={url() && !imageFailed()}
       fallback={
         <Show
-          when={character().kind === "shape"}
+          when={character() === "shape"}
           fallback={
             <CharacterAvatar
               kind={characterKind()}
-              seed={character().seed}
+              seed={seed()}
               hue={hue()}
               motion={motion()}
               mood={mood()}

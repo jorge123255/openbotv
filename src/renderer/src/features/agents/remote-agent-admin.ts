@@ -275,6 +275,7 @@ export async function updateRemoteAgent(
   input: UpdateAgentInput,
   updateProfile: (input: UpdateAgentInput) => Promise<void>,
 ): Promise<void> {
+  if (input.avatarCharacter !== undefined) throw new Error(currentText().t("error.agent.settingsLocalOnly"));
   const { access, allowAutomation, busyMessageMode, backupModels, taskLimit, agentId, ...fields } = input;
   // A joined server's host keeps one value for each agent: it has no account default to return to.
   // Only Settings › Agents sends `null`, and only for this computer, so no user sees this error.

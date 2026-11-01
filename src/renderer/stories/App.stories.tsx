@@ -1,4 +1,3 @@
-import { avatarCharacterSeed } from "@openbot/brand/bloub-avatar";
 import type { AgentEvent } from "@openbot/contracts/ipc";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
 import { onCleanup } from "solid-js";
@@ -70,12 +69,7 @@ export const CompanionWorkspace: Story = {
       options={{
         agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
           ...agent,
-          avatarSeed:
-            index === 0
-              ? `character:robot:${agent.avatarSeed}`
-              : index === 1
-                ? `character:orb:${agent.avatarSeed}`
-                : agent.avatarSeed,
+          avatarCharacter: index === 0 ? "robot" : index === 1 ? "orb" : "shape",
           updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
         })),
       }}
@@ -91,10 +85,56 @@ export const BotAiWorkspace: Story = {
       options={{
         agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
           ...agent,
-          avatarSeed:
-            avatarCharacterSeed(agent.avatarSeed, index === 0 ? "pebble" : index === 1 ? "wisp" : "sprout") ??
-            agent.avatarSeed,
+          avatarCharacter: index === 0 ? "pebble" : index === 1 ? "wisp" : "sprout",
           updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
+        })),
+      }}
+    />
+  ),
+};
+
+/** A failed host save must not remove the existing uploaded image. */
+export const CharacterSaveFailure: Story = {
+  render: () => {
+    useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
+    return (
+      <OpenBotPlayground
+        options={{
+          agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+            ...agent,
+            avatarUrl:
+              index === 0
+                ? "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                : agent.avatarUrl,
+          })),
+        }}
+        dependencies={{
+          createMock: (options) => {
+            const mock = createMockOpenBot(options);
+            const update = mock.api.agent.updateAgent;
+            mock.api.agent.updateAgent = async (...args) => {
+              if (args[0].avatarCharacter !== undefined) throw new Error("Synthetic character save failure");
+              return update(...args);
+            };
+            return mock;
+          },
+          renderApp: () => <App />,
+        }}
+      />
+    );
+  },
+};
+
+/** Valid old seed text is not a character selection. */
+export const LegacySeedWorkspace: Story = {
+  render: () => (
+    <SidebarStatePlayground
+      compact={false}
+      options={{
+        agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+          ...agent,
+          avatarSeed:
+            index === 0 ? "character:pebble:chief" : index === 1 ? "character:robot:research" : "character:orb:sales",
         })),
       }}
     />
@@ -110,7 +150,7 @@ export const CompanionTurnStates: Story = {
         options={{
           agents: STORY_AGENT_SUMMARIES.map((agent) => ({
             ...agent,
-            avatarSeed: `character:robot:${agent.avatarSeed}`,
+            avatarCharacter: "robot",
             updatedAt: new Date().toISOString(),
           })),
         }}

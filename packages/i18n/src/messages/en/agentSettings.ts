@@ -119,7 +119,6 @@ export const messages = defineMessages("agentSettings", {
   "agentSettings.avatar.characterShapes": "Shapes",
   "agentSettings.avatar.characterRobot": "Companion",
   "agentSettings.avatar.characterOrb": "Orb",
-  "agentSettings.avatar.characterSeedLimit": "Choose a shape first to use a character with this saved avatar.",
   "agentSettings.avatar.showCharacter": "Show character",
   "agentSettings.avatar.hideCharacter": "Hide character",
   "agentSettings.avatar.characterHint": "Change this character, color, or image in appearance settings.",

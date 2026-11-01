@@ -1,7 +1,7 @@
 import {
   AVATAR_CHARACTERS,
+  type AvatarCharacter,
   avatarCandidateSeeds,
-  avatarCharacterSeed,
   bloubAvatarProfile,
 } from "@openbot/brand/bloub-avatar";
 import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
@@ -296,7 +296,8 @@ export const LivingCharacters: AgentStory = {
           {AVATAR_CHARACTERS.map((kind) => (
             <section aria-label={kind} class="grid justify-items-center gap-3">
               <AgentAvatar
-                seed={avatarCharacterSeed("chief", kind) ?? "chief"}
+                seed="chief"
+                character={kind}
                 hue={245}
                 mood={mood()}
                 motion="always"
@@ -312,12 +313,12 @@ export const LivingCharacters: AgentStory = {
   },
 };
 
-function StaticCharacterPreview(props: { seed: string }) {
+function StaticCharacterPreview(props: { seed: string; character?: AvatarCharacter }) {
   let host!: HTMLSpanElement;
   onSettled(() => {
     let active = true;
     queueMicrotask(() => {
-      if (active) host.replaceChildren(createStaticAvatarSvg(props.seed, 245));
+      if (active) host.replaceChildren(createStaticAvatarSvg(props.seed, 245, props.character));
     });
     return () => {
       active = false;
@@ -331,7 +332,7 @@ export const StaticCharacters: AgentStory = {
   render: () => (
     <div class="flex gap-8 p-8">
       {AVATAR_CHARACTERS.filter((kind) => kind !== "shape").map((kind) => (
-        <StaticCharacterPreview seed={avatarCharacterSeed("chief", kind) ?? "chief"} />
+        <StaticCharacterPreview seed="chief" character={kind} />
       ))}
     </div>
   ),
@@ -339,7 +340,8 @@ export const StaticCharacters: AgentStory = {
 
 export const CharacterImage: AgentStory = {
   args: {
-    seed: "character:robot:chief",
+    seed: "chief",
+    character: "robot",
     url: "data:image/gif;base64,R0lGODlhCAAIAIEAAP8AAAAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh+QQADAAAACwAAAAACAAIAAAIDwABCBxIsKDBgwgTKkwYEAAh+QQBDAABACwAAAAACAAIAIEAgAAAAAAAAAAAAAAIDwABCBxIsKDBgwgTKkwYEAAh+QQBDAABACwAAAAACAAIAIEAAP8AAAAAAAAAAAAIDwABCBxIsKDBgwgTKkwYEAA7",
     motion: "always",
     style: { width: "96px", height: "96px" },
@@ -351,7 +353,7 @@ export const CharacterImageFamilies: AgentStory = {
   render: () => (
     <div class="flex flex-wrap gap-8 p-8">
       {AVATAR_CHARACTERS.map((kind) => (
-        <AgentAvatar {...CharacterImage.args} seed={avatarCharacterSeed("chief", kind) ?? "chief"} />
+        <AgentAvatar {...CharacterImage.args} seed="chief" character={kind} />
       ))}
     </div>
   ),

@@ -19,6 +19,8 @@
 
 ### Fixed
 
+- Store character choices separately from avatar seeds. Keep every old seed literal, including character-like prefixes. Save, reset, copy and transfer the choice without changing the seed. Character editing is local-only until a Team capability is added; remote and native clients keep the original shape.
+
 - Keep reply names, states and actions separate in narrow chat cards. Wrap action-marker dates instead of crowding the target label.
 
 - Keep the character inside the chat beside agent settings. Fit header controls to the available chat width and hide the character when the side panel is maximized.

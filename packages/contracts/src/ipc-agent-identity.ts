@@ -17,6 +17,13 @@ export type AgentReasoningEffort = (typeof AGENT_REASONING_EFFORTS)[number];
 export const AVATAR_HUES = [0, 30, 55, 100, 150, 185, 215, 245, 280, 320] as const;
 export type AvatarHue = (typeof AVATAR_HUES)[number];
 
+/** Explicit appearance metadata. Avatar seeds remain opaque in every version. */
+export const AVATAR_CHARACTERS = ["shape", "pebble", "wisp", "sprout", "comet", "orb", "robot"] as const;
+export type AvatarCharacter = (typeof AVATAR_CHARACTERS)[number];
+export function isAvatarCharacter(value: unknown): value is AvatarCharacter {
+  return isOneOf(AVATAR_CHARACTERS, value);
+}
+
 // Square brackets are in the set because a provider CLI puts them there: the Claude CLI reports its
 // 1M-context Fable variant as `claude-fable-5-1[1m]`, and every id this guard sees was minted by a
 // CLI OpenBot does not control. `=` and `,` are there for the same reason: the Cursor CLI lists its

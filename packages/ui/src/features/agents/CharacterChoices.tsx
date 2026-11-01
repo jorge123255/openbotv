@@ -1,9 +1,4 @@
-import {
-  AVATAR_CHARACTERS,
-  type AvatarCharacter,
-  avatarCharacter,
-  avatarCharacterSeed,
-} from "@openbot/brand/bloub-avatar";
+import { AVATAR_CHARACTERS, type AvatarCharacter } from "@openbot/brand/bloub-avatar";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { Button } from "@openbot/ui";
 import { useText } from "@openbot/ui/text";
@@ -35,10 +30,10 @@ export function CharacterChoices(props: {
   hue: AvatarHue | null;
   disabled?: boolean;
   hasImage?: boolean;
-  onSelect: (seed: string) => void;
+  character?: AvatarCharacter;
+  onSelect: (kind: AvatarCharacter) => void;
 }) {
   const { t } = useText();
-  const choice = (kind: AvatarCharacter) => avatarCharacterSeed(props.seed, kind);
   return (
     <fieldset class="character-choices" disabled={props.disabled}>
       <legend>{t("agentSettings.avatar.character")}</legend>
@@ -48,16 +43,11 @@ export function CharacterChoices(props: {
             type="button"
             variant="ghost"
             class="character-choice"
-            disabled={!choice(kind)}
             aria-label={t(LABEL[kind])}
-            aria-pressed={!props.hasImage && avatarCharacter(props.seed).kind === kind ? "true" : "false"}
-            title={!choice(kind) ? t("agentSettings.avatar.characterSeedLimit") : undefined}
-            onClick={() => {
-              const seed = choice(kind);
-              if (seed) props.onSelect(seed);
-            }}
+            aria-pressed={!props.hasImage && (props.character ?? "shape") === kind ? "true" : "false"}
+            onClick={() => props.onSelect(kind)}
           >
-            <AgentAvatar seed={choice(kind) ?? props.seed} hue={props.hue} motion="hover" />
+            <AgentAvatar seed={props.seed} character={kind} hue={props.hue} motion="hover" />
             <span class="character-choice-name">{t(LABEL[kind])}</span>
             <small aria-hidden="true">{t(DESCRIPTION[kind])}</small>
           </Button>

@@ -100,6 +100,7 @@ export function WorkspaceAgentSetup() {
 
   return (
     <FirstAgentSetup
+      characterSupported={activeServer()?.kind === "local"}
       value={agentSetupDraft()}
       suggestions={FIRST_AGENT_SUGGESTIONS}
       mode={agentList().length === 0 ? "first" : "additional"}

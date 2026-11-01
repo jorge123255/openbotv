@@ -4,15 +4,26 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { AVATAR_CHARACTERS, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
 import {
-  AVATAR_CHARACTERS,
-  avatarCharacter,
-  avatarCharacterSeed,
-  bloubAvatarProfile,
-} from "@openbot/brand/bloub-avatar";
+  type AgentSummary,
+  decodeAgentProfileDraft,
+  isAgentSummary,
+  isAgentTemplateSnapshot,
+  isAvatarSeed,
+  toAgentTemplateSnapshot,
+} from "@openbot/contracts/ipc";
+import { encodeTeamProtocolV1CurrentHttpResponse } from "@openbot/contracts/team-protocol/v1-adapter";
+import { encodeTeamProtocolV8CurrentHttpResponse } from "@openbot/contracts/team-protocol/v8-adapter";
 import { chromium } from "playwright-core";
 import { AgentStore } from "../src/backend/agent-store";
 import { runCauseEffect } from "../src/backend/effect-boundary";
+import {
+  decodeTransferManifest,
+  INSTANCE_TRANSFER_FORMAT,
+  INSTANCE_TRANSFER_VERSION,
+} from "../src/main/instance-transfer-manifest";
+import { parseCreateAgent, parseUpdateAgent } from "../src/main/ipc/agent-inputs";
 import { readScriptArguments } from "./script-arguments";
 
 const args = readScriptArguments({
@@ -44,22 +55,19 @@ try {
     store.createAgent({ name: "Character fixture", description: "Offline fixture", avatarSeed: base, avatarHue: 245 }),
   );
   const image = Buffer.from(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD7kAAAAASUVORK5CYII=",
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
     "base64",
   );
   const uploaded = await runCauseEffect(store.setAvatar(agent.id, { mimeType: "image/png", bytes: image }));
   for (const kind of families) {
-    const seed = avatarCharacterSeed(base, kind);
-    assert.ok(seed);
-    await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarSeed: seed }));
+    await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarCharacter: kind }));
     store.database.close();
     store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
     await runCauseEffect(store.initialize());
     const restored = store.list().find((row) => row.id === agent.id);
     assert.ok(restored);
-    assert.equal(restored.avatarSeed, seed);
-    assert.deepEqual(avatarCharacter(restored.avatarSeed), { kind, seed: base });
-    assert.equal(avatarCharacterSeed(restored.avatarSeed, "shape"), base);
+    assert.equal(restored.avatarSeed, base);
+    assert.equal(restored.avatarCharacter, kind);
     // Native consumers still render the exact base shape when they do not draw the family.
     assert.deepEqual(bloubAvatarProfile(restored.avatarSeed, restored.avatarHue), bloubAvatarProfile(base, 245));
     for (const key of ["id", "name", "description", "avatarHue", "avatarUrl", "threadId", "workspacePath"] as const)
@@ -67,17 +75,177 @@ try {
     const storedImage = store.resolveAvatar(agent.id);
     assert.ok(storedImage);
     assert.deepEqual(readFileSync(storedImage.path), image);
-    assert.equal(avatarCharacterSeed("x".repeat(128), kind), null);
     report.cases.push(
       `${kind}: real AgentStore reopen retains the family, base seed, identity, thread, workspace and uploaded image bytes.`,
     );
   }
-  await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarSeed: base }));
+  const copy = await runCauseEffect(store.duplicateAgent(agent.id));
+  assert.equal(copy.avatarCharacter, "robot");
+  assert.equal(copy.avatarSeed, base);
+  const profile = decodeAgentProfileDraft({
+    name: copy.name,
+    title: copy.title,
+    description: "Reviewed fixture",
+    avatarSeed: copy.avatarSeed,
+    avatarHue: copy.avatarHue,
+    sectionId: null,
+    avatarCharacter: "wisp",
+  });
+  assert.equal(store.saveReviewedProfile(copy.id, profile).avatarCharacter, "wisp");
+  const { avatarCharacter: _ignored, ...olderProfile } = profile;
+  assert.equal(
+    store.saveReviewedProfile(copy.id, olderProfile).avatarCharacter,
+    "wisp",
+    "Older callers do not clear an explicit choice.",
+  );
+  assert.equal(store.saveReviewedProfile(copy.id, { ...profile, avatarCharacter: "shape" }).avatarCharacter, undefined);
+  const replaceAgents = store.database.replaceAgents;
+  store.database.replaceAgents = () => {
+    throw new Error("Synthetic metadata save failure");
+  };
+  try {
+    assert.throws(() => store?.saveReviewedProfile(copy.id, profile), /Synthetic metadata save failure/);
+    assert.equal(
+      store.list().find((row) => row.id === copy.id)?.avatarCharacter,
+      undefined,
+      "Failed saves restore absent metadata.",
+    );
+    await assert.rejects(
+      runCauseEffect(store.updateAgent({ agentId: copy.id, avatarCharacter: "pebble" })),
+      /Synthetic metadata save failure/,
+    );
+    assert.equal(store.list().find((row) => row.id === copy.id)?.avatarCharacter, undefined);
+  } finally {
+    store.database.replaceAgents = replaceAgents;
+  }
+  report.cases.push(
+    "Duplication and reviewed profile saves carry explicit metadata; missing legacy fields preserve it, explicit Shapes clears it, and failed persistence rolls back.",
+  );
+  await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarCharacter: "shape" }));
   store.database.close();
   store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
   await runCauseEffect(store.initialize());
   assert.equal(store.list().find((row) => row.id === agent.id)?.avatarSeed, base);
-  report.cases.push("Returning to Shapes restores the original seed after database reopen.");
+  assert.equal(store.list().find((row) => row.id === agent.id)?.avatarCharacter, undefined);
+  report.cases.push("Returning to Shapes removes the choice without editing the original seed, after database reopen.");
+  const legacy = [
+    ["character:robot:chief", { shape: "nuage", expression: "curieux", color: "rouge" }],
+    ["character:orb:chief", { shape: "triangle", expression: "effraye", color: "bleu" }],
+    ["character:pebble:chief", { shape: "nuage", expression: "curieux", color: "rouge" }],
+    ["character:wisp:chief", { shape: "hexagone", expression: "confus", color: "rose" }],
+    ["character:sprout:chief", { shape: "capsule", expression: "fier", color: "orange" }],
+    ["character:comet:chief", { shape: "squircle", expression: "somnolent", color: "turquoise" }],
+  ] as const;
+  for (const [seed, expected] of legacy) {
+    const old: AgentSummary = await runCauseEffect(
+      store.createAgent({ name: "Legacy fixture", description: "Literal old seed", avatarSeed: seed, avatarHue: null }),
+    );
+    assert.ok(isAgentSummary(old));
+    assert.ok(isAvatarSeed(seed));
+    assert.equal(old.avatarCharacter, undefined);
+    assert.deepEqual(bloubAvatarProfile(old.avatarSeed, old.avatarHue), expected);
+    await runCauseEffect(store.updateAgent({ agentId: old.id, avatarCharacter: "pebble" }));
+    await runCauseEffect(store.updateAgent({ agentId: old.id, avatarCharacter: "shape" }));
+    store.database.close();
+    store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
+    await runCauseEffect(store.initialize());
+    const preserved = store.list().find((row) => row.id === old.id);
+    assert.ok(preserved);
+    assert.equal(preserved.avatarSeed, seed);
+    assert.equal(preserved.avatarCharacter, undefined);
+    assert.equal(preserved.threadId, old.threadId);
+    assert.equal(preserved.workspacePath, old.workspacePath);
+    assert.deepEqual(bloubAvatarProfile(preserved.avatarSeed, preserved.avatarHue), expected);
+    report.cases.push(
+      `${seed}: no inferred character; explicit select/reset and reopen retain the complete legacy seed and released shape profile.`,
+    );
+  }
+  const longest = await runCauseEffect(
+    store.createAgent({
+      name: "Long identity",
+      description: "Full seed length",
+      avatarSeed: "x".repeat(128),
+      avatarHue: null,
+      avatarCharacter: "comet",
+    }),
+  );
+  assert.equal(longest.avatarSeed.length, 128);
+  assert.equal(longest.avatarCharacter, "comet");
+  const template = toAgentTemplateSnapshot({
+    name: longest.name,
+    title: longest.title,
+    description: longest.description,
+    avatarSeed: longest.avatarSeed,
+    avatarHue: longest.avatarHue,
+    avatarCharacter: longest.avatarCharacter,
+    skills: [],
+    routines: [],
+  });
+  assert.ok(isAgentTemplateSnapshot(template));
+  const imported = await runCauseEffect(store.createAgent({ ...template }));
+  assert.equal(imported.avatarCharacter, "comet");
+  assert.equal(imported.avatarSeed, longest.avatarSeed);
+  const transfer = decodeTransferManifest(
+    new TextEncoder().encode(
+      JSON.stringify({
+        format: INSTANCE_TRANSFER_FORMAT,
+        version: INSTANCE_TRANSFER_VERSION,
+        source: { appVersion: "synthetic-e2e", exportedAt: "2026-11-01T00:00:00Z" },
+        agents: [
+          {
+            key: "agent-1",
+            name: longest.name,
+            title: "",
+            description: longest.description,
+            avatarSeed: longest.avatarSeed,
+            avatarHue: null,
+            avatarCharacter: "comet",
+            avatar: null,
+            provider: "codex",
+            model: "gpt-5.6",
+            reasoningEffort: "low",
+            notifications: true,
+            skills: [],
+            files: null,
+            routines: [],
+            memories: [],
+          },
+        ],
+        settings: null,
+        shared: null,
+        signedIn: [],
+      }),
+    ),
+  );
+  assert.deepEqual(transfer.warnings, []);
+  assert.equal(transfer.manifest.agents[0]?.avatarCharacter, "comet");
+  assert.equal(transfer.manifest.agents[0]?.avatarSeed, longest.avatarSeed);
+  const { avatarCharacter: _character, ...oldSummary } = longest;
+  for (const encode of [encodeTeamProtocolV1CurrentHttpResponse, encodeTeamProtocolV8CurrentHttpResponse])
+    assert.equal(
+      encode("GET", "/v1/agents", 200, [longest]),
+      encode("GET", "/v1/agents", 200, [oldSummary]),
+      "Frozen wire output is identical with and without local metadata.",
+    );
+  assert.throws(
+    () => parseUpdateAgent({ agentId: longest.id, avatarCharacter: "not-a-family" }),
+    /Invalid avatar character/,
+  );
+  assert.throws(
+    () =>
+      parseCreateAgent({
+        name: "Bad",
+        description: "bad metadata",
+        initialMessage: "Hi",
+        avatarSeed: "legacy",
+        avatarHue: null,
+        avatarCharacter: { kind: "pebble" },
+      }),
+    /Invalid avatar character/,
+  );
+  report.cases.push(
+    "128-character seeds, template create/import and transfer manifest retain explicit choices; frozen v1/v8 wire output stays unchanged and malformed metadata is rejected.",
+  );
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
   writeFileSync(resolve(output, "identity-report.json"), `${JSON.stringify(report, null, 2)}\n`);
@@ -150,6 +318,37 @@ const assertChatCardLayout = async (replies: number, markers: boolean) => {
   if (markers) assert.ok(result.markers > 0, "The fixture must include action markers.");
 };
 try {
+  await open("app--character-save-failure");
+  await page.locator(".roster-row-active .agent-avatar-custom img").waitFor({ timeout: 60_000 });
+  await page.locator(".startup-splash").waitFor({ state: "hidden" });
+  const uploadedUrl = await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src");
+  await page.locator(".conversation-title").click();
+  await page.getByRole("button", { name: "Edit agent avatar", exact: true }).click();
+  await page.getByRole("button", { name: "Pebble", exact: true }).click();
+  await page.locator(".agent-settings-save-error").waitFor();
+  assert.equal(await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"), uploadedUrl);
+  assert.equal(await page.locator(".companion-stage").count(), 0);
+  await page.keyboard.press("Escape");
+  report.cases.push("A failed character save in the real settings flow keeps the uploaded image and shows an error.");
+
+  await open("app--legacy-seed-workspace");
+  await page.locator(".roster-row").first().waitFor({ timeout: 60_000 });
+  await page.locator(".startup-splash").waitFor({ state: "hidden" });
+  assert.equal(await page.locator(".companion-stage").count(), 0);
+  assert.equal(await page.locator(".roster-row-active [data-avatar=generated]").count(), 1);
+  await page.locator(".conversation-title").click();
+  await page.getByRole("button", { name: "Edit agent avatar", exact: true }).click();
+  assert.equal(await page.getByRole("button", { name: "Shapes", exact: true }).getAttribute("aria-pressed"), "true");
+  await page.getByRole("button", { name: "Pebble", exact: true }).click();
+  await page.locator('.roster-row-active [data-character="pebble"]').waitFor();
+  await page.getByRole("button", { name: "Shapes", exact: true }).click();
+  await page.locator('.roster-row-active [data-avatar="generated"]').waitFor();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Close side panel", exact: true }).click();
+  report.cases.push(
+    "A real App with legacy prefix seeds starts with Shapes; explicit family selection and reset update the roster without inferring a character from the seed.",
+  );
+
   await open("app--roster-workspace");
   await page.locator(".roster-row").first().waitFor({ timeout: 60_000 });
   await page.locator(".startup-splash").waitFor({ state: "hidden" });
@@ -268,9 +467,30 @@ try {
   await page.screenshot({ path: resolve(output, "new-bot-character.png") });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.locator(".roster-row").first().waitFor();
+  assert.equal(
+    await page.locator('.roster-row-active [data-avatar="generated"]').count(),
+    1,
+    "Cancel does not change the selected existing agent.",
+  );
   assert.equal(await page.locator(".roster-row").count(), 3);
   report.cases.push(
     "The roster New agent action opens the existing creation flow with character choices; cancel creates no bot.",
+  );
+
+  await page.locator(".roster-create").click();
+  const setup = page.locator(".first-agent-setup-panel");
+  await setup.waitFor();
+  await page.getByRole("button", { name: "Wisp", exact: true }).click();
+  await setup.getByRole("textbox", { name: "Name", exact: true }).fill("Metadata fixture");
+  await setup
+    .getByRole("textbox", { name: "What should this agent help with?", exact: true })
+    .fill("Synthetic setup verification");
+  await setup.getByRole("button", { name: "Create agent", exact: true }).click();
+  await page.locator('.roster-row-active [data-character="wisp"]').waitFor();
+  assert.equal(await page.locator(".conversation-title h1").innerText(), "Metadata fixture");
+  assert.equal(await page.locator(".roster-row").count(), 4);
+  report.cases.push(
+    "Submitting the real setup form saves the Wisp metadata to the new agent; cancel creates nothing and leaves the existing agent unchanged.",
   );
 
   await open("app--companion-turn-states");

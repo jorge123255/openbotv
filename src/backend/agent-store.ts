@@ -52,6 +52,7 @@ import {
   isAgentSessionSettingResets,
   isAgentTaskLimit,
   isAgentUsageLimitReturn,
+  isAvatarCharacter,
   isAvatarHue,
   isAvatarSeed,
   isBrowserProfileId,
@@ -359,6 +360,10 @@ export class AgentStore {
       const record = this.#createRecord(`agent-${randomUUID()}`, name, "", description);
       record.avatarSeed = input.avatarSeed;
       record.avatarHue = input.avatarHue;
+      if (input.avatarCharacter !== undefined) {
+        if (!isAvatarCharacter(input.avatarCharacter)) throw new Error("Invalid avatar character.");
+        if (input.avatarCharacter !== "shape") record.avatarCharacter = input.avatarCharacter;
+      }
       if (profileOperationId) yield* this.#profileCreationRecovery.begin(record.id, profileOperationId);
       yield* storedIO(() => mkdir(record.workspacePath, { recursive: true, mode: 0o700 }));
       this.#state.agents.unshift(record);
@@ -426,6 +431,7 @@ export class AgentStore {
       if (source.backupModels) record.backupModels = structuredClone(source.backupModels);
       record.avatarSeed = source.avatarSeed;
       record.avatarHue = source.avatarHue;
+      if (source.avatarCharacter !== undefined) record.avatarCharacter = source.avatarCharacter;
 
       const stagedWorkspace = `${record.workspacePath}.openbot-stage`;
       const avatarDirectory = join(this.#avatarsRoot, record.id);
@@ -598,13 +604,16 @@ export class AgentStore {
       description: draft.description,
       avatarSeed: draft.avatarSeed,
       avatarHue: draft.avatarHue,
+      ...(draft.avatarCharacter === undefined ? {} : { avatarCharacter: draft.avatarCharacter }),
       avatarUrl: null,
       updatedAt: new Date().toISOString(),
     });
+    if (draft.avatarCharacter === "shape") delete agent.avatarCharacter;
     try {
       this.#persist("agent.updated");
     } catch (error) {
       Object.assign(agent, previous);
+      if (previous.avatarCharacter === undefined) delete agent.avatarCharacter;
       throw error;
     }
     return { ...agent };
@@ -635,7 +644,9 @@ export class AgentStore {
       );
       return decodeSaveAgentProfileResult(result);
     } catch (error) {
-      Object.assign(this.#requireAgent(agentId), previous);
+      const agent = this.#requireAgent(agentId);
+      Object.assign(agent, previous);
+      if (previous.avatarCharacter === undefined) delete agent.avatarCharacter;
       throw error;
     }
   }
@@ -810,6 +821,11 @@ export class AgentStore {
         if (!isAvatarSeed(input.avatarSeed)) throw new Error("Invalid avatar seed.");
         next.avatarSeed = input.avatarSeed;
       }
+      if (input.avatarCharacter !== undefined) {
+        if (!isAvatarCharacter(input.avatarCharacter)) throw new Error("Invalid avatar character.");
+        if (input.avatarCharacter === "shape") delete next.avatarCharacter;
+        else next.avatarCharacter = input.avatarCharacter;
+      }
       if (input.avatarHue !== undefined) {
         if (input.avatarHue !== null && !isAvatarHue(input.avatarHue)) throw new Error("Invalid avatar hue.");
         next.avatarHue = input.avatarHue;
@@ -853,6 +869,7 @@ export class AgentStore {
       Object.assign(agent, next);
       // A copy cannot remove a field, and `null` above returned the agent to the app default or to
       // the provider's own sign-in, and an agent flag to the account default.
+      if (next.avatarCharacter === undefined) delete agent.avatarCharacter;
       if (next.mcpServerIds === undefined) delete agent.mcpServerIds;
       if (next.busyMessageMode === undefined) delete agent.busyMessageMode;
       if (next.taskLimit === undefined) delete agent.taskLimit;
@@ -870,6 +887,7 @@ export class AgentStore {
         this.#persist(modelChange ? "agent.model-changed" : "agent.updated", modelChange);
       } catch (error) {
         Object.assign(agent, previous);
+        if (previous.avatarCharacter === undefined) delete agent.avatarCharacter;
         if (previous.busyMessageMode === undefined) delete agent.busyMessageMode;
         if (previous.taskLimit === undefined) delete agent.taskLimit;
         if (previous.providerAccountId === undefined) delete agent.providerAccountId;
@@ -1900,6 +1918,7 @@ function isStoredAgent(value: unknown): value is PersistedStoredAgent {
     (record.usageLimitReturn === undefined || isAgentUsageLimitReturn(record.usageLimitReturn)) &&
     (record.pendingRuntime === undefined || isAgentPendingRuntime(record.pendingRuntime)) &&
     (record.hiddenAt === undefined || isHiddenAt(record.hiddenAt)) &&
+    (record.avatarCharacter === undefined || isAvatarCharacter(record.avatarCharacter)) &&
     isAvatarSeed(record.avatarSeed) &&
     (record.avatarHue === null || isAvatarHue(record.avatarHue)) &&
     isMarketplaceSource(record.marketplaceSource)
@@ -2056,6 +2075,9 @@ function readStoredAgent(value: unknown): ReadStoredAgent | UnreadableStoredAgen
     workspacePath: value.workspacePath,
     preview: isString(value.preview) ? value.preview : reset("preview", NEW_AGENT_PREVIEW),
     updatedAt: isString(value.updatedAt) || value.updatedAt === null ? value.updatedAt : reset("updatedAt", null),
+    ...(isAvatarCharacter(value.avatarCharacter) && value.avatarCharacter !== "shape"
+      ? { avatarCharacter: value.avatarCharacter }
+      : {}),
     avatarSeed: isAvatarSeed(value.avatarSeed) ? value.avatarSeed : reset("avatarSeed", id),
     avatarHue: value.avatarHue === null || isAvatarHue(value.avatarHue) ? value.avatarHue : reset("avatarHue", null),
     avatarUrl: isString(value.avatarUrl) ? value.avatarUrl : null,

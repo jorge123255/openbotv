@@ -1,5 +1,5 @@
 import { INPUT_LIMITS } from "./input-limits";
-import { type AvatarHue, isAvatarHue } from "./ipc-agent-identity";
+import { type AvatarCharacter, type AvatarHue, isAvatarCharacter, isAvatarHue } from "./ipc-agent-identity";
 import type { AgentApprovalKind, AgentApprovalPermissions } from "./ipc-approvals";
 import { isBoolean, isDynamicRecord, isNumber, isString } from "./runtime-values";
 
@@ -75,6 +75,7 @@ export function isDynamicIslandServerVisible(
 export interface DynamicIslandAgentIdentity {
   id: string;
   name: string;
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   avatarUrl: string | null;
@@ -316,6 +317,7 @@ function isAgentIdentity(value: unknown): value is DynamicIslandAgentIdentity {
     isDynamicRecord(value) &&
     isShortString(value.id, 160) &&
     isShortString(value.name, 120) &&
+    (value.avatarCharacter === undefined || isAvatarCharacter(value.avatarCharacter)) &&
     isShortString(value.avatarSeed, 160) &&
     (value.avatarHue === null || isAvatarHue(value.avatarHue)) &&
     (value.avatarUrl === null || isShortString(value.avatarUrl, 2_048))

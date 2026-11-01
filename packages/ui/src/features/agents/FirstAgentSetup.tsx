@@ -1,4 +1,4 @@
-import { avatarCharacter } from "@openbot/brand/bloub-avatar";
+import type { AvatarCharacter } from "@openbot/brand/bloub-avatar";
 import { agentProviderDescriptor } from "@openbot/contracts/agent-providers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import type {
@@ -27,6 +27,7 @@ import { InstructionsLimit, instructionsTooLong } from "./InstructionsLimit";
 export interface FirstAgentDraft {
   name: string;
   purpose: string;
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   suggestionId: string | null;
@@ -56,6 +57,7 @@ export interface FirstAgentSetupProps {
   suggestions: FirstAgentSuggestion[];
   mode?: "first" | "additional";
   submitting?: boolean;
+  characterSupported?: boolean;
   error?: string | null;
   /** The live catalog behind the model picker. Absent, the form keeps no model choice. */
   modelOptions?: ClientAgentModelOption[] | undefined;
@@ -168,6 +170,7 @@ function matchesSuggestion(draft: FirstAgentDraft, suggestion: FirstAgentSuggest
     draft.name === t(suggestion.nameKey) &&
     draft.purpose === t(suggestion.purposeKey) &&
     draft.avatarSeed === suggestion.avatarSeed &&
+    (draft.avatarCharacter ?? "shape") === "shape" &&
     draft.avatarHue === suggestion.avatarHue
   );
 }
@@ -311,6 +314,7 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
     props.onChange({
       name: t(suggestion.nameKey),
       purpose: t(suggestion.purposeKey),
+      avatarCharacter: "shape",
       avatarSeed: suggestion.avatarSeed,
       avatarHue: suggestion.avatarHue,
       suggestionId: suggestion.id,
@@ -345,7 +349,12 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
           data-avatar-seed={props.value.avatarSeed}
           data-avatar-hue={props.value.avatarHue ?? "automatic"}
         >
-          <AgentAvatar seed={props.value.avatarSeed} hue={props.value.avatarHue} motion="idle" />
+          <AgentAvatar
+            seed={props.value.avatarSeed}
+            character={props.value.avatarCharacter}
+            hue={props.value.avatarHue}
+            motion="idle"
+          />
           <h1 aria-live="polite">{displayName()}</h1>
         </div>
         <Show when={props.mode === "additional" && props.onCancel}>
@@ -381,6 +390,7 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
           >
             <AgentAvatar
               seed={props.value.avatarSeed}
+              character={props.value.avatarCharacter}
               hue={props.value.avatarHue}
               motion="idle"
               animationOffset={0.4}
@@ -424,13 +434,16 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
             </div>
           </fieldset>
 
-          <CharacterChoices
-            seed={props.value.avatarSeed}
-            hue={props.value.avatarHue}
-            disabled={props.submitting}
-            onSelect={(avatarSeed) => updateDraft({ avatarSeed })}
-          />
-          <Show when={avatarCharacter(props.value.avatarSeed).kind === "shape"}>
+          <Show when={props.characterSupported !== false}>
+            <CharacterChoices
+              character={props.value.avatarCharacter}
+              seed={props.value.avatarSeed}
+              hue={props.value.avatarHue}
+              disabled={props.submitting}
+              onSelect={(avatarCharacter) => updateDraft({ avatarCharacter })}
+            />
+          </Show>
+          <Show when={props.characterSupported === false || (props.value.avatarCharacter ?? "shape") === "shape"}>
             <fieldset class="first-agent-avatar-fieldset first-agent-face-fieldset" disabled={props.submitting}>
               <legend class="sr-only">{t("agent.setup.face")}</legend>
               <div class="first-agent-face-options">

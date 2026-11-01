@@ -1,4 +1,3 @@
-import { avatarCharacter } from "@openbot/brand/bloub-avatar";
 import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import { Badge, Bot, Button, Clock3, Lock } from "@openbot/ui";
 import { ProviderModelPicker } from "@openbot/ui/components/ProviderModelPicker";
@@ -53,7 +52,7 @@ export function ConversationHeader(props: ConversationHeaderProps) {
   const { t } = useText();
   const [characterExpanded, setCharacterExpanded] = createSignal(true);
   const hasCharacter = () =>
-    props.agent && !props.agent.avatarUrl && avatarCharacter(props.agent.avatarSeed).kind !== "shape";
+    props.agent && !props.agent.avatarUrl && (props.agent.avatarCharacter ?? "shape") !== "shape";
   const titleTab = () => (props.titleSelected === undefined ? undefined : "");
   const titleSelected = () => (props.titleSelected ? "" : undefined);
   return (

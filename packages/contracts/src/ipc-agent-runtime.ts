@@ -1,5 +1,11 @@
 import { INPUT_LIMITS } from "./input-limits";
-import { type AvatarHue, isAvatarHue, isAvatarSeed } from "./ipc-agent-identity";
+import {
+  type AvatarCharacter,
+  type AvatarHue,
+  isAvatarCharacter,
+  isAvatarHue,
+  isAvatarSeed,
+} from "./ipc-agent-identity";
 import { type AgentModelChoice, isAgentModelChoice } from "./ipc-agents";
 import {
   type AgentApproval,
@@ -24,6 +30,7 @@ export interface AgentRuntimeRosterEntry {
   notifications: boolean;
   preview: string;
   updatedAt: string | null;
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   avatarUrl: string | null;
@@ -37,6 +44,7 @@ function isAgentRuntimeRosterEntry(value: unknown): value is AgentRuntimeRosterE
     isBoolean(value.notifications) &&
     isBoundedString(value.preview, AGENT_RUNTIME_TEXT_LIMIT) &&
     (value.updatedAt === null || isBoundedString(value.updatedAt, 160)) &&
+    (value.avatarCharacter === undefined || isAvatarCharacter(value.avatarCharacter)) &&
     isAvatarSeed(value.avatarSeed) &&
     (value.avatarHue === null || isAvatarHue(value.avatarHue)) &&
     (value.avatarUrl === null || isBoundedString(value.avatarUrl, INPUT_LIMITS.avatarUrl))
