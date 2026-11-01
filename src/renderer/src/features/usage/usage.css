@@ -115,38 +115,11 @@
 @container (min-width: 850px) {
   .agent-usage-overview {
     grid-template-columns: minmax(260px, 0.8fr) minmax(0, 1.5fr);
-    gap: calc(var(--openbot-space-6) * 2);
+    gap: var(--openbot-space-4);
   }
   .agent-usage-body {
     padding: var(--openbot-space-8) calc(var(--openbot-space-6) * 2);
-    gap: calc(var(--openbot-space-6) * 2);
-  }
-}
-/* The drop order is the reading order reversed: message counts go before token
-   categories, and the processed total is the one entry that always stays. */
-@container (max-width: 1000px) {
-  .agent-usage-totals > div:nth-child(n + 7) {
-    display: none;
-  }
-}
-@container (max-width: 820px) {
-  .agent-usage-totals > div:nth-child(n + 6) {
-    display: none;
-  }
-}
-@container (max-width: 660px) {
-  .agent-usage-totals > div:nth-child(n + 5) {
-    display: none;
-  }
-}
-@container (max-width: 540px) {
-  .agent-usage-totals > div:nth-child(n + 4) {
-    display: none;
-  }
-}
-@container (max-width: 400px) {
-  .agent-usage-totals > div:nth-child(n + 3) {
-    display: none;
+    gap: var(--openbot-space-4);
   }
 }
 @container (max-width: 480px) {

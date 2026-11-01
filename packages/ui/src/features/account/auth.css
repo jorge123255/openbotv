@@ -12,7 +12,7 @@
 
 .account-login-screen {
   padding: 32px 24px;
-  background: var(--openbot-bg-canvas);
+  background: radial-gradient(ellipse at 20% 15%, var(--openbot-accent-soft), transparent 60%), var(--openbot-bg-frame);
 }
 
 .initial-setup-screen {
@@ -21,9 +21,16 @@
 }
 
 .account-login-shell {
-  width: min(100%, 360px);
-  display: flex;
-  flex-direction: column;
+  width: min(100%, 880px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--openbot-space-8);
+  padding: var(--openbot-space-8);
+  border: 1px solid var(--openbot-border-strong);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-canvas);
+  box-shadow: var(--openbot-shadow-overlay);
   -webkit-app-region: no-drag;
 }
 
@@ -31,8 +38,22 @@
   display: inline-flex;
   align-items: center;
   align-self: center;
-  gap: 24px;
-  margin-bottom: 42px;
+  gap: var(--openbot-space-6);
+  margin-bottom: var(--openbot-space-6);
+}
+
+.account-login-shell > .account-login-brand-lockup {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  gap: var(--openbot-space-6);
+  min-height: 320px;
+  margin-bottom: 0;
+  padding: var(--openbot-space-6);
+  border-radius: var(--openbot-radius-card);
+  background: linear-gradient(145deg, var(--openbot-accent-soft), var(--openbot-bg-sidebar));
 }
 
 .account-login-logo {
@@ -1478,4 +1499,26 @@ body,
 .provider-picker-status-sign-in-required i,
 .provider-picker-status-outdated i {
   color: var(--openbot-warning);
+}
+
+@media (max-width: 720px) {
+  .account-login-shell {
+    width: min(100%, 440px);
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--openbot-space-6);
+    padding: var(--openbot-space-6);
+  }
+  .account-login-shell > .account-login-brand-lockup {
+    min-height: 0;
+    flex-direction: row;
+    gap: var(--openbot-space-3);
+    padding: var(--openbot-space-4);
+  }
+  .account-login-logo {
+    width: var(--openbot-control-xl);
+    height: var(--openbot-control-xl);
+  }
+  .account-login-wordmark {
+    font-size: var(--openbot-text-3xl);
+  }
 }

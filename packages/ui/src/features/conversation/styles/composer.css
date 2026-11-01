@@ -122,11 +122,11 @@
   min-height: 96px;
   gap: 4px;
   margin: 0 auto;
-  border: 0.5px solid var(--openbot-border);
-  border-radius: var(--openbot-radius-lg);
+  border: 1px solid var(--openbot-border-strong);
+  border-radius: var(--openbot-radius-card);
   background: var(--openbot-bg-surface);
-  padding: 10px;
-  box-shadow: none;
+  padding: var(--openbot-space-4);
+  box-shadow: var(--openbot-shadow-card);
   transition:
     border-color var(--openbot-duration-hover) var(--openbot-ease-out),
     box-shadow var(--openbot-duration-hover) var(--openbot-ease-out);

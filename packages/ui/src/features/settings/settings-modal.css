@@ -22,7 +22,7 @@
 
 .settings-modal-nav {
   display: grid;
-  gap: var(--openbot-space-1);
+  gap: var(--openbot-space-2);
 }
 
 .settings-modal-nav-item {
@@ -36,8 +36,8 @@
   gap: var(--openbot-space-2);
   border: 1px solid transparent;
   border-radius: var(--openbot-radius-lg);
-  background: transparent;
-  padding: 0 var(--openbot-space-2);
+  background: var(--openbot-bg-surface);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
   color: var(--openbot-text-secondary);
   font: inherit;
   font-size: var(--openbot-text-md);
@@ -195,7 +195,7 @@
   border: 1px solid var(--openbot-border);
   border-radius: var(--openbot-radius-card);
   background: var(--openbot-bg-surface);
-  box-shadow: none;
+  box-shadow: var(--openbot-shadow-card);
 }
 
 .settings-modal-card.ui-card {

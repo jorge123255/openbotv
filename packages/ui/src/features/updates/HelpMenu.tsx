@@ -16,6 +16,7 @@ export interface HelpMenuProps {
   /** The class of the button that opens the menu, so it matches the buttons around it. */
   triggerClass?: string;
   showTriggerLabel?: boolean;
+  placement?: "right-end" | "bottom-end";
   /** Called when the menu opens, so the caller can load the news. */
   onOpen?: () => void;
   onOpenWhatsNew: () => void;
@@ -37,7 +38,7 @@ export function HelpMenu(props: HelpMenuProps) {
   const [open, setOpen] = createSignal(false);
   return (
     <DropdownMenu.Root
-      placement="right-end"
+      placement={props.placement ?? "right-end"}
       gutter={10}
       onOpenChange={(next) => {
         setOpen(next);

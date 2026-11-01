@@ -50,6 +50,7 @@ export const messages = defineMessages("app", {
   "app.standingApproval.titleUnnamed": "Always allow this agent?",
   // The page rail and the settings page of the desktop window.
   "app.rail.brand": "BotAI",
+  "app.logo.animate": "Animate {name} logo",
   "app.rail.label": "Pages",
   "app.rail.website": "OpenBot website",
   "app.rail.agents": "Agents",

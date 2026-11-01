@@ -52,6 +52,7 @@ export function RailHelpMenu(props: {
     <HelpMenu
       news={news()}
       triggerClass="window-rail-button"
+      placement="bottom-end"
       showTriggerLabel
       onOpen={() => void loadNews()}
       onOpenWhatsNew={props.onOpenWhatsNew}

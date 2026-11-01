@@ -359,6 +359,10 @@ body:has(.skills-marketplace) :is(.integration-dialog-backdrop, .integration-wiz
 .marketplace-browse-head {
   display: grid;
   gap: var(--openbot-space-6);
+  padding: var(--openbot-space-6);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: linear-gradient(130deg, var(--openbot-accent-soft), var(--openbot-bg-sidebar));
 }
 
 .marketplace-browse-copy {
@@ -1436,7 +1440,8 @@ html:active-view-transition-type(marketplace-swap)::view-transition-new(marketpl
   flex-flow: row wrap;
   align-items: center;
   gap: var(--openbot-space-3);
-  padding: var(--openbot-space-3) var(--marketplace-inset);
+  padding: var(--openbot-space-4) var(--marketplace-inset);
+  background: var(--openbot-bg-sidebar);
   border-right: 0;
   border-bottom: 1px solid var(--openbot-border);
 }
@@ -1447,6 +1452,10 @@ html:active-view-transition-type(marketplace-swap)::view-transition-new(marketpl
 .marketplace-nav .marketplace-nav-list {
   display: flex;
   gap: var(--openbot-space-2);
+  padding: var(--openbot-space-1);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-bg-canvas);
 }
 .marketplace-nav .marketplace-nav-item {
   min-height: var(--openbot-control-lg);

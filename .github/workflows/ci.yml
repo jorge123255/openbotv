@@ -1077,6 +1077,7 @@ jobs:
           bun scripts/transfer-skill-pack-e2e.ts
           bun scripts/character-avatar-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/workspace-appearance-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/botai-workspace-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-task-attention-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-assignment-activity-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/usage-chart-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
@@ -1100,6 +1101,7 @@ jobs:
             .openbot-build/character-avatar-ui-e2e/
             .openbot-build/transfer-skill-pack-e2e.json
             .openbot-build/workspace-appearance-ui-e2e/
+            .openbot-build/botai-whole-app-ui-e2e/
 
       - name: Upload offline migration assessment UI evidence
         if: always()

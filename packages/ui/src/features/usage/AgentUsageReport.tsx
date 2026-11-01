@@ -202,7 +202,7 @@ export function AgentUsageReport(props: {
           <UsageChart result={props.result} metric={props.metric} />
         </section>
       </div>
-      <section aria-label={t("usage.totals.title")}>
+      <section class="agent-usage-total-panel" aria-label={t("usage.totals.title")}>
         <h3>{t("usage.totals.title")}</h3>
         <dl class="agent-usage-totals">
           <div>
@@ -224,6 +224,7 @@ export function AgentUsageReport(props: {
         </dl>
       </section>
       <SlidingTabs.Root
+        class="agent-usage-breakdown"
         value={state.breakdown}
         onChange={(value) =>
           setState((draft) => {

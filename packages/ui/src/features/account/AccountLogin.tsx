@@ -39,7 +39,6 @@ const UNCERTAIN_EMAIL_DELIVERY_ISSUES = new Set([
   "email_delivery_unknown",
 ]);
 
-const PRODUCT_NAME = "OpenBot";
 const EMAIL_PLACEHOLDER = "you@example.com";
 const EMAIL_MARKER = "\u0000";
 
@@ -364,8 +363,15 @@ export function AccountLogin(props: AccountLoginProps) {
     <main class="account-login-screen">
       <div class="account-login-shell">
         <header class="account-login-brand-lockup">
-          <AppLogo variant={props.variant} animation="blink" interactive class="account-login-logo" />
-          <span class="account-login-wordmark">{PRODUCT_NAME}</span>
+          <AppLogo
+            variant={props.variant}
+            artwork="botai"
+            label={t("app.logo.animate", { name: t("app.rail.brand") })}
+            animation="blink"
+            interactive
+            class="account-login-logo"
+          />
+          <span class="account-login-wordmark">{t("app.rail.brand")}</span>
         </header>
 
         <section

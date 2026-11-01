@@ -55,7 +55,11 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--openbot-space-2);
+  gap: var(--openbot-space-3);
+  padding: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-sidebar);
 }
 
 .routine-planner-nav {
@@ -323,9 +327,11 @@
 }
 
 .routine-planner-upcoming {
-  border: 1px solid var(--openbot-border-strong);
-  border-radius: var(--openbot-radius-lg);
-  padding: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-top: var(--openbot-space-1) solid var(--openbot-accent-strong);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-sidebar);
+  padding: var(--openbot-space-4);
 }
 
 .routine-planner-upcoming h3,

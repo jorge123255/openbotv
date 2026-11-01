@@ -39,7 +39,7 @@ try {
   await page.locator(".startup-splash").waitFor({ state: "hidden" });
   await page.evaluate(() => document.fonts.ready);
   const desktopRail = await rail.boundingBox();
-  assert.ok(desktopRail && desktopRail.width >= 180);
+  assert.ok(desktopRail && desktopRail.width >= 1600 && desktopRail.height >= 64);
   assert.equal(await page.locator(".roster-row").count(), 3);
   assert.equal(await page.locator(".roster-row-asleep").count(), 1);
   const header = await page.locator(".conversation-header").boundingBox();
@@ -90,7 +90,7 @@ try {
   assert.equal(await editor.innerText(), "Keep this offline fixture draft.");
   await page.setViewportSize({ width: 1024, height: 768 });
   const compactRail = await rail.boundingBox();
-  assert.ok(compactRail && compactRail.width <= 72);
+  assert.ok(compactRail && compactRail.width === 1024 && compactRail.height >= 64 && compactRail.height <= 96);
   await rail.getByRole("button", { name: "Settings", exact: true }).focus();
   assert.equal(
     await rail.getByRole("button", { name: "Settings", exact: true }).evaluate((e) => e === document.activeElement),
@@ -132,7 +132,7 @@ try {
   );
   await shot("roster-chat-1024");
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
-  report.cases.push("At 1024px the navigation collapses to named icon controls without page overflow.");
+  report.cases.push("At 1024px the top navigation uses named icon controls without page overflow.");
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;
 } catch (error) {

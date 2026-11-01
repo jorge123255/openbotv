@@ -21,7 +21,6 @@ interface WheelEntry {
   option: AppLanguageOption;
 }
 
-const PRODUCT_NAME = "OpenBot";
 const TITLE_ID = "language-wheel-title";
 
 /** The catalog languages in selector order. "System default" is not a row: the wheel opens on it. */
@@ -290,8 +289,15 @@ export function LanguageWheel(props: LanguageWheelProps) {
     <main class="account-login-screen" lang={props.language}>
       <div class="language-wheel-shell">
         <header class="account-login-brand-lockup">
-          <AppLogo variant={props.variant} animation="blink" interactive class="account-login-logo" />
-          <span class="account-login-wordmark">{PRODUCT_NAME}</span>
+          <AppLogo
+            variant={props.variant}
+            artwork="botai"
+            label={t("app.logo.animate", { name: t("app.rail.brand") })}
+            animation="blink"
+            interactive
+            class="account-login-logo"
+          />
+          <span class="account-login-wordmark">{t("app.rail.brand")}</span>
         </header>
         <h1 id={TITLE_ID} class="language-wheel-title">
           {t("account.language.title")}

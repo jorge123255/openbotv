@@ -65,7 +65,7 @@ export function StartupSplash(props: StartupSplashProps) {
 
   // With reduced motion, without the stylesheet, or in a test DOM, the eyes do not draw: no wait.
   onSettled(() => {
-    const eye = root?.querySelector(".app-logo-eye");
+    const eye = root?.querySelector(".app-logo-eye, .app-logo-botai-eye");
     if (!eye || !getComputedStyle(eye).animationName.includes(INTRO_ANIMATION)) setIntroDone(true);
   });
 
@@ -105,7 +105,7 @@ export function StartupSplash(props: StartupSplashProps) {
         if (event.animationName === INTRO_ANIMATION) setIntroDone(true);
       }}
     >
-      <AppLogo variant={props.variant} class="startup-splash-logo" />
+      <AppLogo variant={props.variant} artwork="botai" class="startup-splash-logo" />
     </main>
   );
 }

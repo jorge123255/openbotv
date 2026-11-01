@@ -2147,7 +2147,9 @@ html.ui-textarea-resizing {
 .ui-dialog-content {
   border: 0;
   border-radius: var(--openbot-radius-card);
-  box-shadow: 0 0 0 1px var(--openbot-dialog-ring);
+  box-shadow:
+    0 0 0 1px var(--openbot-dialog-ring),
+    var(--openbot-shadow-overlay);
 }
 
 .ui-dialog-content[data-dialog-surface="unstyled"] {
@@ -2197,7 +2199,8 @@ html.ui-textarea-resizing {
 .ui-confirm-dialog-main {
   min-height: 0;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: start;
   align-items: start;
   gap: var(--openbot-space-4);
   overflow-y: auto;

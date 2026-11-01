@@ -61,3 +61,13 @@
 .provider-settings-progress {
   max-width: 320px;
 }
+
+.provider-settings-stack {
+  padding: var(--openbot-space-4);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-sidebar);
+}
+.provider-settings-account.ui-item {
+  padding-block: var(--openbot-space-4);
+}

@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@openbot/contracts/ipc";
+import type { AgentEvent, Routine, RoutineRun } from "@openbot/contracts/ipc";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
 import { onCleanup } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
@@ -91,6 +91,65 @@ export const BotAiWorkspace: Story = {
       }}
     />
   ),
+};
+
+/** A busy calendar in the real workspace, with synthetic records only. */
+export const WholeAppWorkspace: Story = {
+  render: () => {
+    const at = new Date().toISOString();
+    const routines: Routine[] = Array.from({ length: 28 }, (_, index) => ({
+      id: `whole-app-routine-${index}`,
+      agentId: "chief",
+      name: `Offline review routine ${index + 1}`,
+      instruction: "Synthetic fixture. Do not contact a provider.",
+      active: true,
+      timezone: "UTC",
+      trigger: {
+        id: `whole-app-trigger-${index}`,
+        routineId: `whole-app-routine-${index}`,
+        schedule: { kind: "daily", time: "12:00" },
+        nextRunAt: at,
+        createdAt: at,
+        updatedAt: at,
+      },
+      createdAt: at,
+      updatedAt: at,
+    }));
+    const routineRuns: Record<string, RoutineRun[]> = Object.fromEntries(
+      routines.map((routine) => {
+        const run: RoutineRun = {
+          id: `${routine.id}-completed`,
+          routineId: routine.id,
+          agentId: routine.agentId,
+          triggerId: routine.trigger.id,
+          kind: "scheduled",
+          scheduledFor: at,
+          routineName: routine.name,
+          instruction: routine.instruction,
+          status: "succeeded",
+          error: null,
+          deliveryId: null,
+          createdAt: at,
+          updatedAt: at,
+        };
+        return [routine.id, [run]];
+      }),
+    );
+    return (
+      <SidebarStatePlayground
+        compact={false}
+        options={{
+          agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+            ...agent,
+            avatarCharacter: index === 0 ? "pebble" : index === 1 ? "wisp" : "sprout",
+            updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
+          })),
+          routines: { chief: routines },
+          routineRuns,
+        }}
+      />
+    );
+  },
 };
 
 /** A failed host save must not remove the existing uploaded image. */

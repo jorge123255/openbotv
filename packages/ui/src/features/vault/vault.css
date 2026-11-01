@@ -74,6 +74,10 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--openbot-space-1);
+  padding: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-sidebar);
 }
 
 .vault-count {

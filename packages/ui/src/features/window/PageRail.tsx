@@ -54,7 +54,7 @@ function RailButton(props: {
         <MotionTooltip
           content={card()()}
           class="ui-popover-menu-surface account-usage-popover window-rail-usage-card"
-          placement="right-end"
+          placement="bottom-end"
           openDelay={250}
           closeDelay={75}
         >
@@ -273,7 +273,7 @@ function RailMoreMenu(props: {
   const currentInMenu = () => props.pages.some((page) => page.id === props.current && !pinned(page.id));
   return (
     <DropdownMenu.Root
-      placement="right-start"
+      placement="bottom-start"
       gutter={10}
       onOpenChange={changeOpen}
       getAnchorRect={(element?: HTMLElement) => anchor ?? element?.getBoundingClientRect()}
@@ -403,7 +403,7 @@ export function PageRail(props: PageRailProps) {
   return (
     <nav class="window-rail" aria-label={t("app.rail.label")} hidden={props.hidden}>
       <Show when={props.logo}>{(logo) => <RailLogo variant={logo().variant} href={logo().href} />}</Show>
-      <div class="window-rail-group">
+      <div class="window-rail-group window-rail-primary">
         <RailButton label={t("app.rail.agents")} current={props.current === "agents"} onClick={props.onAgents}>
           <Bot aria-hidden="true" />
         </RailButton>
@@ -416,16 +416,18 @@ export function PageRail(props: PageRailProps) {
         </For>
         <RailMoreMenu pages={pages()} current={props.current} pinned={props.pinned} onPinChange={props.onPinChange} />
       </div>
-      <div class="window-rail-group">
-        {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
-        <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
-          {(ring) => (
-            <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} openUrl={props.openUrl} />
-          )}
-        </For>
-        <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>
-          {(row) => <CustomAgentUsageButton row={row()} onOpen={props.onUsage} />}
-        </For>
+      <div class="window-rail-group window-rail-tools">
+        <div class="window-rail-accounts">
+          {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
+          <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
+            {(ring) => (
+              <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} openUrl={props.openUrl} />
+            )}
+          </For>
+          <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>
+            {(row) => <CustomAgentUsageButton row={row()} onOpen={props.onUsage} />}
+          </For>
+        </div>
         <Show when={props.onMarketplace}>
           {(onMarketplace) => (
             <RailButton

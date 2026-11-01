@@ -56,15 +56,15 @@
   transform-origin: 71.2% 48.8%;
 }
 
-.app-logo[data-animation="blink"] .app-logo-eye {
+.app-logo[data-animation="blink"] :is(.app-logo-eye, .app-logo-botai-eye) {
   animation: app-logo-blink 4.8s cubic-bezier(0.77, 0, 0.175, 1) infinite;
 }
 
-.app-logo[data-animation="look-around"] .app-logo-eye {
+.app-logo[data-animation="look-around"] :is(.app-logo-eye, .app-logo-botai-eye) {
   animation: app-logo-look-around 6s cubic-bezier(0.77, 0, 0.175, 1) infinite;
 }
 
-.app-logo[data-animation="surprised"] .app-logo-eye {
+.app-logo[data-animation="surprised"] :is(.app-logo-eye, .app-logo-botai-eye) {
   animation: app-logo-surprised 5.4s cubic-bezier(0.77, 0, 0.175, 1) infinite;
 }
 
@@ -222,9 +222,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .app-logo[data-animation] .app-logo-eye,
-  .app-logo[data-click-reaction] .app-logo-eye,
-  .app-logo[data-easter-egg] .app-logo-eye,
+  .app-logo[data-animation] :is(.app-logo-eye, .app-logo-botai-eye),
+  .app-logo[data-click-reaction] :is(.app-logo-eye, .app-logo-botai-eye),
+  .app-logo[data-easter-egg] :is(.app-logo-eye, .app-logo-botai-eye),
   .app-logo[data-easter-egg] .app-logo-background {
     animation: none;
     transform: none;
@@ -234,4 +234,14 @@
     transition: none;
     transform: none;
   }
+}
+
+.app-logo-botai-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  pointer-events: none;
+}
+.app-logo[data-artwork="botai"] {
+  border-radius: 0;
+  overflow: visible;
 }
