@@ -40,6 +40,7 @@
 
 .conversation-header-actions {
   display: flex;
+  margin-inline-start: auto;
   min-width: 0;
   align-items: center;
   gap: 6px;

@@ -1,5 +1,8 @@
 .conversation-header {
   display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--openbot-space-2);
+  row-gap: var(--openbot-space-1);
   min-height: var(--openbot-workspace-header-height);
   height: auto;
   flex: 0 0 auto;

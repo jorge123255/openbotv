@@ -310,6 +310,33 @@ try {
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
   await page.screenshot({ path: resolve(output, "failure.png") }).catch(() => undefined);
+  await page
+    .evaluate(() =>
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          ".conversation-header, .conversation-header button, .companion-stage, .companion-stage button, .settings-panel",
+        ),
+      ].map((element) => {
+        const box = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return {
+          element: element.tagName,
+          className: element.className,
+          label: element.getAttribute("aria-label"),
+          bounds: { x: box.x, y: box.y, width: box.width, height: box.height },
+          clientWidth: element.clientWidth,
+          scrollWidth: element.scrollWidth,
+          visibility: style.visibility,
+          display: style.display,
+          opacity: style.opacity,
+          hitElement: hit?.tagName,
+          hitButton: hit?.closest("button")?.getAttribute("aria-label"),
+        };
+      }),
+    )
+    .then((geometry) => writeFileSync(resolve(output, "failure-geometry.json"), JSON.stringify(geometry, null, 2)))
+    .catch(() => undefined);
   throw error;
 } finally {
   writeFileSync(resolve(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
