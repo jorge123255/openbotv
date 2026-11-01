@@ -124,16 +124,19 @@ export function AgentUsageReport(props: {
   let dailyPanel: HTMLDivElement | undefined;
   let dailyFocusRequested = false;
   let dailyFocusFrame: number | undefined;
+  let dailyFocusAttempts = 0;
   function scheduleDailyFocus(): void {
     if (!dailyFocusRequested || dailyFocusFrame !== undefined) return;
     dailyFocusFrame = window.requestAnimationFrame(() => {
       dailyFocusFrame = undefined;
-      if (!dailyFocusRequested || state.breakdown !== "day" || !dailyTable?.isConnected) return;
-      if (!dailyPanel?.hasAttribute("data-selected") || getComputedStyle(dailyTable).visibility !== "visible") return;
-      if (dailyTable.closest("[inert], [hidden], [aria-hidden=true]") || dailyTable.getClientRects().length === 0)
-        return;
+      if (!dailyFocusRequested || !dailyTable?.isConnected || !dailyPanel?.hasAttribute("data-selected")) return;
+      if (dailyTable.closest("[inert], [hidden], [aria-hidden=true]")) return;
+      // Native focus checks CSS visibility. A separate style/geometry gate can return before
+      // paint settles, with no further attribute mutation to schedule another attempt.
+      dailyFocusAttempts++;
       dailyTable.focus();
-      if (document.activeElement === dailyTable) dailyFocusRequested = false;
+      if (document.activeElement === dailyTable || dailyFocusAttempts === 2) dailyFocusRequested = false;
+      else scheduleDailyFocus();
     });
   }
   onSettled(() => {
@@ -153,6 +156,7 @@ export function AgentUsageReport(props: {
   });
   function showDailyData() {
     dailyFocusRequested = true;
+    dailyFocusAttempts = 0;
     setState((draft) => {
       draft.breakdown = "day";
     });

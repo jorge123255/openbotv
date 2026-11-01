@@ -41,6 +41,7 @@ type FocusSample = {
 declare global {
   interface Window {
     __usageFocusTrace?: { start: () => void; read: () => FocusSample[] };
+    __usageFocusAttempts?: number;
   }
 }
 const report: {
@@ -177,8 +178,36 @@ async function assertDailyFocus(caseName: string): Promise<void> {
   const focused = reachedFocus && (await table.evaluate((element) => element === document.activeElement));
   const samples = await page.evaluate(() => window.__usageFocusTrace?.read() ?? []);
   report.focusDiagnostics.push({ case: caseName, passed: focused, capReached: samples.length >= 256, samples });
+  if (await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+    const panels = page.locator('.agent-usage-breakdown [role="tabpanel"]');
+    const transitions = await panels.evaluateAll((elements) =>
+      elements.map((element) => ({
+        selected: element.hasAttribute("data-selected"),
+        durations: getComputedStyle(element)
+          .transitionDuration.split(",")
+          .map((value) => Number.parseFloat(value)),
+      })),
+    );
+    assert.ok(transitions.some((panel) => panel.selected));
+    assert.ok(transitions.every((panel) => panel.durations.every((duration) => duration === 0)));
+  }
   if (!focused) focusFailures.push(caseName);
   else report.cases.push(caseName);
+}
+async function refuseDailyFocus(calls: number): Promise<void> {
+  // Fault injection at the browser focus boundary. Keep the real component and its scheduler.
+  await page.evaluate((refusedCalls) => {
+    window.__usageFocusAttempts = 0;
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (options?: FocusOptions): void {
+      if (this.matches(".agent-usage-breakdown table[tabindex]")) {
+        const attempt = (window.__usageFocusAttempts ?? 0) + 1;
+        window.__usageFocusAttempts = attempt;
+        if (attempt <= refusedCalls) return;
+      }
+      focus.call(this, options);
+    };
+  }, calls);
 }
 async function holdAnimationFrames(): Promise<void> {
   await page.evaluate(() => {
@@ -356,6 +385,31 @@ try {
     await page.evaluate(() => window.__usageFocusTrace?.start());
     await firstKeyboardActivation.press("Enter");
     await assertDailyFocus(`${motion}: first keyboard activation focuses Daily.`);
+  }
+  for (const motion of ["reduce", "no-preference"] as const) {
+    await page.emulateMedia({ reducedMotion: motion });
+    await open("agents-usage--usage", ".agent-usage-total-panel");
+    await refuseDailyFocus(1);
+    await page.evaluate(() => window.__usageFocusTrace?.start());
+    await page.getByRole("button", { name: "View daily data", exact: true }).click();
+    await assertDailyFocus(`${motion}: one rejected native focus retries on the next frame.`);
+    assert.equal(await page.evaluate(() => window.__usageFocusAttempts), 2);
+    await open("agents-usage--usage", ".agent-usage-total-panel");
+    await refuseDailyFocus(4);
+    const retryButton = page.getByRole("button", { name: "View daily data", exact: true });
+    for (const attempts of [2, 4]) {
+      await retryButton.click();
+      await page.waitForFunction((expected) => window.__usageFocusAttempts === expected, attempts);
+      await page.evaluate(
+        () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+      );
+      assert.equal(await page.evaluate(() => window.__usageFocusAttempts), attempts);
+      assert.equal(await retryButton.evaluate((element) => element === document.activeElement), true);
+    }
+    await page.evaluate(() => window.__usageFocusTrace?.start());
+    await retryButton.click();
+    await assertDailyFocus(`${motion}: each activation has a fresh two-attempt budget; the third succeeds.`);
+    assert.equal(await page.evaluate(() => window.__usageFocusAttempts), 5);
   }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await open("agents-usage--usage", ".agent-usage-total-panel");
