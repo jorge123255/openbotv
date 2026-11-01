@@ -8,8 +8,12 @@ import { readScriptArguments } from "./script-arguments";
 
 const args = readScriptArguments({
   usage:
-    "bun scripts/visual-review-regressions-ui-e2e.ts --url=<local-storybook-url> [--browser-channel=chrome|chromium]",
-  options: { url: { type: "string" }, "browser-channel": { type: "string" } },
+    "bun scripts/visual-review-regressions-ui-e2e.ts --url=<local-storybook-url> [--browser-channel=chrome|chromium] [--trace-focus]",
+  options: {
+    url: { type: "string" },
+    "browser-channel": { type: "string" },
+    "trace-focus": { type: "boolean" },
+  },
 });
 if (!args) process.exit(0);
 const target = new URL(args.values.url ?? "http://localhost:6006");
@@ -17,16 +21,131 @@ assert.ok(["localhost", "127.0.0.1", "[::1]"].includes(target.hostname));
 assert.equal(target.pathname, "/");
 const channel = args.values["browser-channel"] ?? "chromium";
 assert.ok(["chrome", "chromium"].includes(channel));
-const output = resolve(import.meta.dirname, "../.openbot-build/visual-review-regressions-ui-e2e");
+const output = resolve(
+  import.meta.dirname,
+  `../.openbot-build/visual-review-regressions-ui-e2e${args.values["trace-focus"] ? "-focus-trace" : ""}`,
+);
 mkdirSync(output, { recursive: true });
-const report: { passed: boolean; cases: string[]; pageErrors: string[]; failure?: string } = {
+type FocusSample = {
+  event: string;
+  time: number;
+  active: string;
+  selected: boolean;
+  blocked: boolean;
+  connected: boolean;
+  tabIndex: number | null;
+  observerReady: boolean;
+  stack?: string;
+  frame?: number;
+};
+declare global {
+  interface Window {
+    __usageFocusTrace?: { start: () => void; read: () => FocusSample[] };
+  }
+}
+const report: {
+  passed: boolean;
+  cases: string[];
+  pageErrors: string[];
+  focusDiagnostics: { case: string; passed: boolean; capReached: boolean; samples: FocusSample[] }[];
+  failure?: string;
+} = {
   passed: false,
   cases: [],
   pageErrors: [],
+  focusDiagnostics: [],
 };
 const browser = await chromium.launch({ channel, headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
 page.on("pageerror", (error) => report.pageErrors.push(error.message));
+// Synthetic fixture diagnostics only. Do not read layout in a frame callback: a style flush
+// could change the failure under investigation. The trace stays bounded and records no chat text.
+if (args.values["trace-focus"])
+  await page.addInitScript(() => {
+    let enabled = false;
+    const samples: FocusSample[] = [];
+    const observed = new WeakMap<Node, Set<MutationObserver>>();
+    function record(event: string, stack?: string, frame?: number): void {
+      if (!enabled || samples.length >= 256) return;
+      const table = document.querySelector<HTMLTableElement>(".agent-usage-breakdown table[tabindex]");
+      const panel = table?.closest('[role="tabpanel"]');
+      const active = document.activeElement;
+      samples.push({
+        event,
+        time: performance.now(),
+        active: active === table ? "daily-table" : (active?.getAttribute("role") ?? active?.tagName ?? "none"),
+        selected: panel?.hasAttribute("data-selected") ?? false,
+        blocked: !!table?.closest("[inert], [hidden], [aria-hidden=true]"),
+        connected: table?.isConnected ?? false,
+        tabIndex: table?.tabIndex ?? null,
+        observerReady: !!panel && !!observed.get(panel)?.size,
+        stack,
+        frame,
+      });
+    }
+    const NativeObserver = window.MutationObserver;
+    window.MutationObserver = class extends NativeObserver {
+      private targets = new Set<Node>();
+      override observe(target: Node, options?: MutationObserverInit): void {
+        if (options?.attributeFilter?.includes("inert")) {
+          const observers = observed.get(target) ?? new Set<MutationObserver>();
+          observers.add(this);
+          observed.set(target, observers);
+          this.targets.add(target);
+          record("observer-installed");
+        }
+        super.observe(target, options);
+      }
+      override disconnect(): void {
+        for (const target of this.targets) observed.get(target)?.delete(this);
+        this.targets.clear();
+        super.disconnect();
+      }
+    };
+    const schedule = window.requestAnimationFrame.bind(window);
+    const cancel = window.cancelAnimationFrame.bind(window);
+    window.requestAnimationFrame = (callback) => {
+      const stack = enabled ? new Error().stack : undefined;
+      const frame = schedule((time) => {
+        record("frame-before", stack, frame);
+        try {
+          callback.call(window, time);
+        } finally {
+          record("frame-after", stack, frame);
+        }
+      });
+      record("frame-scheduled", stack, frame);
+      return frame;
+    };
+    window.cancelAnimationFrame = (frame) => {
+      record("frame-canceled", undefined, frame);
+      cancel(frame);
+    };
+    const focus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (options?: FocusOptions): void {
+      const daily = this.matches(".agent-usage-breakdown table[tabindex]");
+      if (daily) record("daily-focus-before");
+      try {
+        focus.call(this, options);
+      } finally {
+        if (daily) record("daily-focus-after");
+      }
+    };
+    document.addEventListener("focusin", () => record("focusin"), true);
+    document.addEventListener("focusout", () => record("focusout"), true);
+    window.__usageFocusTrace = {
+      start() {
+        samples.length = 0;
+        enabled = true;
+        record("start");
+      },
+      read() {
+        record("end");
+        enabled = false;
+        return samples;
+      },
+    };
+  });
 await page.route("**/*", (route) => {
   const url = new URL(route.request().url());
   return ["http:", "https:"].includes(url.protocol) && url.origin !== target.origin ? route.abort() : route.continue();
@@ -40,6 +159,26 @@ async function open(story: string, ready: string, width = 1280) {
   await page.locator(ready).first().waitFor();
   await page.locator(".startup-splash").waitFor({ state: "hidden" });
   await page.evaluate(() => document.fonts.ready);
+}
+const focusFailures: string[] = [];
+async function assertDailyFocus(caseName: string): Promise<void> {
+  const table = page.getByRole("table", { name: "Daily usage and cost", exact: true });
+  await table.waitFor();
+  const reachedFocus = await page
+    .waitForFunction((element) => element === document.activeElement, await table.elementHandle(), { timeout: 5_000 })
+    .then(
+      () => true,
+      () => false,
+    );
+  // Keep the trace through two frame boundaries to catch an immediate focus reversal.
+  await page.evaluate(
+    () => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))),
+  );
+  const focused = reachedFocus && (await table.evaluate((element) => element === document.activeElement));
+  const samples = await page.evaluate(() => window.__usageFocusTrace?.read() ?? []);
+  report.focusDiagnostics.push({ case: caseName, passed: focused, capReached: samples.length >= 256, samples });
+  if (!focused) focusFailures.push(caseName);
+  else report.cases.push(caseName);
 }
 async function holdAnimationFrames(): Promise<void> {
   await page.evaluate(() => {
@@ -199,27 +338,25 @@ try {
         }),
       );
       assert.deepEqual(errors, [], `Metric labels must remain readable inside tiles at${width}px.`);
+      await page.evaluate(() => window.__usageFocusTrace?.start());
       await page.getByRole("button", { name: "View daily data", exact: true }).click();
+      await assertDailyFocus(`${motion}, ${width}px: first pointer activation focuses Daily.`);
       const table = page.getByRole("table", { name: "Daily usage and cost", exact: true });
-      await table.waitFor();
-      await page.waitForFunction((element) => element === document.activeElement, await table.elementHandle(), {
-        timeout: 5_000,
-      });
       assert.equal(await table.evaluate((element) => element.closest("[inert]") === null), true);
       await page.screenshot({ path: resolve(output, `usage-first-activation-${motion}-${width}.png`) });
-      report.cases.push(
-        `${motion}, ${width}px: all eight labels fit their tiles and the first View daily data click focuses the selected table.`,
-      );
+      report.cases.push(`${motion}, ${width}px: all eight labels fit their tiles.`);
     }
   }
-  await open("agents-usage--usage", ".agent-usage-total-panel");
-  const firstKeyboardActivation = page.getByRole("button", { name: "View daily data", exact: true });
-  await firstKeyboardActivation.focus();
-  await firstKeyboardActivation.press("Enter");
-  const keyboardTable = page.getByRole("table", { name: "Daily usage and cost", exact: true });
-  await keyboardTable.waitFor();
-  await page.waitForFunction((element) => element === document.activeElement, await keyboardTable.elementHandle());
-  report.cases.push("The first keyboard activation also focuses the daily table.");
+  for (const motion of ["reduce", "no-preference"] as const) {
+    await page.emulateMedia({ reducedMotion: motion });
+    await open("agents-usage--usage", ".agent-usage-total-panel");
+    const firstKeyboardActivation = page.getByRole("button", { name: "View daily data", exact: true });
+    await firstKeyboardActivation.focus();
+    assert.equal(await firstKeyboardActivation.evaluate((element) => element === document.activeElement), true);
+    await page.evaluate(() => window.__usageFocusTrace?.start());
+    await firstKeyboardActivation.press("Enter");
+    await assertDailyFocus(`${motion}: first keyboard activation focuses Daily.`);
+  }
   await page.emulateMedia({ reducedMotion: "reduce" });
   await open("agents-usage--usage", ".agent-usage-total-panel");
   await holdAnimationFrames();
@@ -228,6 +365,8 @@ try {
   const agentTab = page.getByRole("tab", { name: "Agent", exact: true });
   await agentTab.click();
   await page.getByRole("table", { name: "Usage by agent", exact: true }).waitFor();
+  await agentTab.focus();
+  assert.equal(await agentTab.evaluate((element) => element === document.activeElement), true);
   await releaseAnimationFrames();
   assert.equal(await agentTab.evaluate((element) => element === document.activeElement), true);
   report.cases.push("Switching tabs before the pending focus frame cancels the request and preserves tab focus.");
@@ -246,6 +385,7 @@ try {
   assert.equal(await composer.evaluate((element) => element === document.activeElement), true);
   report.cases.push("Leaving Usage before its pending focus frame keeps focus in the chat after disposal.");
   assert.deepEqual(report.pageErrors, []);
+  assert.deepEqual(focusFailures, [], "First-activation focus must pass in each motion mode.");
   report.passed = true;
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
