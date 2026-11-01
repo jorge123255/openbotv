@@ -1,3 +1,4 @@
+import { avatarCharacterSeed } from "@openbot/brand/bloub-avatar";
 import type { AgentEvent } from "@openbot/contracts/ipc";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
 import { onCleanup } from "solid-js";
@@ -75,6 +76,24 @@ export const CompanionWorkspace: Story = {
               : index === 1
                 ? `character:orb:${agent.avatarSeed}`
                 : agent.avatarSeed,
+          updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
+        })),
+      }}
+    />
+  ),
+};
+
+/** Optional soft characters in the real shell; only synthetic fixture avatars change. */
+export const BotAiWorkspace: Story = {
+  render: () => (
+    <SidebarStatePlayground
+      compact={false}
+      options={{
+        agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+          ...agent,
+          avatarSeed:
+            avatarCharacterSeed(agent.avatarSeed, index === 0 ? "pebble" : index === 1 ? "wisp" : "sprout") ??
+            agent.avatarSeed,
           updatedAt: index < 2 ? new Date(Date.now() - index * 60_000).toISOString() : agent.updatedAt,
         })),
       }}

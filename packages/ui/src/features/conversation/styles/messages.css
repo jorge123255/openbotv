@@ -1440,13 +1440,15 @@ button.chat-action-target:active,
 
 /* The conversation keeps its message components, including tools and attachments. */
 .message-entry-user .ui-bubble-content {
-  background: var(--openbot-accent-soft);
+  background: linear-gradient(125deg, var(--openbot-accent-soft), var(--openbot-bg-surface));
   border-color: var(--openbot-accent-strong);
+  border-start-end-radius: var(--openbot-radius-sm);
   color: var(--openbot-text-primary);
 }
 .message-entry-agent .ui-bubble-variant-secondary > .ui-bubble-content {
   border-color: var(--openbot-border);
   background: var(--openbot-bg-surface);
+  border-start-start-radius: var(--openbot-radius-sm);
 }
 .message-entry :is(.ui-bubble-variant-secondary, .ui-bubble-variant-tinted) > .ui-bubble-content {
   padding: var(--openbot-space-3) var(--openbot-space-4);

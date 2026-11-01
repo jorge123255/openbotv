@@ -22,11 +22,11 @@
 :root[data-openbot-color-scheme="light"] {
   color-scheme: light;
 
-  --openbot-bg-canvas: #f5f5f6;
+  --openbot-bg-canvas: #f8f3fb;
   --openbot-task-card-bg: #ffffff;
-  --openbot-bg-canvas-clear: rgba(245, 245, 246, 0);
-  --openbot-bg-frame: #e8e8eb;
-  --openbot-bg-sidebar: #f5f5f6;
+  --openbot-bg-canvas-clear: rgba(248, 243, 251, 0);
+  --openbot-bg-frame: #ede3f2;
+  --openbot-bg-sidebar: #f2eaf7;
   --openbot-bg-native-sidebar: #f5f5f6;
   --openbot-bg-sheet: #ffffff;
   --openbot-bg-sheet-inset: #f0f0f2;
@@ -37,9 +37,9 @@
   --openbot-bg-surface: #ffffff;
   --openbot-bg-surface-raised: #fcfcfc;
   --openbot-bg-control: #ffffff;
-  --openbot-bg-control-hover: #f0f0f2;
+  --openbot-bg-control-hover: #f0e7f6;
   --openbot-bg-control-active: #e8e8eb;
-  --openbot-tabs-bar-bg: #ececee;
+  --openbot-tabs-bar-bg: #ede3f2;
   --openbot-tabs-pill-bg: #ffffff;
   --openbot-bg-overlay: rgba(245, 245, 246, 0.92);
   --openbot-dialog-overlay: rgba(20, 20, 20, 0.12);

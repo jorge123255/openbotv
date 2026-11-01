@@ -80,6 +80,10 @@ interface AgentAvatarProps {
 export function AgentAvatar(props: AgentAvatarProps) {
   const seed = () => props.seed ?? props.agent?.avatarSeed ?? "agent";
   const character = createMemo(() => avatarCharacter(seed()));
+  const characterKind = () => {
+    const kind = character().kind;
+    return kind === "shape" ? "orb" : kind;
+  };
   const hue = () => (props.hue !== undefined ? props.hue : (props.agent?.avatarHue ?? null));
   const motion = () => props.motion ?? "hover";
   const url = () => (props.url !== undefined ? props.url : (props.agent?.avatarUrl ?? null));
@@ -109,7 +113,7 @@ export function AgentAvatar(props: AgentAvatarProps) {
           when={character().kind === "shape"}
           fallback={
             <CharacterAvatar
-              kind={character().kind === "orb" ? "orb" : "robot"}
+              kind={characterKind()}
               seed={character().seed}
               hue={hue()}
               motion={motion()}

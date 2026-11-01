@@ -122,8 +122,8 @@ function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number 
                 <strong>{current().name}</strong>
               </span>
               <span class="roster-status roster-status-short">{copy()}</span>
+              <span class="roster-time">{time()}</span>
             </span>
-            <span class="roster-time">{time()}</span>
           </LabelTooltipTrigger>
         </LabelTooltip>
       )}

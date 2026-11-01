@@ -1072,7 +1072,8 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                     </span>
                   </Popover.Trigger>
                   <Popover.Content class="avatar-editor" aria-hidden={draft.avatar.pickerOpen ? undefined : "true"}>
-                    <Popover.Title class="sr-only">{t("agentSettings.avatar.editor")}</Popover.Title>
+                    <Popover.Title class="avatar-studio-title">{t("agentSettings.avatar.editor")}</Popover.Title>
+                    <p class="avatar-studio-hint">{t("agentSettings.avatar.studioHint")}</p>
                     <Input
                       ref={(element) => (avatarFileInput = element)}
                       class="sr-only"

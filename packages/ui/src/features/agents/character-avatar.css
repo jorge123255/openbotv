@@ -117,8 +117,11 @@
   transform: translateY(10px);
 }
 .character-choices {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(
+      auto-fit,
+      minmax(min(100%, calc(var(--openbot-roster-avatar-size) + var(--openbot-space-8))), 1fr)
+    );
   gap: var(--openbot-space-2);
   min-inline-size: 0;
   margin: 0;
@@ -134,12 +137,14 @@
   display: grid;
   justify-items: center;
   width: auto;
-  min-width: var(--openbot-control-xl);
+  min-width: 0;
   height: auto;
   gap: var(--openbot-space-1);
   padding: var(--openbot-space-2);
   border: 1px solid var(--openbot-border);
-  border-radius: var(--openbot-radius-lg);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-surface);
+  white-space: normal;
   font-size: var(--openbot-text-sm);
 }
 .character-choice[aria-pressed="true"] {
@@ -158,7 +163,7 @@
   align-items: center;
   justify-content: center;
   border-bottom: 1px solid var(--openbot-border);
-  background: radial-gradient(ellipse at center, var(--openbot-accent-soft), transparent 72%);
+  background: linear-gradient(120deg, var(--openbot-bg-sidebar), var(--openbot-accent-soft), var(--openbot-bg-canvas));
   padding: var(--openbot-space-3);
   container: companion-stage / inline-size;
 }
@@ -296,5 +301,99 @@
   }
   .companion-stage-copy > .ui-button {
     padding-inline: var(--openbot-space-2);
+  }
+}
+
+/* The studio uses the existing save and upload actions. All family choices are live controls. */
+.avatar-studio-title {
+  margin: var(--openbot-space-4) var(--openbot-space-4) var(--openbot-space-2);
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
+}
+.avatar-studio-hint {
+  margin: 0 var(--openbot-space-4) var(--openbot-space-4);
+  color: var(--openbot-text-secondary);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-md);
+}
+.character-choice-name {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-weight: var(--openbot-weight-semibold);
+}
+.character-choice > small {
+  max-width: 100%;
+  color: var(--openbot-text-muted);
+  font-weight: var(--openbot-weight-regular);
+  font-size: var(--openbot-text-sm);
+  line-height: var(--openbot-leading-sm);
+  overflow-wrap: anywhere;
+}
+.character-soft-highlight {
+  fill: var(--openbot-character-shell);
+  stroke: var(--openbot-character-shell);
+  opacity: 0.65;
+}
+.character-face[data-organic] {
+  transform: translateY(14px);
+}
+.character-face[data-organic] .character-eyes {
+  fill: var(--openbot-character-ink);
+}
+.character-face[data-organic] :is(.character-mouth, .character-sleep-eyes) {
+  stroke: var(--openbot-character-ink);
+}
+.character-face[data-organic] .character-cheeks {
+  stroke: var(--openbot-character-ink);
+  opacity: 0.4;
+}
+.character-leaves {
+  transform-origin: 80px 44px;
+}
+.agent-avatar-character[data-character="pebble"][data-moving] .character-body {
+  animation: character-squish 3.6s ease-in-out infinite;
+}
+.agent-avatar-character[data-character="wisp"][data-moving] .character-body {
+  animation: character-drift 6s ease-in-out infinite;
+}
+.agent-avatar-character[data-character="sprout"][data-moving] .character-leaves {
+  animation: character-sway 3s ease-in-out infinite;
+}
+.agent-avatar-character[data-character="comet"][data-moving] .character-tail {
+  transform-origin: 70px 112px;
+  animation: character-sway 2.4s ease-in-out infinite;
+}
+@keyframes character-squish {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(3px) scale(1.04, 0.96);
+  }
+}
+@keyframes character-drift {
+  0%,
+  100% {
+    transform: translate(-2px, 0) rotate(-2deg);
+  }
+  50% {
+    transform: translate(3px, -5px) rotate(2deg);
+  }
+}
+@keyframes character-sway {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+/* Repeat the family selectors so reduced motion wins over each normal-motion pose. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-avatar-character[data-character][data-moving] :is(.character-body, .character-leaves, .character-tail) {
+    animation: none;
   }
 }

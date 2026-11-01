@@ -2544,10 +2544,13 @@ textarea {
 .avatar-editor {
   position: relative;
   z-index: var(--openbot-layer-popover);
-  width: min(284px, calc(var(--settings-panel-width, 360px) - 30px));
+  width: min(360px, calc(var(--settings-panel-width, 360px) - 30px));
+  max-height: calc(100dvh - var(--openbot-space-8));
+  overscroll-behavior: contain;
   max-width: calc(100vw - 24px);
   margin: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--openbot-border);
   border-radius: var(--openbot-radius-lg);
   background: var(--openbot-bg-overlay);

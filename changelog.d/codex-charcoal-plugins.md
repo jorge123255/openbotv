@@ -1,5 +1,7 @@
 ### Added
 
+- Choose Pebble, Wisp, Sprout or Comet in the avatar studio or agent setup. Each has its own silhouette and motion, shares the real chat states, and respects reduced motion. Existing avatars stay selected until you change them.
+
 - The Marketplace has a Plugins page with Discover, Manage, and Create views. Open an existing connection to reconnect or remove it. Create uses the existing MCP and skill setup flows.
 - Generated teammate avatars have mouth expressions for idle, working, waiting, reply, error, and sleep states. The selected awake teammate moves while other idle teammates rest.
 
@@ -7,6 +9,8 @@
 - Show the selected character above its chat with controls to hide it or edit its appearance.
 
 ### Changed
+
+- Give the workspace a BotAI mark, plum-black and aubergine surfaces, larger character-led roster cards, and matching chat, Plugins and settings controls. Keep the vertical roster, category filters and sleep section.
 
 - Show BotAI in the page rail, loading screens, search, settings descriptions, and desktop document title. Keep existing service names and upstream attribution.
 - Use charcoal surfaces and violet accents across labelled navigation, bot cards, chat, Marketplace, and settings. Keep category filters, the sleep section, and selected chat. Navigation becomes compact at smaller window widths.

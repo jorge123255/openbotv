@@ -1,18 +1,24 @@
 // Real App appearance saves, temporary AgentStore persistence, and character motion gates.
 import assert from "node:assert/strict";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { avatarCharacter, avatarCharacterSeed, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
+import {
+  AVATAR_CHARACTERS,
+  avatarCharacter,
+  avatarCharacterSeed,
+  bloubAvatarProfile,
+} from "@openbot/brand/bloub-avatar";
 import { chromium } from "playwright-core";
 import { AgentStore } from "../src/backend/agent-store";
 import { runCauseEffect } from "../src/backend/effect-boundary";
 import { readScriptArguments } from "./script-arguments";
 
 const args = readScriptArguments({
-  usage: "bun scripts/character-avatar-ui-e2e.ts --url=<local-storybook-url> [--browser-channel=chrome|chromium]",
-  options: { url: { type: "string" }, "browser-channel": { type: "string" } },
+  usage:
+    "bun scripts/character-avatar-ui-e2e.ts --url=<local-storybook-url> [--browser-channel=chrome|chromium] [--identity-only]",
+  options: { url: { type: "string" }, "browser-channel": { type: "string" }, "identity-only": { type: "boolean" } },
 });
 if (!args) process.exit(0);
 const target = new URL(args.values.url ?? "http://localhost:6006");
@@ -27,6 +33,64 @@ const report: { passed: boolean; cases: string[]; pageErrors: string[]; failure?
   cases: [],
   pageErrors: [],
 };
+const families = AVATAR_CHARACTERS.filter((kind) => kind !== "shape");
+const temporary = await mkdtemp(join(tmpdir(), "openbot-character-e2e-"));
+let store: AgentStore | undefined;
+try {
+  const base = "existing-bot-identity";
+  store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
+  await runCauseEffect(store.initialize());
+  const agent = await runCauseEffect(
+    store.createAgent({ name: "Character fixture", description: "Offline fixture", avatarSeed: base, avatarHue: 245 }),
+  );
+  const image = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jD7kAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const uploaded = await runCauseEffect(store.setAvatar(agent.id, { mimeType: "image/png", bytes: image }));
+  for (const kind of families) {
+    const seed = avatarCharacterSeed(base, kind);
+    assert.ok(seed);
+    await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarSeed: seed }));
+    store.database.close();
+    store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
+    await runCauseEffect(store.initialize());
+    const restored = store.list().find((row) => row.id === agent.id);
+    assert.ok(restored);
+    assert.equal(restored.avatarSeed, seed);
+    assert.deepEqual(avatarCharacter(restored.avatarSeed), { kind, seed: base });
+    assert.equal(avatarCharacterSeed(restored.avatarSeed, "shape"), base);
+    // Native consumers still render the exact base shape when they do not draw the family.
+    assert.deepEqual(bloubAvatarProfile(restored.avatarSeed, restored.avatarHue), bloubAvatarProfile(base, 245));
+    for (const key of ["id", "name", "description", "avatarHue", "avatarUrl", "threadId", "workspacePath"] as const)
+      assert.equal(restored[key], uploaded[key]);
+    const storedImage = store.resolveAvatar(agent.id);
+    assert.ok(storedImage);
+    assert.deepEqual(readFileSync(storedImage.path), image);
+    assert.equal(avatarCharacterSeed("x".repeat(128), kind), null);
+    report.cases.push(
+      `${kind}: real AgentStore reopen retains the family, base seed, identity, thread, workspace and uploaded image bytes.`,
+    );
+  }
+  await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarSeed: base }));
+  store.database.close();
+  store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
+  await runCauseEffect(store.initialize());
+  assert.equal(store.list().find((row) => row.id === agent.id)?.avatarSeed, base);
+  report.cases.push("Returning to Shapes restores the original seed after database reopen.");
+} catch (error) {
+  report.failure = error instanceof Error ? error.message : String(error);
+  writeFileSync(resolve(output, "identity-report.json"), `${JSON.stringify(report, null, 2)}\n`);
+  throw error;
+} finally {
+  store?.database.close();
+  await rm(temporary, { recursive: true, force: true });
+}
+if (args.values["identity-only"]) {
+  report.passed = true;
+  writeFileSync(resolve(output, "identity-report.json"), `${JSON.stringify(report, null, 2)}\n`);
+  process.exit(0);
+}
 const browser = await chromium.launch({ channel, headless: true });
 const page = await browser.newPage({ viewport: { width: 1672, height: 941 }, reducedMotion: "reduce" });
 page.on("pageerror", (error) => report.pageErrors.push(error.message));
@@ -34,8 +98,6 @@ await page.route("**/*", (route) => {
   const url = new URL(route.request().url());
   return ["http:", "https:"].includes(url.protocol) && url.origin !== target.origin ? route.abort() : route.continue();
 });
-const temporary = await mkdtemp(join(tmpdir(), "openbot-character-e2e-"));
-let store: AgentStore | undefined;
 const open = async (id: string) => {
   await page.goto(new URL(`/iframe.html?id=${id}&viewMode=story`, target).href, { waitUntil: "domcontentloaded" });
 };
@@ -88,36 +150,6 @@ const assertChatCardLayout = async (replies: number, markers: boolean) => {
   if (markers) assert.ok(result.markers > 0, "The fixture must include action markers.");
 };
 try {
-  const base = "existing-bot-identity";
-  for (const kind of ["robot", "orb"] as const) {
-    const seed = avatarCharacterSeed(base, kind);
-    assert.ok(seed);
-    assert.equal(avatarCharacterSeed(seed, "shape"), base);
-    assert.deepEqual(bloubAvatarProfile(seed, 245), bloubAvatarProfile(base, 245));
-  }
-  assert.equal(avatarCharacterSeed("x".repeat(128), "robot"), null);
-  store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
-  await runCauseEffect(store.initialize());
-  const agent = await runCauseEffect(
-    store.createAgent({ name: "Character fixture", description: "Offline fixture", avatarSeed: base, avatarHue: 245 }),
-  );
-  const seed = avatarCharacterSeed(agent.avatarSeed, "robot");
-  assert.ok(seed);
-  await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarSeed: seed }));
-  store.database.close();
-  store = new AgentStore(join(temporary, "profile"), join(temporary, "home"));
-  await runCauseEffect(store.initialize());
-  const restored = store.list().find((row) => row.id === agent.id);
-  assert.ok(restored);
-  assert.equal(restored.avatarSeed, seed);
-  for (const key of ["name", "description", "avatarHue", "threadId", "workspacePath"] as const)
-    assert.equal(restored[key], agent[key]);
-  await runCauseEffect(store.updateAgent({ agentId: agent.id, avatarSeed: avatarCharacter(restored.avatarSeed).seed }));
-  assert.equal(store.list().find((row) => row.id === agent.id)?.avatarSeed, agent.avatarSeed);
-  report.cases.push(
-    "Character selection survives real AgentStore reopen, keeps identity/thread/workspace fields, and restores the exact original shape seed.",
-  );
-
   await open("app--roster-workspace");
   await page.locator(".roster-row").first().waitFor({ timeout: 60_000 });
   await page.locator(".startup-splash").waitFor({ state: "hidden" });
@@ -195,19 +227,44 @@ try {
   await page.locator(".agent-settings-avatar").click();
   await page.getByRole("button", { name: "Orb", exact: true }).click();
   await page.locator('.roster-row-active [data-character="orb"]').waitFor();
+  for (const [name, kind] of [
+    ["Pebble", "pebble"],
+    ["Wisp", "wisp"],
+    ["Sprout", "sprout"],
+    ["Comet", "comet"],
+  ] as const) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await page.locator(`.roster-row-active [data-character="${kind}"]`).waitFor();
+    assert.equal(await page.locator(`.companion-stage [data-character="${kind}"]`).count(), 1);
+    assert.equal(await page.getByRole("button", { name, exact: true }).getAttribute("aria-pressed"), "true");
+    await page.screenshot({ path: resolve(output, `studio-${kind}.png`) });
+  }
   await page.getByRole("button", { name: "Shapes", exact: true }).click();
   await page.locator('.roster-row-active [data-avatar="generated"]').waitFor();
   assert.equal(await page.locator(".roster-row").count(), 3);
   assert.equal(await page.locator(".conversation-title h1").innerText(), "Chief");
   report.cases.push(
-    "Orb and Shapes use the same save controls; returning to Shapes retains the selected bot and roster.",
+    "Orb, Pebble, Wisp, Sprout, Comet and Shapes save through the real App; returning to Shapes retains the selected agent and roster.",
   );
 
   await page.keyboard.press("Escape");
   await page.locator(".roster-create").click();
   await page.locator(".first-agent-setup-panel").waitFor();
-  await page.getByRole("button", { name: "Companion", exact: true }).click();
-  await page.locator('.first-agent-live-avatar [data-character="robot"]').waitFor();
+  assert.equal(
+    await page.locator('.first-agent-live-avatar [data-avatar="generated"]').count(),
+    1,
+    "New agents keep the original default identity.",
+  );
+  for (const [name, kind] of [
+    ["Pebble", "pebble"],
+    ["Wisp", "wisp"],
+    ["Sprout", "sprout"],
+    ["Comet", "comet"],
+  ] as const) {
+    await page.getByRole("button", { name, exact: true }).click();
+    await page.locator(`.first-agent-live-avatar [data-character="${kind}"]`).waitFor();
+  }
+  await page.locator(".first-agent-live-avatar").scrollIntoViewIfNeeded();
   await page.screenshot({ path: resolve(output, "new-bot-character.png") });
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.locator(".roster-row").first().waitFor();
@@ -285,13 +342,27 @@ try {
 
   await open("identity-agentavatar--living-characters");
   await page.locator('[data-character="robot"]').waitFor();
-  const mouths = new Set<string>();
+  const mouths = new Map(families.map((kind) => [kind, new Set<string>()] as const));
   for (const mood of ["idle", "working", "waiting", "failed", "responded", "connecting", "asleep"]) {
     await page.getByRole("button", { name: mood, exact: true }).click();
-    await page.locator(`[data-character="robot"][data-mood="${mood}"]`).waitFor();
-    const path = await page.locator('[data-character="robot"] .character-mouth').getAttribute("d");
-    assert.ok(path);
-    mouths.add(path);
+    for (const kind of families) {
+      const character = page.locator(`[data-character="${kind}"][data-mood="${mood}"]`);
+      await character.waitFor();
+      const path = await character.locator(".character-mouth").getAttribute("d");
+      assert.ok(path);
+      mouths.get(kind)?.add(path);
+      assert.equal(
+        await character.locator(".character-face").evaluate((face) => {
+          const svg = face.closest("svg");
+          if (!svg) return false;
+          const area = svg.getBoundingClientRect();
+          const box = face.getBoundingClientRect();
+          return box.left >= area.left && box.right <= area.right && box.top >= area.top && box.bottom <= area.bottom;
+        }),
+        true,
+        `${kind} keeps its ${mood} face inside the artwork.`,
+      );
+    }
     await page.waitForFunction(() =>
       [...document.querySelectorAll(".agent-avatar-character")].every(
         (element) => element.getAnimations({ subtree: true }).length === 0,
@@ -306,12 +377,14 @@ try {
     );
     await page.screenshot({ path: resolve(output, `characters-${mood}.png`) });
   }
-  assert.equal(mouths.size, 7);
+  for (const paths of mouths.values()) assert.equal(paths.size, 7);
   await page.getByRole("button", { name: "idle", exact: true }).click();
   report.step = "Start normal-motion character animation";
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  await page.waitForFunction(
-    () => document.querySelector('[data-character="robot"]')?.getAnimations({ subtree: true }).length,
+  await page.waitForFunction(() =>
+    [...document.querySelectorAll(".agent-avatar-character")].every(
+      (element) => element.getAnimations({ subtree: true }).length > 0,
+    ),
   );
   report.step = "Follow the pointer in normal motion";
   await page.mouse.move(50, 500);
@@ -358,10 +431,14 @@ try {
   await open("identity-agentavatar--character-image");
   await page.locator(".agent-avatar-custom img").waitFor();
   assert.equal(await page.locator(".agent-avatar-character, .agent-avatar-mouth").count(), 0);
-  report.cases.push("A custom animated image overrides the character without adding generated face parts.");
+  await open("identity-agentavatar--character-image-families");
+  await page.locator(".agent-avatar-custom img").first().waitFor();
+  assert.equal(await page.locator(".agent-avatar-custom img").count(), AVATAR_CHARACTERS.length);
+  assert.equal(await page.locator(".agent-avatar-character, .agent-avatar-mouth").count(), 0);
+  report.cases.push("A custom animated image overrides every family without adding generated face parts.");
   await open("identity-agentavatar--static-characters");
   await page.locator(".character-svg").first().waitFor();
-  assert.equal(await page.locator(".character-svg").count(), 2);
+  assert.equal(await page.locator(".character-svg").count(), families.length);
   assert.equal(
     await page
       .locator(".character-svg .character-mouth")
@@ -369,10 +446,8 @@ try {
       .evaluate((e) => e.style.stroke.startsWith("rgb")),
     true,
   );
-  const visiblePixels = await page
-    .locator(".character-svg")
-    .first()
-    .evaluate(async (svg) => {
+  for (const svg of await page.locator(".character-svg").all()) {
+    const visiblePixels = await svg.evaluate(async (svg) => {
       const image = new Image();
       image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svg))}`;
       await image.decode();
@@ -385,8 +460,21 @@ try {
       const pixels = context.getImageData(0, 0, 160, 160).data;
       return pixels.filter((value, index) => index % 4 === 3 && value > 0).length;
     });
-  assert.ok(visiblePixels > 1000, "Exported character SVG must rasterize without external styles.");
+    assert.ok(visiblePixels > 1000, "Exported character SVG must rasterize without external styles.");
+  }
   report.cases.push("Static mentions/export artwork retains the selected character with resolved face colors.");
+  await open("app--bot-ai-workspace");
+  await page.locator(".roster-row-active [data-character=pebble]").waitFor();
+  await page.locator(".startup-splash").waitFor({ state: "hidden" });
+  for (const width of [1672, 1280, 1024]) {
+    await page.setViewportSize({ width, height: 941 });
+    assert.equal(await page.locator(".roster-row").count(), 3);
+    assert.equal(await page.locator(".conversation-title h1").innerText(), "Chief");
+    await page.screenshot({ path: resolve(output, `botai-workspace-${width}.png`) });
+  }
+  report.cases.push(
+    "The real BotAI shell keeps the vertical roster, selected chat and soft characters at three review sizes.",
+  );
   assert.deepEqual(report.pageErrors, []);
   report.passed = true;
 } catch (error) {
@@ -422,10 +510,5 @@ try {
   throw error;
 } finally {
   writeFileSync(resolve(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  try {
-    store?.database.close();
-  } finally {
-    await rm(temporary, { recursive: true, force: true });
-    await browser.close();
-  }
+  await browser.close();
 }

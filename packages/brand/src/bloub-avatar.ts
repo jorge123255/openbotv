@@ -55,11 +55,13 @@ export const AVATAR_HUE_OPTIONS: ReadonlyArray<{
 export const AVATAR_HUE_CHOICES = AVATAR_HUE_OPTIONS.filter((option) => option.hue !== 100 && option.hue !== 280);
 
 /** A character uses the existing opaque avatar identity field; no saved agent is rewritten. */
-export type AvatarCharacter = "shape" | "robot" | "orb";
+export const AVATAR_CHARACTERS = ["shape", "pebble", "wisp", "sprout", "comet", "orb", "robot"] as const;
+export type AvatarCharacter = (typeof AVATAR_CHARACTERS)[number];
 const CHARACTER_PREFIX = "character:";
 
 export function avatarCharacter(seed: string): { kind: AvatarCharacter; seed: string } {
-  for (const kind of ["robot", "orb"] as const) {
+  for (const kind of AVATAR_CHARACTERS) {
+    if (kind === "shape") continue;
     const prefix = `${CHARACTER_PREFIX}${kind}:`;
     if (seed.startsWith(prefix) && isAvatarSeed(seed.slice(prefix.length))) {
       return { kind, seed: seed.slice(prefix.length) };

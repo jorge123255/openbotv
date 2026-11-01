@@ -1511,10 +1511,11 @@ html:active-view-transition-type(marketplace-swap)::view-transition-new(marketpl
   min-height: 176px;
   align-content: start;
   align-items: start;
-  padding: var(--openbot-space-5);
+  padding: var(--openbot-space-6);
   gap: var(--openbot-space-4);
   border: 1px solid var(--openbot-border-strong);
-  background: var(--openbot-bg-surface);
+  background: linear-gradient(140deg, var(--openbot-bg-surface-raised), var(--openbot-bg-surface));
+  border-top: var(--openbot-space-1) solid var(--openbot-accent-strong);
   border-radius: var(--openbot-radius-card);
 }
 .marketplace-app-card .marketplace-app-row-copy {

@@ -1,4 +1,4 @@
-import { AppLogo, type AppLogoVariant, ProviderLogo } from "@openbot/brand";
+import { type AppLogoVariant, BotAiMark, ProviderLogo } from "@openbot/brand";
 import {
   Bot,
   Button,
@@ -234,7 +234,7 @@ export interface PageRailProps {
   /** The Help menu, between Marketplace and Settings. */
   help: JSX.Element;
   /**
-   * The OpenBot logo above the navigation. With
+   * The BotAI workspace mark above the navigation. With
    * `href`, the logo is a link to the OpenBot site.
    */
   logo?: { variant: AppLogoVariant; href?: string | undefined } | undefined;
@@ -326,7 +326,7 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
   const { t } = useText();
   return (
     <div class="window-rail-logo">
-      <Show when={props.href} fallback={<AppLogo variant={props.variant} />}>
+      <Show when={props.href} fallback={<BotAiMark variant={props.variant} class="window-rail-mark" />}>
         {(href) => (
           <MotionTooltip content={t("app.rail.website")}>
             <a
@@ -336,7 +336,7 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
               rel="noopener"
               aria-label={t("app.rail.website")}
             >
-              <AppLogo variant={props.variant} />
+              <BotAiMark variant={props.variant} class="window-rail-mark" />
             </a>
           </MotionTooltip>
         )}

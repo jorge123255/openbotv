@@ -29,13 +29,13 @@
   position: relative;
   width: 100%;
   height: auto;
-  min-height: var(--openbot-control-lg);
+  min-height: var(--openbot-control-xl);
   display: grid;
   grid-template-columns: var(--openbot-icon-md) minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--openbot-space-2);
   border: 1px solid transparent;
-  border-radius: var(--openbot-radius-md);
+  border-radius: var(--openbot-radius-lg);
   background: transparent;
   padding: 0 var(--openbot-space-2);
   color: var(--openbot-text-secondary);

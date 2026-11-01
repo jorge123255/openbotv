@@ -1,4 +1,4 @@
-export { AppLogo, type AppLogoAnimation, type AppLogoProps, type AppLogoVariant } from "./AppLogo";
+export { AppLogo, type AppLogoAnimation, type AppLogoProps, type AppLogoVariant, BotAiMark } from "./AppLogo";
 export {
   type MobilePlatformLogoVariant,
   PlatformLogo,

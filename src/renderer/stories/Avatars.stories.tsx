@@ -1,4 +1,9 @@
-import { avatarCandidateSeeds, avatarCharacterSeed, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
+import {
+  AVATAR_CHARACTERS,
+  avatarCandidateSeeds,
+  avatarCharacterSeed,
+  bloubAvatarProfile,
+} from "@openbot/brand/bloub-avatar";
 import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import { Button, Input } from "@openbot/ui";
 import { avatarImageDataUrl, normalizeAvatarFile } from "@openbot/ui/avatar-image";
@@ -287,8 +292,8 @@ export const LivingCharacters: AgentStory = {
             </Button>
           ))}
         </div>
-        <div class="flex gap-8">
-          {(["shape", "robot", "orb"] as const).map((kind) => (
+        <div class="flex flex-wrap gap-8">
+          {AVATAR_CHARACTERS.map((kind) => (
             <section aria-label={kind} class="grid justify-items-center gap-3">
               <AgentAvatar
                 seed={avatarCharacterSeed("chief", kind) ?? "chief"}
@@ -325,8 +330,9 @@ function StaticCharacterPreview(props: { seed: string }) {
 export const StaticCharacters: AgentStory = {
   render: () => (
     <div class="flex gap-8 p-8">
-      <StaticCharacterPreview seed="character:robot:chief" />
-      <StaticCharacterPreview seed="character:orb:chief" />
+      {AVATAR_CHARACTERS.filter((kind) => kind !== "shape").map((kind) => (
+        <StaticCharacterPreview seed={avatarCharacterSeed("chief", kind) ?? "chief"} />
+      ))}
     </div>
   ),
 };
@@ -338,4 +344,15 @@ export const CharacterImage: AgentStory = {
     motion: "always",
     style: { width: "96px", height: "96px" },
   },
+};
+
+/** An uploaded image takes precedence over every optional family. */
+export const CharacterImageFamilies: AgentStory = {
+  render: () => (
+    <div class="flex flex-wrap gap-8 p-8">
+      {AVATAR_CHARACTERS.map((kind) => (
+        <AgentAvatar {...CharacterImage.args} seed={avatarCharacterSeed("chief", kind) ?? "chief"} />
+      ))}
+    </div>
+  ),
 };

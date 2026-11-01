@@ -1,6 +1,6 @@
 /* The page rail at the left of the window, on desktop and on the web. The window styles place it in
  * the window grid. The window buttons of macOS sit at the top of the rail, in the top row. Other
- * windows can show the OpenBot logo there. */
+ * windows show the BotAI workspace mark there. */
 .window-rail {
   position: relative;
   display: flex;
@@ -14,6 +14,7 @@
   padding: calc(var(--openbot-workspace-header-height) + var(--openbot-space-6)) var(--openbot-space-3)
     var(--openbot-space-4);
   border-right: 1px solid var(--openbot-border);
+  background: var(--openbot-bg-frame);
   -webkit-app-region: drag;
 }
 
@@ -33,10 +34,17 @@
   padding-top: 2px;
 }
 
-.window-rail-logo .app-logo {
+.window-rail-logo .window-rail-mark {
   display: block;
-  width: var(--openbot-icon-lg);
-  height: var(--openbot-icon-lg);
+  width: var(--openbot-control-md);
+  height: var(--openbot-control-md);
+  color: var(--openbot-accent-text);
+}
+.window-rail-logo .window-rail-mark[data-variant="dev"] {
+  color: var(--openbot-logo-dev);
+}
+.window-rail-logo .window-rail-mark[data-variant="preview"] {
+  color: var(--openbot-logo-preview);
 }
 
 .window-rail-logo-link {
@@ -73,7 +81,7 @@
   align-items: center;
   justify-content: flex-start;
   border: 1px solid transparent;
-  border-radius: var(--openbot-radius-lg);
+  border-radius: var(--openbot-radius-pill);
   background: transparent;
   padding: var(--openbot-space-2) var(--openbot-space-3);
   color: var(--openbot-text-secondary);
@@ -92,7 +100,7 @@
 .window-rail-button[aria-current="page"],
 .window-rail-button[aria-current="page"]:hover:not(:disabled):not([data-disabled]) {
   border-color: var(--openbot-accent-strong);
-  background: var(--openbot-accent-soft);
+  background: linear-gradient(110deg, var(--openbot-accent-soft), var(--openbot-bg-surface));
   color: var(--openbot-accent-text);
 }
 
@@ -266,6 +274,7 @@
   color: var(--openbot-text-primary);
   font-size: var(--openbot-text-2xl);
   font-weight: var(--openbot-weight-semibold);
+  letter-spacing: var(--openbot-tracking-tight);
 }
 .window-rail-button > svg {
   flex: none;

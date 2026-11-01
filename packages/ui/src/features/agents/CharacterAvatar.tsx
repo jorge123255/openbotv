@@ -2,7 +2,7 @@ import { type AvatarCharacter, avatarHeadColor } from "@openbot/brand/bloub-avat
 import { type AvatarMood, avatarMoodIsBusy } from "@openbot/brand/bloub-avatar-motion";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { prefersReducedMotion } from "@openbot/ui/utils";
-import { createSignal, createUniqueId, onSettled, Show } from "solid-js";
+import { createSignal, createUniqueId, Match, onSettled, Show, Switch } from "solid-js";
 import type { AvatarMotion } from "../../bloub-avatar";
 
 const pointerListeners = new Set<(event: PointerEvent) => void>();
@@ -41,6 +41,7 @@ export function CharacterAvatar(props: {
     visible() &&
     awakeWindow() &&
     (props.motion === "always" || avatarMoodIsBusy(props.mood) || interacting());
+  const organic = () => props.kind !== "robot" && props.kind !== "orb";
   const mouth = () => {
     switch (props.mood) {
       case "asleep":
@@ -148,14 +149,48 @@ export function CharacterAvatar(props: {
           <Show
             when={props.kind === "robot"}
             fallback={
-              <circle
-                cx="80"
-                cy="77"
-                r="57"
+              // Character silhouettes are brand artwork, not interface icons.
+              <g
+                class="character-soft-shell"
                 fill={`url(#${id}-shell)`}
                 stroke="var(--character-color)"
-                stroke-width="3"
-              />
+                stroke-width="2"
+              >
+                <Switch fallback={<circle cx="80" cy="77" r="57" />}>
+                  <Match when={props.kind === "pebble"}>
+                    <path d="M 25 91 C 18 66 39 35 63 31 C 95 23 124 45 134 72 C 148 109 116 135 80 136 C 48 139 20 122 25 91 Z" />
+                    <ellipse
+                      class="character-soft-highlight"
+                      cx="52"
+                      cy="51"
+                      rx="13"
+                      ry="6"
+                      transform="rotate(-30 52 51)"
+                    />
+                  </Match>
+                  <Match when={props.kind === "wisp"}>
+                    <path d="M 35 77 C 17 61 32 33 55 40 C 61 15 99 13 111 39 C 139 33 150 69 130 83 C 146 107 123 131 104 120 C 92 144 62 138 58 122 C 28 137 13 105 35 90 Z" />
+                  </Match>
+                  <Match when={props.kind === "sprout"}>
+                    <g class="character-leaves">
+                      <path d="M 80 44 C 48 45 43 23 43 17 C 64 14 79 21 80 44 Z" />
+                      <path d="M 80 44 C 79 15 101 9 117 11 C 116 31 103 43 80 44 Z" />
+                    </g>
+                    <path d="M 80 40 C 115 40 137 77 128 108 C 120 137 40 137 32 108 C 23 77 45 40 80 40 Z" />
+                  </Match>
+                  <Match when={props.kind === "comet"}>
+                    <path class="character-tail" d="M 59 108 Q 30 135 12 122 Q 18 149 55 142 Q 78 138 89 113 Z" />
+                    <circle cx="84" cy="76" r="54" />
+                    <path
+                      d="M 45 50 Q 56 33 73 32"
+                      fill="none"
+                      stroke="var(--openbot-character-shell)"
+                      stroke-width="7"
+                      stroke-linecap="round"
+                    />
+                  </Match>
+                </Switch>
+              </g>
             }
           >
             <g class="character-limb character-arm-left">
@@ -193,16 +228,18 @@ export function CharacterAvatar(props: {
               />
             </g>
           </Show>
-          <g class="character-face">
-            <rect x="43" y="44" width="74" height="46" rx="21" fill={`url(#${id}-visor)`} />
+          <g class="character-face" data-organic={organic() ? "" : undefined}>
+            <Show when={!organic()}>
+              <rect x="43" y="44" width="74" height="46" rx="21" fill={`url(#${id}-visor)`} />
+            </Show>
             <g class="character-gaze">
               <g class="character-eyes">
                 <Show
                   when={props.mood !== "asleep"}
                   fallback={<path class="character-sleep-eyes" d="M 57 62 Q 63 68 69 62 M 91 62 Q 97 68 103 62" />}
                 >
-                  <ellipse cx="63" cy="61" rx="6" ry={props.mood === "waiting" ? 9 : 7} />
-                  <ellipse cx="97" cy="61" rx="6" ry={props.mood === "failed" ? 5 : 7} />
+                  <ellipse cx="63" cy="61" rx={props.kind === "pebble" ? 4 : 6} ry={props.mood === "waiting" ? 9 : 7} />
+                  <ellipse cx="97" cy="61" rx={props.kind === "pebble" ? 4 : 6} ry={props.mood === "failed" ? 5 : 7} />
                 </Show>
               </g>
               <path class="character-mouth" d={mouth()} />

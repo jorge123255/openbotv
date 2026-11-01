@@ -166,3 +166,20 @@ export function AppLogo(props: AppLogoProps) {
     </svg>
   );
 }
+
+/** BotAI's linked B is GUI brand artwork. The upstream app icon stays in AppLogo. */
+export function BotAiMark(props: { variant: AppLogoVariant; class?: string }) {
+  return (
+    <svg class={props.class} data-variant={props.variant} viewBox="0 0 40 40" fill="none" aria-hidden="true">
+      <path
+        d="M 10 31 V 11 Q 10 5 17 5 H 22 Q 32 5 32 13 Q 32 20 23 20 H 17 Q 9 20 9 27 Q 9 35 20 35 H 24 Q 34 35 34 27 Q 34 20 24 20"
+        stroke="currentColor"
+        stroke-width="5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+      <circle cx="18" cy="12" r="2" fill="currentColor" />
+      <circle cx="23" cy="27" r="2" fill="currentColor" />
+    </svg>
+  );
+}

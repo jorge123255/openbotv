@@ -9,7 +9,7 @@
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--openbot-border);
-  padding: var(--openbot-space-2) var(--openbot-space-5);
+  padding: var(--openbot-space-2) var(--openbot-space-4);
   background: transparent;
   container: conversation-header / inline-size;
 }
