@@ -316,7 +316,7 @@
   display: none;
 }
 
-.side-panel-maximized > :is(.conversation-header, .conversation-scroll, .composer-wrap) {
+.side-panel-maximized > :is(.conversation-header, .companion-stage, .conversation-scroll, .composer-wrap) {
   visibility: hidden;
 }
 

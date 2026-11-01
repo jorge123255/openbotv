@@ -148,13 +148,15 @@ export function ConversationHeader(props: ConversationHeaderProps) {
       <Show when={hasCharacter() && characterExpanded() && props.agent}>
         {(agent) => (
           <section class="companion-stage" aria-label={t("agentSettings.avatar.character")}>
-            <AgentAvatar agent={agent()} mood={props.mood} motion="always" followPointer />
-            <div class="companion-stage-copy">
-              <strong>{agent().name}</strong>
-              <span>{t("agentSettings.avatar.characterHint")}</span>
-              <Button type="button" size="sm" variant="outline" onClick={props.onOpenSettings}>
-                {t("agentSettings.avatar.edit")}
-              </Button>
+            <div class="companion-stage-content">
+              <AgentAvatar agent={agent()} mood={props.mood} motion="always" followPointer />
+              <div class="companion-stage-copy">
+                <strong>{agent().name}</strong>
+                <span>{t("agentSettings.avatar.characterHint")}</span>
+                <Button type="button" size="sm" variant="outline" onClick={props.onOpenSettings}>
+                  {t("agentSettings.avatar.edit")}
+                </Button>
+              </div>
             </div>
           </section>
         )}

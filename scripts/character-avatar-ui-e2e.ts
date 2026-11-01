@@ -87,6 +87,62 @@ try {
   report.cases.push(
     "Existing bot settings saves Companion to the real App roster and chat; its character view can hide and reopen.",
   );
+  const layoutEditor = page.locator('.composer-editor-surface[contenteditable="true"]').first();
+  await layoutEditor.fill("Keep this character layout draft.");
+  for (const width of [1280, 1120, 1024]) {
+    report.step = `Character beside settings at ${width}px`;
+    await page.setViewportSize({ width, height: width === 1024 ? 768 : 800 });
+    await page.waitForFunction(() => {
+      const stage = document.querySelector<HTMLElement>(".companion-stage");
+      const settings = document.querySelector<HTMLElement>(".settings-panel");
+      const header = document.querySelector<HTMLElement>(".conversation-header");
+      if (!stage || !settings || !header) return false;
+      const pane = settings.getBoundingClientRect();
+      const area = stage.getBoundingClientRect();
+      const bar = header.getBoundingClientRect();
+      if (area.right > pane.left + 1 || bar.right > pane.left + 1) return false;
+      const contents = stage.querySelectorAll<HTMLElement>(".agent-avatar, .companion-stage-copy, button");
+      for (const item of contents) {
+        const box = item.getBoundingClientRect();
+        if (box.left < area.left - 1 || box.right > area.right + 1) return false;
+        if (item.tagName === "BUTTON" && item.scrollWidth > item.clientWidth + 1) return false;
+      }
+      const buttons = [...header.querySelectorAll("button")].filter(
+        (button) => getComputedStyle(button).visibility === "visible" && button.getClientRects().length > 0,
+      );
+      for (const [index, button] of buttons.entries()) {
+        const box = button.getBoundingClientRect();
+        if (box.left < bar.left - 1 || box.right > bar.right + 1) return false;
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        if (!hit || !button.contains(hit)) return false;
+        for (const other of buttons.slice(index + 1)) {
+          const next = other.getBoundingClientRect();
+          if (
+            Math.min(box.right, next.right) - Math.max(box.left, next.left) > 1 &&
+            Math.min(box.bottom, next.bottom) - Math.max(box.top, next.top) > 1
+          )
+            return false;
+        }
+      }
+      return buttons.length > 0;
+    });
+    await page.screenshot({ path: resolve(output, `character-settings-${width}.png`) });
+  }
+  await page.getByRole("button", { name: "Maximize side panel", exact: true }).click();
+  await page.locator(".companion-stage").waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Restore side panel", exact: true }).click();
+  await page.locator(".companion-stage").waitFor();
+  await page.getByRole("button", { name: "Close side panel", exact: true }).click();
+  await page.locator(".settings-panel").waitFor({ state: "hidden" });
+  assert.equal(await layoutEditor.innerText(), "Keep this character layout draft.");
+  await page.setViewportSize({ width: 1672, height: 941 });
+  await page.locator(".companion-stage").getByRole("button", { name: "Edit agent avatar", exact: true }).click();
+  await page.locator(".settings-panel").waitFor();
+  assert.equal(await page.locator(".conversation-title h1").innerText(), "Chief");
+  report.cases.push(
+    "At 1280, 1120 and 1024px, the character stays beside settings and header controls remain separate and hittable; maximize/restore and close preserve the selected chat and draft.",
+  );
+
   await page.locator(".agent-settings-avatar").click();
   await page.getByRole("button", { name: "Orb", exact: true }).click();
   await page.locator('.roster-row-active [data-character="orb"]').waitFor();
@@ -253,6 +309,7 @@ try {
   report.passed = true;
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
+  await page.screenshot({ path: resolve(output, "failure.png") }).catch(() => undefined);
   throw error;
 } finally {
   writeFileSync(resolve(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);

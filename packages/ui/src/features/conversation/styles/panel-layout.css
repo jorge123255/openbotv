@@ -1,3 +1,4 @@
+.conversation-panel:has(.settings-panel) > .companion-stage,
 .conversation-panel:has(.settings-panel) .conversation-header,
 .conversation-panel:has(.settings-panel) .conversation-scroll,
 .conversation-panel:has(.settings-panel) .composer-wrap {

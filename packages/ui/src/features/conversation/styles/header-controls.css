@@ -924,3 +924,37 @@
     display: none;
   }
 }
+
+/* Fit the chat beside an open pane, even when the window itself is wide. */
+@container conversation-header (max-width: 560px) {
+  .conversation-title-copy > span {
+    display: none;
+  }
+  .conversation-title h1,
+  .conversation-title.ui-button[data-tab] h1 {
+    font-size: var(--openbot-text-lg);
+  }
+  .conversation-title > .agent-avatar {
+    width: var(--openbot-control-lg);
+    height: var(--openbot-control-lg);
+  }
+  .conversation-title,
+  .conversation-title.ui-button[data-tab] {
+    gap: var(--openbot-space-1-5);
+  }
+  .conversation-header-actions {
+    gap: var(--openbot-space-1);
+  }
+  .provider-model-trigger-effort {
+    width: 0;
+    margin-left: calc(var(--openbot-space-1-5) * -1);
+    opacity: 0;
+  }
+}
+@container conversation-header (max-width: 480px) {
+  .provider-model-trigger-name {
+    width: 0;
+    margin-left: calc(var(--openbot-space-1-5) * -1);
+    opacity: 0;
+  }
+}

@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- Keep the character inside the chat beside agent settings. Fit header controls to the available chat width and hide the character when the side panel is maximized.
+
 - Share the runtime mood between the roster and chat character, including failed turns and recent replies.
 
 - Keep keyboard focus on the visible plugin row after reconnecting from Manage.

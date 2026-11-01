@@ -155,20 +155,29 @@
   position: relative;
   display: flex;
   flex: none;
-  min-height: 160px;
   align-items: center;
   justify-content: center;
-  gap: var(--openbot-space-6);
   border-bottom: 1px solid var(--openbot-border);
   background: radial-gradient(ellipse at center, var(--openbot-accent-soft), transparent 72%);
   padding: var(--openbot-space-3);
+  container: companion-stage / inline-size;
 }
-.companion-stage > .agent-avatar {
+.companion-stage-content {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  gap: var(--openbot-space-6);
+}
+.companion-stage-content > .agent-avatar {
   width: 144px;
   height: 144px;
+  flex: none;
 }
 .companion-stage-copy {
   max-width: 28ch;
+  min-width: 0;
   display: grid;
   gap: var(--openbot-space-2);
   color: var(--openbot-text-muted);
@@ -177,6 +186,12 @@
 .companion-stage-copy strong {
   color: var(--openbot-text-primary);
   font-size: var(--openbot-text-xl);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.companion-stage-copy > .ui-button {
+  max-width: 100%;
 }
 @keyframes character-float {
   0%,
@@ -246,14 +261,40 @@
   }
 }
 @media (max-width: 1100px) {
-  .companion-stage {
-    min-height: 128px;
-  }
-  .companion-stage > .agent-avatar {
+  .companion-stage-content > .agent-avatar {
     width: 112px;
     height: 112px;
   }
   .companion-stage-copy {
     max-width: 20ch;
+  }
+}
+
+/* The settings pane changes the chat width without changing the window width. */
+@container companion-stage (max-width: 480px) {
+  .companion-stage-content {
+    gap: var(--openbot-space-3);
+  }
+  .companion-stage-content > .agent-avatar {
+    width: 96px;
+    height: 96px;
+  }
+  .companion-stage-copy {
+    flex: 0 1 20ch;
+  }
+  .companion-stage-copy strong {
+    font-size: var(--openbot-text-lg);
+  }
+}
+@container companion-stage (max-width: 300px) {
+  .companion-stage-content > .agent-avatar {
+    width: 64px;
+    height: 64px;
+  }
+  .companion-stage-copy > span {
+    display: none;
+  }
+  .companion-stage-copy > .ui-button {
+    padding-inline: var(--openbot-space-2);
   }
 }
