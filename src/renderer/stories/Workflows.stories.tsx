@@ -70,7 +70,7 @@ export const Example: Story = {
   render: () => <WorkflowStory workflows={[competitorWatch()]} features={STORY_ALL_FEATURES} />,
 };
 
-/** The canvas in the desktop window, where the Routines page shows its board today. */
+/** The real app. Open More → Workflows to inspect the editor and its workspace navigation. */
 export const InApp: Story = {
   name: "In app",
   render: () => <WorkflowInAppStory workflows={[competitorWatch(), newCompetitorAlert()]} />,

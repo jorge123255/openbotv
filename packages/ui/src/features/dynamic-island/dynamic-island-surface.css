@@ -934,3 +934,19 @@ div.dynamic-island-surface-context-line span {
     transform: translateY(0) scale(1);
   }
 }
+
+/* Color and inset rings stay inside the measured notch/island silhouette. */
+.dynamic-island-surface-actions .ui-button {
+  border-radius: var(--openbot-radius-pill);
+}
+.dynamic-island-surface-actions .ui-button-variant-default {
+  background: var(--openbot-accent);
+  color: var(--openbot-text-on-accent);
+}
+.dynamic-island-surface-command {
+  border-left-color: var(--openbot-accent-text);
+}
+.dynamic-island-reply .dynamic-island-reply-input {
+  background: var(--openbot-bg-surface);
+  border-color: var(--openbot-border-strong);
+}

@@ -38,9 +38,9 @@ export function ChatListPaneProvider({ children }: PropsWithChildren) {
 }
 
 /** The background of a list row: marked in the pane for the chat that the detail column shows. */
-export function useChatRowBackground(chatId: string): string {
+export function useChatRowBackground(chatId: string, surface: "background" | "surface" = "background"): string {
   const selected = useChatListPane()?.selectedChatId === chatId;
-  const background = useThemeColor("background");
+  const background = useThemeColor(surface);
   const selectedBackground = useCSSVariable("--color-control-active");
   return String(selected ? selectedBackground : background);
 }

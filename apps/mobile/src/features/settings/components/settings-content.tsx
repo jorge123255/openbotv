@@ -10,7 +10,7 @@ export function SettingsContent({ children }: PropsWithChildren) {
   return (
     <SheetScrollView
       scrollEdgeEffect={false}
-      contentContainerClassName="gap-7 px-4 pb-safe-offset-5 pt-5"
+      contentContainerClassName="gap-8 px-4 pb-safe-offset-5 pt-5"
       keyboardDismissMode="interactive"
       keyboardShouldPersistTaps="handled"
     >
@@ -27,11 +27,14 @@ export function SettingsSection({
   return (
     <View className="gap-2">
       {title ? (
-        <Typography type="body-xs" className="px-4 text-grouped-secondary">
+        <Typography type="body-xs" className="px-3 font-semibold text-accent-text">
           {title}
         </Typography>
       ) : null}
-      <ListGroup variant="secondary" className="overflow-hidden rounded-grouped bg-grouped p-0 shadow-none">
+      <ListGroup
+        variant="secondary"
+        className="overflow-hidden rounded-3xl border border-grouped-border bg-grouped p-0 shadow-none"
+      >
         {Children.map(Children.toArray(children), (child, index) =>
           child ? (
             <View>
@@ -110,12 +113,12 @@ export function SettingsRow({
         void haptics.impact("soft");
         onPress();
       }}
-      className="min-h-12 flex-row items-center gap-3 px-4 py-3"
+      className="min-h-14 flex-row items-center gap-3 px-4 py-4"
       style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}
     >
       {content}
     </ListGroup.Item>
   ) : (
-    <View className="min-h-12 flex-row items-center gap-3 px-4 py-3">{content}</View>
+    <View className="min-h-14 flex-row items-center gap-3 px-4 py-4">{content}</View>
   );
 }

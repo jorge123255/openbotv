@@ -1,5 +1,11 @@
 import { createEffect, createSignal, flush, onCleanup, Show } from "solid-js";
-import { APP_LOGO_CORNER, APP_LOGO_EYE_POINTS, APP_LOGO_SIZE } from "./app-logo-shape";
+import {
+  APP_LOGO_CORNER,
+  APP_LOGO_EYE_POINTS,
+  APP_LOGO_SIZE,
+  BOTAI_LOGO_EYES,
+  BOTAI_LOGO_PATH,
+} from "./app-logo-shape";
 
 export type AppLogoAnimation = "none" | "blink" | "look-around" | "surprised";
 export type AppLogoVariant = "production" | "dev" | "preview";
@@ -183,7 +189,7 @@ function BotAiGlyph(props: { color: string }) {
   return (
     <>
       <path
-        d="M 60 186 V 66 Q 60 30 102 30 H 132 Q 192 30 192 78 Q 192 120 138 120 H 102 Q 54 120 54 162 Q 54 210 120 210 H 144 Q 204 210 204 162 Q 204 120 144 120"
+        d={BOTAI_LOGO_PATH}
         fill="none"
         stroke={props.color}
         stroke-width="30"
@@ -191,10 +197,22 @@ function BotAiGlyph(props: { color: string }) {
         stroke-linejoin="round"
       />
       <g class="app-logo-eye-motion">
-        <circle class="app-logo-botai-eye app-logo-eye-left" cx="108" cy="72" r="12" fill={props.color} />
+        <circle
+          class="app-logo-botai-eye app-logo-eye-left"
+          cx={BOTAI_LOGO_EYES.left.x}
+          cy={BOTAI_LOGO_EYES.left.y}
+          r={BOTAI_LOGO_EYES.left.radius}
+          fill={props.color}
+        />
       </g>
       <g class="app-logo-eye-motion">
-        <circle class="app-logo-botai-eye app-logo-eye-right" cx="138" cy="162" r="12" fill={props.color} />
+        <circle
+          class="app-logo-botai-eye app-logo-eye-right"
+          cx={BOTAI_LOGO_EYES.right.x}
+          cy={BOTAI_LOGO_EYES.right.y}
+          r={BOTAI_LOGO_EYES.right.radius}
+          fill={props.color}
+        />
       </g>
     </>
   );

@@ -172,9 +172,11 @@
   align-items: center;
   height: calc(var(--openbot-control-md) + var(--openbot-space-2));
   padding: var(--openbot-space-1);
-  border-radius: var(--openbot-radius-lg);
-  background: var(--wfn-glass);
-  box-shadow: 0 0 0 1px var(--wfn-ring-strong);
+  border-radius: var(--openbot-radius-card);
+  background: var(--wfn-card);
+  box-shadow:
+    0 0 0 1px var(--openbot-border-strong),
+    var(--openbot-shadow-raised);
   color: var(--openbot-text-primary);
   font-size: var(--openbot-text-sm);
   backdrop-filter: var(--wfn-glass-blur);
@@ -190,11 +192,13 @@
   gap: var(--openbot-space-2);
   align-items: flex-start;
   justify-content: space-between;
+  flex-wrap: wrap;
   pointer-events: none;
 }
 
 .wfn-hud-top .wfn-hud {
   position: relative;
+  max-width: 100%;
   pointer-events: auto;
 }
 
@@ -217,8 +221,8 @@
 
 /* A pressed tool, such as Select or an open minimap: a quiet fill, not a colour. */
 .wfn-stage .wfn-hud .wfn-hud-tool[aria-pressed="true"] {
-  background: var(--wfn-hover);
-  color: var(--openbot-text-primary);
+  background: var(--openbot-accent-soft);
+  color: var(--openbot-accent-text);
 }
 
 /* The icon of a pressed tool is full. Most icons have lines inside, which a full fill hides, so they take a part fill.
@@ -1265,11 +1269,6 @@
 
 /* --------------------------------------------------------------- In app */
 
-/* The story has no root that sizes the window, so the window takes the screen. */
-.app-window.wfn-app {
-  height: 100vh;
-}
-
 /*
  * In the desktop window, the canvas fills the pane. The window frame shows through the top row, which
  * holds the canvas bar, and the canvas paints only the card below it, inside the card's border and corners.
@@ -1288,11 +1287,6 @@
 .wfn-canvas[data-frame="window"] .wfn-viewport {
   border-radius: var(--wfn-card-inner-radius);
   background: var(--openbot-bg-frame);
-}
-
-/* The workflow page does not need the Marketplace button that the sidebar keeps in the top row. */
-.wfn-app .sidebar-marketplace-button {
-  display: none;
 }
 
 /* The server menu keeps the start of the top row, so the bar starts after it. */
@@ -1361,4 +1355,54 @@
 /* The history clock has no closed shape, so it stays an outline on the highlighted row. */
 .wfs-menu.ui-action-menu [class~="lucide-rotate-ccw-clock"] > * {
   fill: none;
+}
+
+/* BotAI workspace tools sit in a distinct dock without changing canvas transforms. */
+.wfn-stage .wfn-hud-tools {
+  height: auto;
+  min-height: calc(var(--openbot-control-lg) + var(--openbot-space-3) + var(--openbot-space-0-5));
+  max-width: calc(100% - var(--openbot-space-6));
+  overflow-x: auto;
+  scrollbar-width: thin;
+  border: 1px solid var(--openbot-accent-strong);
+}
+.wfn-hud-tools .ui-button {
+  flex: none;
+}
+.wfn-canvas[data-frame="window"] .wfn-viewport {
+  margin: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-frame);
+}
+.wfn-canvas[data-frame="window"] .wfn-hud-top {
+  gap: var(--openbot-space-3);
+  min-width: 0;
+}
+.wfn-canvas[data-frame="window"] .wfn-hud-title {
+  min-width: 0;
+}
+.wfn-canvas[data-frame="window"] .wfn-hud-switcher-name {
+  max-width: 24ch;
+}
+@media (max-width: 1100px) {
+  .wfn-canvas[data-frame="window"] .wfn-hud-switcher-name {
+    max-width: 12ch;
+  }
+}
+@media (max-width: 720px) {
+  .wfn-canvas[data-frame="window"] .wfn-hud-top {
+    left: var(--openbot-space-3);
+    height: auto;
+    min-height: var(--left-header-height);
+    flex-wrap: wrap;
+    padding-block: var(--openbot-space-2);
+  }
+  .wfn-canvas[data-frame="window"] .wfn-hud-top .wfn-hud {
+    max-width: 100%;
+    flex-wrap: wrap;
+  }
+  .wfn-canvas[data-frame="window"] :is(.wfn-viewport, .wfn-empty) {
+    top: calc(var(--left-header-height) + var(--openbot-control-xl) + var(--openbot-space-4));
+  }
 }

@@ -1,6 +1,8 @@
 import { defineMessages } from "../../../message";
 
 export const messages = defineMessages("mobile.auth", {
+  "mobile.auth.brand": "BotAI",
+  "mobile.auth.logo.animateBotAi": "Animate BotAI logo",
   "mobile.auth.logo.animate": "Animate OpenBot logo",
   "mobile.auth.logo.animateHint": "Makes the logo wink",
   "mobile.auth.scanQrCode": "Scan QR code",

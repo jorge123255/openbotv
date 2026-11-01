@@ -27,12 +27,13 @@
   --openbot-bg-canvas-clear: rgba(248, 243, 251, 0);
   --openbot-bg-frame: #ede3f2;
   --openbot-bg-sidebar: #f2eaf7;
-  --openbot-bg-native-sidebar: #f5f5f6;
+  --openbot-bg-native-canvas: #f8f3fb;
+  --openbot-bg-native-sidebar: #f2eaf7;
   --openbot-bg-sheet: #ffffff;
   --openbot-bg-sheet-inset: #f0f0f2;
   --openbot-bg-grouped: #ffffff;
-  --openbot-text-grouped-secondary: #6b6b70;
-  --openbot-border-grouped: #e3e3e6;
+  --openbot-text-grouped-secondary: #6f587b;
+  --openbot-border-grouped: #e3d7e9;
   --openbot-marketplace-detail-bg: #ececee;
   --openbot-bg-surface: #ffffff;
   --openbot-bg-surface-raised: #fcfcfc;
