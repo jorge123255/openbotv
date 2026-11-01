@@ -1,6 +1,7 @@
 import type { AgentEvent, Routine, RoutineRun } from "@openbot/contracts/ipc";
+import { Button } from "@openbot/ui";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
-import { onCleanup } from "solid-js";
+import { createSignal, onCleanup, onSettled } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { App } from "../src/App";
 import { LEFT_PANEL_COLLAPSED_STORAGE_KEY, SERVER_VIEW_STORAGE_KEY } from "../src/layout-constants";
@@ -183,6 +184,71 @@ export const CharacterSaveFailure: Story = {
     );
   },
 };
+
+/** Controlled response order around the real App settings panel. No real host starts. */
+function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boolean }) {
+  useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
+  const [phase, setPhase] = createSignal("idle");
+  let finishOlder: (() => void) | undefined;
+  let disposeOlder: (() => void) | undefined;
+  let captured = false;
+  onSettled(() => () => disposeOlder?.());
+  return (
+    <>
+      <OpenBotPlayground
+        options={{
+          agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
+            ...agent,
+            avatarCharacter: index === 0 ? "wisp" : agent.avatarCharacter,
+            avatarUrl:
+              index === 0 && props.image
+                ? "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+                : agent.avatarUrl,
+          })),
+        }}
+        dependencies={{
+          createMock: (options) => {
+            const mock = createMockOpenBot(options);
+            const update = mock.api.agent.updateAgent;
+            mock.api.agent.updateAgent = async (...args) => {
+              if (!captured && args[0].avatarCharacter === "pebble") {
+                captured = true;
+                setPhase("pending");
+                return new Promise((resolve, reject) => {
+                  disposeOlder = () => reject(new Error("Disposed synthetic avatar request"));
+                  finishOlder = () => {
+                    disposeOlder = undefined;
+                    if (props.outcome === "reject") reject(new Error("Synthetic older avatar save rejection"));
+                    else void update(...args).then(resolve, reject);
+                  };
+                });
+              }
+              return update(...args);
+            };
+            return mock;
+          },
+          renderApp: () => <App />,
+        }}
+      />
+      <div style={{ position: "fixed", bottom: "8px", left: "8px", "z-index": 10000 }}>
+        <Button
+          disabled={phase() !== "pending"}
+          onClick={() => {
+            finishOlder?.();
+            finishOlder = undefined;
+            setPhase("released");
+          }}
+        >
+          {props.outcome === "reject" ? "Reject older avatar save" : "Complete older avatar save"}
+        </Button>
+        <output aria-label="Avatar response fixture">{phase()}</output>
+      </div>
+    </>
+  );
+}
+
+export const AvatarSaveRace: Story = { render: () => <AvatarResponseStory outcome="reject" /> };
+export const AvatarUploadRace: Story = { render: () => <AvatarResponseStory outcome="succeed" image /> };
 
 /** Valid old seed text is not a character selection. */
 export const LegacySeedWorkspace: Story = {

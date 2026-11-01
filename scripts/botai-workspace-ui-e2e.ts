@@ -147,11 +147,9 @@ try {
   assert.equal(await page.locator(".agent-usage-totals > div:visible").count(), 8);
   await page.getByRole("button", { name: "View daily data", exact: true }).click();
   await page.getByRole("table", { name: "Daily usage and cost", exact: true }).waitFor();
-  assert.equal(
-    await page
-      .getByRole("table", { name: "Daily usage and cost", exact: true })
-      .evaluate((element) => element === document.activeElement),
-    true,
+  await page.waitForFunction(
+    (element) => element === document.activeElement,
+    await page.getByRole("table", { name: "Daily usage and cost", exact: true }).elementHandle(),
   );
   await shot("usage-narrow-daily");
   report.cases.push(

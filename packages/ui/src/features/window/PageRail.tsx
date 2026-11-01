@@ -49,7 +49,14 @@ function RailButton(props: {
     </Button>
   );
   return (
-    <Show when={props.card} fallback={<MotionTooltip content={props.label}>{button()}</MotionTooltip>}>
+    <Show
+      when={props.card}
+      fallback={
+        <MotionTooltip content={props.label} placement="bottom">
+          {button()}
+        </MotionTooltip>
+      }
+    >
       {(card) => (
         <MotionTooltip
           content={card()()}
@@ -278,7 +285,7 @@ function RailMoreMenu(props: {
       onOpenChange={changeOpen}
       getAnchorRect={(element?: HTMLElement) => anchor ?? element?.getBoundingClientRect()}
     >
-      <MotionTooltip content={t("app.rail.more")} suppressed={open()}>
+      <MotionTooltip content={t("app.rail.more")} placement="bottom" suppressed={open()}>
         <DropdownMenu.Trigger
           ref={(element: HTMLElement) => {
             trigger = element;
@@ -328,7 +335,7 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
     <div class="window-rail-logo">
       <Show when={props.href} fallback={<BotAiMark variant={props.variant} class="window-rail-mark" />}>
         {(href) => (
-          <MotionTooltip content={t("app.rail.website")}>
+          <MotionTooltip content={t("app.rail.website")} placement="bottom">
             <a
               class="window-rail-logo-link"
               href={href()}

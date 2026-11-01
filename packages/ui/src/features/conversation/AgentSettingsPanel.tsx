@@ -451,6 +451,8 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   let instructionsSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let activeTextSave: TextSaveRequest | null = null;
   let disposed = false;
+  let avatarEditGeneration = 0;
+  let avatarUploadRequest = 0;
   const pendingTextSaves = new Map<string, TextSaveRequest>();
 
   createEffect(
@@ -501,6 +503,8 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
         lastSignature = signature;
         lastAgentId = agent.id;
         if (agentChanged) {
+          avatarEditGeneration += 1;
+          avatarUploadRequest += 1;
           returnFocusPage = null;
           setPage(null);
         }
@@ -532,6 +536,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
           state.avatar.seed = agent.avatarSeed;
           state.avatar.hue = agent.avatarHue;
           if (agentChanged) {
+            state.avatar.uploadBusy = false;
             state.avatar.candidateSeed = agent.avatarSeed;
             state.avatar.batch = 0;
             state.avatar.pickerOpen = false;
@@ -560,13 +565,14 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   async function saveAgentPatch(
     updates: Omit<UpdateAgentInput, "agentId">,
     agentId = props.agent.id,
+    isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
-    if (!disposed && props.agent.id === agentId) setSaveError(null);
+    if (!disposed && props.agent.id === agentId && isCurrent()) setSaveError(null);
     try {
       await props.onUpdateAgent(agentId, updates);
       return true;
     } catch (error) {
-      if (!disposed && props.agent.id === agentId) {
+      if (!disposed && props.agent.id === agentId && isCurrent()) {
         setSaveError(errorMessage(error, t("agentSettings.saveFailed")), error);
       }
       return false;
@@ -705,6 +711,9 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
 
   async function setCustomAvatar(image: AvatarImageInput | null, agentId = props.agent.id): Promise<boolean> {
     if (disposed || props.agent.id !== agentId || draft.avatar.uploadBusy) return false;
+    const upload = ++avatarUploadRequest;
+    const generation = avatarEditGeneration;
+    const isCurrent = () => !disposed && props.agent.id === agentId && avatarUploadRequest === upload;
     setDraft((state) => {
       state.avatar.uploadBusy = true;
       state.saveError = null;
@@ -713,11 +722,11 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
       await props.onSetAgentAvatar(agentId, image);
       return true;
     } catch (error) {
-      if (!disposed && props.agent.id === agentId)
+      if (isCurrent() && avatarEditGeneration === generation)
         setSaveError(errorMessage(error, t("agentSettings.avatar.saveFailed")), error);
       return false;
     } finally {
-      if (!disposed && props.agent.id === agentId)
+      if (isCurrent())
         setDraft((state) => {
           state.avatar.uploadBusy = false;
         });
@@ -725,48 +734,61 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   }
 
   async function uploadAgentAvatar(file: File | undefined): Promise<void> {
-    if (!file) return;
+    if (!file || disposed) return;
+    const agentId = props.agent.id;
+    const request = ++avatarEditGeneration;
+    const upload = ++avatarUploadRequest;
+    const isCurrent = () => !disposed && props.agent.id === agentId && avatarEditGeneration === request;
     setDraft((state) => {
       state.avatar.uploadBusy = true;
       state.saveError = null;
     });
     try {
       const image = await normalizeAvatarFile(file);
-      await props.onSetAgentAvatar(props.agent.id, image);
+      if (!isCurrent()) return;
+      await props.onSetAgentAvatar(agentId, image);
     } catch (error) {
-      setSaveError(errorMessage(error, t("agentSettings.avatar.processFailed")), error);
+      if (isCurrent()) setSaveError(errorMessage(error, t("agentSettings.avatar.processFailed")), error);
     } finally {
-      setDraft((state) => {
-        state.avatar.uploadBusy = false;
-      });
-      if (avatarFileInput) avatarFileInput.value = "";
+      if (!disposed && props.agent.id === agentId && avatarUploadRequest === upload) {
+        setDraft((state) => {
+          state.avatar.uploadBusy = false;
+        });
+        if (avatarFileInput) avatarFileInput.value = "";
+      }
     }
   }
 
   async function selectAvatarCharacter(character: AvatarCharacter): Promise<void> {
     if (props.characterSupported === false || disposed) return;
-    const hadImage = Boolean(avatarUrl());
-    const previous = props.agent.avatarCharacter ?? "shape";
+    const previousImage = avatarUrl();
     const agentId = props.agent.id;
+    const request = ++avatarEditGeneration;
+    const isCurrent = () => !disposed && props.agent.id === agentId && avatarEditGeneration === request;
     setDraft((state) => {
       state.avatar.character = character;
     });
-    if (!(await saveAgentPatch({ avatarCharacter: character }, agentId))) {
-      if (!disposed && props.agent.id === agentId)
-        setDraft((state) => {
-          state.avatar.character = previous;
-        });
+    const saved = await saveAgentPatch({ avatarCharacter: character }, agentId, isCurrent);
+    // An older completion must not roll back a newer choice or clear its image.
+    if (!isCurrent()) return;
+    if (!saved) {
+      setDraft((state) => {
+        state.avatar.character = props.agent.avatarCharacter ?? "shape";
+      });
       return;
     }
-    if (hadImage && !disposed && props.agent.id === agentId) await setCustomAvatar(null, agentId);
+    if (previousImage && avatarUrl() === previousImage) await setCustomAvatar(null, agentId);
   }
 
   async function selectGeneratedAvatar(seed: string): Promise<void> {
-    if (avatarUrl() && !(await setCustomAvatar(null))) return;
+    const agentId = props.agent.id;
+    const request = ++avatarEditGeneration;
+    if (avatarUrl() && !(await setCustomAvatar(null, agentId))) return;
+    if (disposed || props.agent.id !== agentId || avatarEditGeneration !== request) return;
     setDraft((state) => {
       state.avatar.seed = seed;
     });
-    await saveAgentPatch({ avatarSeed: seed });
+    await saveAgentPatch({ avatarSeed: seed }, agentId);
   }
 
   async function selectModel(
@@ -1121,7 +1143,10 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                             variant="outline"
                             type="button"
                             disabled={draft.avatar.uploadBusy}
-                            onClick={() => void setCustomAvatar(null)}
+                            onClick={() => {
+                              avatarEditGeneration += 1;
+                              void setCustomAvatar(null);
+                            }}
                           >
                             {t("common.remove")}
                           </Button>

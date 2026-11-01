@@ -1079,6 +1079,8 @@ jobs:
           bun scripts/workspace-appearance-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/botai-workspace-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/botai-secondary-surfaces-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/navigation-tooltip-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/visual-review-regressions-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-task-attention-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-assignment-activity-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/usage-chart-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
@@ -1104,6 +1106,8 @@ jobs:
             .openbot-build/workspace-appearance-ui-e2e/
             .openbot-build/botai-whole-app-ui-e2e/
             .openbot-build/botai-secondary-surfaces-ui-e2e/
+            .openbot-build/navigation-tooltip-ui-e2e/
+            .openbot-build/visual-review-regressions-ui-e2e/
 
       - name: Upload offline migration assessment UI evidence
         if: always()

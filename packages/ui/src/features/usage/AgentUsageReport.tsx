@@ -125,7 +125,10 @@ export function AgentUsageReport(props: {
     setState((draft) => {
       draft.breakdown = "day";
     });
-    queueMicrotask(() => dailyTable?.focus());
+    // Solid settles the tab's DOM update, including inert, before this callback runs.
+    onSettled(() => {
+      if (state.breakdown === "day" && dailyTable?.isConnected && !dailyTable.closest("[inert]")) dailyTable.focus();
+    });
   }
   return (
     <>

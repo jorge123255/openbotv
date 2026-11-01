@@ -45,7 +45,7 @@ export function HelpMenu(props: HelpMenuProps) {
         if (next) props.onOpen?.();
       }}
     >
-      <MotionTooltip content={t("app.help.label")} suppressed={open()}>
+      <MotionTooltip content={t("app.help.label")} placement={props.placement ?? "right"} suppressed={open()}>
         <DropdownMenu.Trigger class={props.triggerClass} aria-label={t("app.help.label")}>
           <CircleQuestionMark aria-hidden="true" />
           <Show when={props.showTriggerLabel}>

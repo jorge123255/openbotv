@@ -83,13 +83,16 @@
   font-size: var(--openbot-text-sm);
   color: var(--openbot-text-muted);
   margin-bottom: var(--openbot-space-1);
-  white-space: nowrap;
+  line-height: var(--openbot-leading-sm);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .agent-usage-totals dd {
   margin: 0;
   font-size: var(--openbot-text-xl);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .agent-usage-table {
   overflow-x: auto;

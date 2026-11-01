@@ -150,6 +150,7 @@ import {
   type WorkspaceDirectory,
 } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
+import { avatarImageDataUrl } from "@openbot/ui/avatar-image";
 import {
   AGENT_IMPORT_PREVIEW,
   AGENT_IMPORT_SKILL,
@@ -2354,7 +2355,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         if (!current) throw new Error("Agent not found");
         const updated = {
           ...current,
-          avatarUrl: input.image ? `mock-avatar://${input.agentId}` : null,
+          avatarUrl: input.image ? avatarImageDataUrl(input.image) : null,
         };
         agents = agents.map((agent) => (agent.id === updated.id ? updated : agent));
         emitAgentEvent({ type: "agents-changed", agents });
