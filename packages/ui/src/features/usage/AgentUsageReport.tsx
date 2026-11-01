@@ -121,14 +121,42 @@ export function AgentUsageReport(props: {
       : format.percent(total ? amount / total : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   };
   let dailyTable: HTMLTableElement | undefined;
+  let dailyPanel: HTMLDivElement | undefined;
+  let dailyFocusRequested = false;
+  let dailyFocusFrame: number | undefined;
+  function scheduleDailyFocus(): void {
+    if (!dailyFocusRequested || dailyFocusFrame !== undefined) return;
+    dailyFocusFrame = window.requestAnimationFrame(() => {
+      dailyFocusFrame = undefined;
+      if (!dailyFocusRequested || state.breakdown !== "day" || !dailyTable?.isConnected) return;
+      if (!dailyPanel?.hasAttribute("data-selected") || getComputedStyle(dailyTable).visibility !== "visible") return;
+      if (dailyTable.closest("[inert], [hidden], [aria-hidden=true]") || dailyTable.getClientRects().length === 0)
+        return;
+      dailyTable.focus();
+      if (document.activeElement === dailyTable) dailyFocusRequested = false;
+    });
+  }
+  onSettled(() => {
+    if (!dailyPanel) return;
+    // The force-mounted tab can settle after its parent. Observe its actual focusability changes.
+    const observer = new MutationObserver(scheduleDailyFocus);
+    observer.observe(dailyPanel, {
+      attributes: true,
+      attributeFilter: ["inert", "hidden", "aria-hidden", "data-selected"],
+    });
+    scheduleDailyFocus();
+    return () => {
+      dailyFocusRequested = false;
+      observer.disconnect();
+      if (dailyFocusFrame !== undefined) window.cancelAnimationFrame(dailyFocusFrame);
+    };
+  });
   function showDailyData() {
+    dailyFocusRequested = true;
     setState((draft) => {
       draft.breakdown = "day";
     });
-    // Solid settles the tab's DOM update, including inert, before this callback runs.
-    onSettled(() => {
-      if (state.breakdown === "day" && dailyTable?.isConnected && !dailyTable.closest("[inert]")) dailyTable.focus();
-    });
+    scheduleDailyFocus();
   }
   return (
     <>
@@ -229,11 +257,12 @@ export function AgentUsageReport(props: {
       <SlidingTabs.Root
         class="agent-usage-breakdown"
         value={state.breakdown}
-        onChange={(value) =>
+        onChange={(value) => {
+          if (value !== "day") dailyFocusRequested = false;
           setState((draft) => {
             draft.breakdown = value;
-          })
-        }
+          });
+        }}
       >
         <div class="agent-usage-section-header">
           <h3>{t("usage.breakdown.title")}</h3>
@@ -301,7 +330,7 @@ export function AgentUsageReport(props: {
               </table>
             </div>
           </SlidingTabs.Content>
-          <SlidingTabs.Content value="day">
+          <SlidingTabs.Content value="day" ref={dailyPanel}>
             <div class="agent-usage-table">
               <table ref={dailyTable} tabindex={-1}>
                 <caption class="sr-only">{t("usage.breakdown.byDay")}</caption>

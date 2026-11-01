@@ -308,10 +308,14 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
   };
 
   /** Access of a joined server's agent goes to its host; every other field keeps the Team API route. */
-  async function updateConversationAgent(agentId: string, updates: Omit<UpdateAgentInput, "agentId">): Promise<void> {
-    if (activeServer()?.kind === "local") return updateAgent(agentId, updates);
+  async function updateConversationAgent(
+    agentId: string,
+    updates: Omit<UpdateAgentInput, "agentId">,
+    shouldReportError?: () => boolean,
+  ): Promise<void> {
+    if (activeServer()?.kind === "local") return updateAgent(agentId, updates, shouldReportError);
     await updateRemoteAgent(remoteAgentAdmin, { agentId, ...updates }, ({ agentId: id, ...rest }) =>
-      updateAgent(id, rest),
+      updateAgent(id, rest, shouldReportError),
     );
   }
 

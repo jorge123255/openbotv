@@ -292,7 +292,11 @@ const Agents = createSimpleContext({
       setAgentSetupDraft(createFirstAgentDraft());
     }
 
-    async function updateAgent(agentId: string, updates: Omit<UpdateAgentInput, "agentId">): Promise<void> {
+    async function updateAgent(
+      agentId: string,
+      updates: Omit<UpdateAgentInput, "agentId">,
+      shouldReportError: () => boolean = () => true,
+    ): Promise<void> {
       const serverId = activeServerId();
       const analytics = desktopAnalytics.scope();
       const properties = analyticsAgentProperties(agentId);
@@ -325,12 +329,16 @@ const Agents = createSimpleContext({
           failure_code: "update_failed",
           ...(properties ?? {}),
         });
-        appendUiError(agentId, error, currentText().t("agent.error.settingsFailed"), serverId);
+        if (shouldReportError()) appendUiError(agentId, error, currentText().t("agent.error.settingsFailed"), serverId);
         throw error;
       }
     }
 
-    async function setAgentAvatar(agentId: string, image: AvatarImageInput | null): Promise<void> {
+    async function setAgentAvatar(
+      agentId: string,
+      image: AvatarImageInput | null,
+      shouldReportError: () => boolean = () => true,
+    ): Promise<void> {
       const serverId = activeServerId();
       const analytics = desktopAnalytics.scope();
       const properties = analyticsAgentProperties(agentId);
@@ -357,7 +365,7 @@ const Agents = createSimpleContext({
           failure_code: "avatar_update_failed",
           ...(properties ?? {}),
         });
-        appendUiError(agentId, error, currentText().t("agent.error.avatarFailed"), serverId);
+        if (shouldReportError()) appendUiError(agentId, error, currentText().t("agent.error.avatarFailed"), serverId);
         throw error;
       }
     }

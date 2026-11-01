@@ -171,14 +171,23 @@ export interface AgentSettingsPanelProps {
   links?: JSX.Element;
   detailOpen?: boolean;
   children?: JSX.Element;
-  onUpdateAgent: (agentId: string, updates: Omit<UpdateAgentInput, "agentId">) => Promise<void>;
+  /** The application must honor the optional error guard when an operation becomes obsolete. */
+  onUpdateAgent: (
+    agentId: string,
+    updates: Omit<UpdateAgentInput, "agentId">,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
   onUpdateRuntimeSettings: (
     agentId: string,
     settings: AgentRuntimeSettings,
     updates: AgentRuntimeSettingsPatch,
   ) => Promise<boolean>;
   characterSupported?: boolean;
-  onSetAgentAvatar: (agentId: string, image: AvatarImageInput | null) => Promise<void>;
+  onSetAgentAvatar: (
+    agentId: string,
+    image: AvatarImageInput | null,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
   /**
    * Starts a new chat with the agent after the user confirms. The agent forgets the messages before
    * it and keeps its setup. Left out when the host cannot do it.
@@ -569,7 +578,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   ): Promise<boolean> {
     if (!disposed && props.agent.id === agentId && isCurrent()) setSaveError(null);
     try {
-      await props.onUpdateAgent(agentId, updates);
+      await props.onUpdateAgent(agentId, updates, isCurrent);
       return true;
     } catch (error) {
       if (!disposed && props.agent.id === agentId && isCurrent()) {
@@ -719,7 +728,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
       state.saveError = null;
     });
     try {
-      await props.onSetAgentAvatar(agentId, image);
+      await props.onSetAgentAvatar(agentId, image, () => isCurrent() && avatarEditGeneration === generation);
       return true;
     } catch (error) {
       if (isCurrent() && avatarEditGeneration === generation)
@@ -746,7 +755,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
     try {
       const image = await normalizeAvatarFile(file);
       if (!isCurrent()) return;
-      await props.onSetAgentAvatar(agentId, image);
+      await props.onSetAgentAvatar(agentId, image, isCurrent);
     } catch (error) {
       if (isCurrent()) setSaveError(errorMessage(error, t("agentSettings.avatar.processFailed")), error);
     } finally {

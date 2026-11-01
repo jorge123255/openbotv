@@ -282,8 +282,16 @@ export interface ConversationProps {
    * limit. The waiting block names it for each agent that this agent asked.
    */
   agentWaits?: Record<string, SidebarAgentWait> | undefined;
-  onUpdateAgent: (agentId: string, updates: Omit<UpdateAgentInput, "agentId">) => Promise<void>;
-  onSetAgentAvatar: (agentId: string, image: AvatarImageInput | null) => Promise<void>;
+  onUpdateAgent: (
+    agentId: string,
+    updates: Omit<UpdateAgentInput, "agentId">,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
+  onSetAgentAvatar: (
+    agentId: string,
+    image: AvatarImageInput | null,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
   /**
    * Sends one message. `clientMessageId` names it for the host, so a retry with the same id
    * returns the first receipt; the answer carries the host's id for the message, or why it failed.
