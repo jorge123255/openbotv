@@ -79,6 +79,11 @@ export const NarrowCanvas: Story = {
   ),
 };
 
+/** Two saved workflows exercise pointer selection and reopening through the real controller. */
+export const MenuInteractions: Story = {
+  render: () => <WorkflowStory workflows={[competitorWatch(), newCompetitorAlert()]} features={STORY_ALL_FEATURES} />,
+};
+
 /** The real app. Open More → Workflows to inspect the editor and its workspace navigation. */
 export const InApp: Story = {
   name: "In app",

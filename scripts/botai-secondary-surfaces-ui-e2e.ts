@@ -201,6 +201,7 @@ async function searchRows() {
 }
 
 async function menuFits(menu: Locator) {
+  await menuPositioned(menu);
   const box = await menu.boundingBox();
   const viewport = page.viewportSize();
   assert.ok(box && viewport);
@@ -219,6 +220,14 @@ async function menuFits(menu: Locator) {
   }
 }
 
+async function menuPositioned(menu: Locator) {
+  await page.waitForFunction(
+    (element) =>
+      element?.isConnected && element.closest("[data-popper-positioner]")?.hasAttribute("data-kb-positioned"),
+    await menu.elementHandle(),
+  );
+}
+
 async function switcherMenu(trigger: Locator) {
   // Kobalte names the root menu with aria-labelledby, which takes precedence over aria-label.
   await page.waitForFunction(
@@ -233,6 +242,12 @@ async function switcherMenu(trigger: Locator) {
   const menu = page.locator(`[id=${JSON.stringify(id)}][role="menu"]`);
   await menu.waitFor();
   assert.equal(await menu.getAttribute("aria-labelledby"), await trigger.getAttribute("id"));
+  await menuPositioned(menu);
+  assert.equal(
+    await trigger.getAttribute("aria-expanded"),
+    "true",
+    "Pointer release must leave the menu open after placement.",
+  );
   return menu;
 }
 
@@ -257,6 +272,7 @@ async function traceSwitcher() {
             connected: node.isConnected,
             expanded: node.getAttribute("aria-expanded"),
             role: node.getAttribute("role"),
+            positioned: node.closest("[data-popper-positioner]")?.hasAttribute("data-kb-positioned") ?? null,
             bounds: node.getBoundingClientRect().toJSON(),
           }
         : null;
@@ -282,6 +298,8 @@ async function traceSwitcher() {
       for (const mutation of mutations) {
         if (mutation.type === "attributes" && mutation.target === trigger) {
           record(JSON.stringify({ type: "expanded", previous: mutation.oldValue }));
+        } else if (mutation.type === "attributes" && mutation.attributeName === "data-kb-positioned") {
+          record(JSON.stringify({ type: "positioned", target: describe(mutation.target) }));
         } else if (mutation.type === "childList") {
           const menus = (nodes: NodeList) =>
             [...nodes].flatMap((node) =>
@@ -301,7 +319,7 @@ async function traceSwitcher() {
       subtree: true,
       childList: true,
       attributes: true,
-      attributeFilter: ["aria-expanded"],
+      attributeFilter: ["aria-expanded", "data-kb-positioned"],
       attributeOldValue: true,
     });
     for (const type of ["pointerdown", "pointerup", "click", "focusin", "focusout"]) {
@@ -459,6 +477,14 @@ try {
     await tools.getByRole("button", { name: "Select", exact: true }).focus();
     await page.keyboard.press("ControlOrMeta+/");
     await page.getByRole("button", { name: "Show interface", exact: true }).waitFor();
+    await page.waitForFunction(({ x, y }) => {
+      const controls = document.querySelector(".wfn-bottom-controls");
+      return (
+        controls !== null &&
+        getComputedStyle(controls).visibility === "hidden" &&
+        document.elementFromPoint(x, y)?.closest(".wfn-bottom-controls") === null
+      );
+    }, hidePoint);
     assert.equal(
       await page.evaluate(
         ({ x, y }) => document.elementFromPoint(x, y)?.closest(".wfn-bottom-controls") === null,
@@ -507,29 +533,109 @@ try {
     );
 
     await captureSwitcherTrace();
-    // A separate fixture proves keyboard navigation, without rescuing a failed pointer case.
-    await open("workflows--example", ".wfn-hud-tools", 390, theme);
-    const keyboardSwitcher = page.locator(".wfn-hud-switcher");
-    await keyboardSwitcher.focus();
-    await keyboardSwitcher.press("Space");
-    const keyboardMenu = await switcherMenu(keyboardSwitcher);
-    await keyboardMenu.waitFor();
-    assert.equal(await keyboardSwitcher.getAttribute("aria-expanded"), "true");
-    const versionTrigger = keyboardMenu.getByRole("menuitem", { name: "Version history", exact: true });
-    await versionTrigger.focus();
-    await versionTrigger.press("ArrowRight");
-    const keyboardVersions = page.getByRole("menu", { name: "Version history", exact: true });
-    await keyboardVersions.waitFor();
-    await menuFits(keyboardVersions);
-    await page.keyboard.press("ArrowLeft");
-    await keyboardVersions.waitFor({ state: "hidden" });
-    assert.equal(await versionTrigger.evaluate((element) => document.activeElement === element), true);
-    await versionTrigger.press("Escape");
-    await keyboardMenu.waitFor({ state: "hidden" });
-    await page.waitForFunction((element) => document.activeElement === element, await keyboardSwitcher.elementHandle());
-    report.cases.push(
-      `${theme} narrow workflow menu opens by Space; ArrowRight/ArrowLeft and Escape close submenus and restore focus in a separate keyboard fixture.`,
-    );
+    for (const motion of ["reduce", "no-preference"] as const) {
+      await page.emulateMedia({ reducedMotion: motion });
+      // A fresh pointer case must retain the menu after release, then accept a deliberate selection.
+      await open("workflows--menu-interactions", ".wfn-hud-tools", 390, theme);
+      report.step = `workflow pointer selection: ${theme}, ${motion}`;
+      if (report.switcherTraceEnabled) await traceSwitcher();
+      const pointerSwitcher = page.locator(".wfn-hud-switcher");
+      await centerHit(pointerSwitcher);
+      await pointerSwitcher.click({ delay: 0 });
+      const pointerMenu = await switcherMenu(pointerSwitcher);
+      assert.equal(await page.locator(".wfn-hud-switcher-name").innerText(), "Competitor watch");
+      await pointerMenu.getByRole("menuitem", { name: /^New competitor alert/ }).click();
+      await page.waitForFunction(
+        () => document.querySelector(".wfn-hud-switcher-name")?.textContent === "New competitor alert",
+      );
+      await pointerMenu.waitFor({ state: "hidden" });
+      await page.locator(".wfn-hud-switcher").click({ delay: 0 });
+      const reopened = await switcherMenu(page.locator(".wfn-hud-switcher"));
+      await reopened.getByRole("menuitem", { name: /^Competitor watch/ }).click();
+      await page.waitForFunction(
+        () => document.querySelector(".wfn-hud-switcher-name")?.textContent === "Competitor watch",
+      );
+      await reopened.waitFor({ state: "hidden" });
+      await page.locator(".wfn-hud-switcher").click({ delay: 0 });
+      const dismissMenu = await switcherMenu(page.locator(".wfn-hud-switcher"));
+      await page.keyboard.press("Escape");
+      await dismissMenu.waitFor({ state: "hidden" });
+      const dragTrigger = page.locator(".wfn-hud-switcher");
+      const triggerBox = await dragTrigger.boundingBox();
+      assert.ok(triggerBox);
+      await page.mouse.move(triggerBox.x + triggerBox.width / 2, triggerBox.y + triggerBox.height / 2);
+      await page.mouse.down();
+      const dragMenu = await switcherMenu(dragTrigger);
+      const dragItem = dragMenu.getByRole("menuitem", { name: /^New competitor alert/ });
+      await centerHit(dragItem);
+      const itemBox = await dragItem.boundingBox();
+      assert.ok(itemBox);
+      await page.mouse.move(itemBox.x + itemBox.width / 2, itemBox.y + itemBox.height / 2);
+      await page.mouse.up();
+      await page.waitForFunction(
+        () => document.querySelector(".wfn-hud-switcher-name")?.textContent === "New competitor alert",
+      );
+      await dragMenu.waitFor({ state: "hidden" });
+      await captureSwitcherTrace();
+      report.cases.push(
+        `${theme}/${motion}: immediate pointer opening keeps the menu open; deliberate selection, reopening, Escape and press-drag-release selection after placement work.`,
+      );
+
+      // Keyboard focus is checked separately, with no test refocus after Left or before Escape.
+      await open("workflows--example", ".wfn-hud-tools", 390, theme);
+      report.step = `workflow submenu focus: ${theme}, ${motion}`;
+      const keyboardSwitcher = page.locator(".wfn-hud-switcher");
+      await keyboardSwitcher.focus();
+      await keyboardSwitcher.press("Space");
+      const keyboardMenu = await switcherMenu(keyboardSwitcher);
+      const versionTrigger = keyboardMenu.getByRole("menuitem", { name: "Version history", exact: true });
+      await versionTrigger.focus();
+      await page.evaluate(() => {
+        document.documentElement.dataset.workflowDeleteFocus = "0";
+        document.addEventListener(
+          "focusin",
+          (event) => {
+            if (
+              event.target instanceof Element &&
+              event.target.matches('[role="menuitem"]') &&
+              event.target.textContent?.trim() === "Delete workflow"
+            ) {
+              document.documentElement.dataset.workflowDeleteFocus = String(
+                Number(document.documentElement.dataset.workflowDeleteFocus) + 1,
+              );
+            }
+          },
+          { capture: true },
+        );
+      });
+      for (const index of [0, 1, 3]) {
+        await page.keyboard.press("ArrowRight");
+        const keyboardVersions = page.getByRole("menu", { name: "Version history", exact: true });
+        await keyboardVersions.waitFor();
+        await menuFits(keyboardVersions);
+        await keyboardVersions.getByRole("menuitem").nth(index).focus();
+        await page.keyboard.press("ArrowLeft");
+        await keyboardVersions.waitFor({ state: "hidden" });
+        assert.equal(await versionTrigger.evaluate((element) => document.activeElement === element), true);
+        assert.equal(await versionTrigger.getAttribute("aria-expanded"), "false");
+        assert.equal(await keyboardSwitcher.getAttribute("aria-expanded"), "true");
+        assert.equal(
+          await page.evaluate(() => document.documentElement.dataset.workflowDeleteFocus),
+          "0",
+          "Left must never move focus to Delete workflow.",
+        );
+      }
+      await page.keyboard.press("Escape");
+      await keyboardMenu.waitFor({ state: "hidden" });
+      await page.waitForFunction(
+        (element) => document.activeElement === element,
+        await keyboardSwitcher.elementHandle(),
+      );
+      report.cases.push(
+        `${theme}/${motion}: Left from Current canvas, first and last saved versions restores Version history without Delete focus; Right reopens directly and Escape returns to the switcher.`,
+      );
+    }
+    await page.emulateMedia({ reducedMotion: "reduce" });
   }
   await open("conversation-browserdock--interactive-bot-ai", ".browser-dock", 688);
   const dockEditor = page.locator('.browser-dock .composer-editor-surface[contenteditable="true"]');
