@@ -21,7 +21,6 @@ export const messages = {
   "marketplace.kinds": "Tipos de conteúdo da loja",
   "marketplace.tab.agents": "Agentes",
   "marketplace.tab.skills": "Habilidades",
-  "marketplace.description.apps": "Conecte as ferramentas e os serviços com que seus agentes trabalham.",
   "marketplace.description.agents": "Agentes prontos, com instruções e habilidades próprias.",
   "marketplace.description.skills": "Instruções que ensinam a um agente uma tarefa ou uma ferramenta.",
   "marketplace.plugins.missing": "Este plugin não está no catálogo do OpenBot.",

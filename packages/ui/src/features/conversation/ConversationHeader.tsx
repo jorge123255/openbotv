@@ -73,7 +73,7 @@ export function ConversationHeader(props: ConversationHeaderProps) {
                 onFocus={() => props.onOpenChat || props.onSettingsIntent()}
                 onClick={() => (props.onOpenChat ?? props.onOpenSettings)()}
               >
-                <AgentAvatar agent={agent()} mood={props.mood} />
+                <AgentAvatar agent={agent()} mood={props.mood ?? "idle"} />
                 <span class="conversation-title-copy">
                   <h1>{agent().name}</h1>
                   <Show when={agent().description}>
@@ -148,7 +148,7 @@ export function ConversationHeader(props: ConversationHeaderProps) {
         {(agent) => (
           <section class="companion-stage" aria-label={t("agentSettings.avatar.character")}>
             <div class="companion-stage-content">
-              <AgentAvatar agent={agent()} mood={props.mood} motion="always" followPointer />
+              <AgentAvatar agent={agent()} mood={props.mood ?? "idle"} motion="always" followPointer />
               <div class="companion-stage-copy">
                 <strong>{agent().name}</strong>
                 <span>{t("agentSettings.avatar.characterHint")}</span>

@@ -1,10 +1,13 @@
 import type { AvatarImageInput, ClientAgentSummary, UpdateAgentInput } from "@openbot/contracts/ipc";
 import type { AgentProfile } from "@openbot/ui/data";
 
+/** Optional host fields that these synthetic response cases explicitly remove. */
+export type AgentProfileReplyRemoval = "providerAccountId" | "pendingRuntime" | "usageLimitReturn";
+
 /** Only mounted by the synthetic response-order story. No production entry point imports it. */
 export interface AgentProfileRaceFixture {
   read(): AgentProfile[];
-  patchNextReply(patch: Partial<ClientAgentSummary>): void;
+  patchNextReply(patch: Partial<ClientAgentSummary>, remove?: readonly AgentProfileReplyRemoval[]): void;
   arm(kind: "update" | "avatar", mode: "hold" | "reject" | "hold-error"): void;
   held(): number[];
   release(id: number): void;

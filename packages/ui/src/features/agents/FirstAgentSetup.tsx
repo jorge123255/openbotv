@@ -436,10 +436,10 @@ export function FirstAgentSetup(props: FirstAgentSetupProps) {
 
           <Show when={props.characterSupported !== false}>
             <CharacterChoices
-              character={props.value.avatarCharacter}
+              character={props.value.avatarCharacter ?? "shape"}
               seed={props.value.avatarSeed}
               hue={props.value.avatarHue}
-              disabled={props.submitting}
+              disabled={props.submitting === true}
               onSelect={(avatarCharacter) => updateDraft({ avatarCharacter })}
             />
           </Show>

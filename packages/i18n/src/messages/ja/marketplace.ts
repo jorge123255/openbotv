@@ -22,7 +22,6 @@ export const messages = {
   "marketplace.kinds": "マーケットプレイスのコンテンツの種類",
   "marketplace.tab.agents": "エージェント",
   "marketplace.tab.skills": "スキル",
-  "marketplace.description.apps": "エージェントが使うツールやサービスに接続します。",
   "marketplace.description.agents": "独自の指示とスキルを持つ、すぐに使えるエージェント。",
   "marketplace.description.skills": "エージェントにタスクやツールの使い方を教える指示。",
 

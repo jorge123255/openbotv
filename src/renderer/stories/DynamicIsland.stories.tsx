@@ -282,7 +282,7 @@ function toIslandAgent(agent: (typeof STORY_AGENTS)[number]): DynamicIslandAgent
     name: agent.name,
     avatarSeed: agent.avatarSeed,
     avatarHue: agent.avatarHue,
-    avatarCharacter: agent.avatarCharacter,
+    ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
     avatarUrl: agent.avatarUrl,
   };
 }

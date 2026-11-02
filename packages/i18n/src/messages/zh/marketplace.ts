@@ -24,7 +24,6 @@ export const messages = {
   "marketplace.kinds": "市场内容类型",
   "marketplace.tab.agents": "助手",
   "marketplace.tab.skills": "技能",
-  "marketplace.description.apps": "连接你的助手使用的工具和服务。",
   "marketplace.description.agents": "带有自身指令和技能的现成助手。",
   "marketplace.description.skills": "教助手完成某项任务或使用某个工具的指令。",
 

@@ -10,7 +10,7 @@ import { useServers } from "../src/features/servers/servers-context";
 import { LEFT_PANEL_COLLAPSED_STORAGE_KEY } from "../src/layout-constants";
 import { createMockOpenBot } from "../src/preview/mock-openbot";
 import { OpenBotPlayground } from "../src/preview/OpenBotPlayground";
-import type { AgentProfileRaceFixture } from "./agent-profile-race-fixture";
+import type { AgentProfileRaceFixture, AgentProfileReplyRemoval } from "./agent-profile-race-fixture";
 import { STORY_AGENT_SUMMARIES } from "./fixtures";
 
 const meta = { title: "App profile responses", parameters: { layout: "fullscreen" } } satisfies Meta;
@@ -29,7 +29,7 @@ function ResponseOrderingStory() {
   const receipts = { updates: 0, avatars: 0, removals: 0, events: 0 };
   let responseId = 0;
   let mountId = 0;
-  let nextReplyPatch: Partial<ClientAgentSummary> | undefined;
+  let nextReplyPatch: { fields: Partial<ClientAgentSummary>; remove: readonly AgentProfileReplyRemoval[] } | undefined;
   let eventsEnabled = true;
   let stopEvents: (() => void) | undefined;
   onCleanup(() => {
@@ -73,7 +73,8 @@ function ResponseOrderingStory() {
         held.set(id, { resolve: fail, dispose: fail });
       });
     // Inject valid server-derived contract fields without running a provider or changing a host.
-    const saved = { ...(await operation()), ...replyPatch };
+    const saved = { ...(await operation()), ...replyPatch?.fields };
+    for (const field of replyPatch?.remove ?? []) delete saved[field];
     if (mode !== "hold") return saved;
     // The host already completed. Delivering this detached snapshot must not run another write/event.
     const completed = structuredClone(saved);
@@ -92,8 +93,8 @@ function ResponseOrderingStory() {
     const instance = { id: ++mountId, serverId: servers.activeServerId() };
     const api: AgentProfileRaceFixture = {
       read: () => structuredClone(snapshot(agents.agentList())),
-      patchNextReply: (patch) => {
-        nextReplyPatch = structuredClone(patch);
+      patchNextReply: (patch, remove = []) => {
+        nextReplyPatch = { fields: structuredClone(patch), remove: [...remove] };
       },
       mount: () => ({ ...instance, settled: agents.agentListSettled() }),
       arm: (kind, mode) => {

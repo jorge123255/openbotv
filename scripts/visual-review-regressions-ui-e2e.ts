@@ -98,8 +98,8 @@ if (args.values["trace-focus"])
         connected: table?.isConnected ?? false,
         tabIndex: table?.tabIndex ?? null,
         observerReady: !!panel && !!observed.get(panel)?.size,
-        stack,
-        frame,
+        ...(stack === undefined ? {} : { stack }),
+        ...(frame === undefined ? {} : { frame }),
       });
     }
     const NativeObserver = window.MutationObserver;

@@ -326,15 +326,17 @@ export async function runAgentProfileResponseCases(
   const returning = { provider: "codex", model: runtimeBase.model, reasoningEffort: "medium" } as const;
   await page.evaluate(
     ({ queued, returning, model }) =>
-      window.__agentProfileRace.patchNextReply({
-        provider: "codex",
-        model,
-        reasoningEffort: "medium",
-        providerAccountId: undefined,
-        pendingRuntime: queued,
-        usageLimitReturn: returning,
-        updatedAt: "2026-11-02T01:00:00.000Z",
-      }),
+      window.__agentProfileRace.patchNextReply(
+        {
+          provider: "codex",
+          model,
+          reasoningEffort: "medium",
+          pendingRuntime: queued,
+          usageLimitReturn: returning,
+          updatedAt: "2026-11-02T01:00:00.000Z",
+        },
+        ["providerAccountId"],
+      ),
     { queued, returning, model: runtimeBase.model },
   );
   await done(await update({ provider: "claude", model: queued.model }));
@@ -353,11 +355,12 @@ export async function runAgentProfileResponseCases(
   const oldRuntime = await update({ provider: "claude", model: queued.model, reasoningEffort: "low" });
   const oldRuntimeReply = await held();
   await page.evaluate(() =>
-    window.__agentProfileRace.patchNextReply({
-      pendingRuntime: undefined,
-      usageLimitReturn: undefined,
-      updatedAt: "2026-11-02T03:00:00.000Z",
-    }),
+    window.__agentProfileRace.patchNextReply(
+      {
+        updatedAt: "2026-11-02T03:00:00.000Z",
+      },
+      ["pendingRuntime", "usageLimitReturn"],
+    ),
   );
   await done(await update({ provider: "codex", model: "gpt-6-luna", reasoningEffort: "high" }));
   const latestRuntime = chief(await read());

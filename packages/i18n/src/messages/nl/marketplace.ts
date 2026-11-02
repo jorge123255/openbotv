@@ -21,7 +21,6 @@ export const messages = {
   "marketplace.kinds": "Inhoudstypen in de marktplaats",
   "marketplace.tab.agents": "Agents",
   "marketplace.tab.skills": "Vaardigheden",
-  "marketplace.description.apps": "Koppel de tools en diensten waarmee je agents werken.",
   "marketplace.description.agents": "Kant-en-klare agents met eigen instructies en vaardigheden.",
   "marketplace.description.skills": "Instructies die een agent een taak of tool leren.",
   "marketplace.plugins.missing": "Deze plug-in staat niet in de OpenBot-catalogus.",

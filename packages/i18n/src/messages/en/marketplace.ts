@@ -23,7 +23,6 @@ export const messages = defineMessages("marketplace", {
   "marketplace.kinds": "Marketplace content types",
   "marketplace.tab.agents": "Agents",
   "marketplace.tab.skills": "Skills",
-  "marketplace.description.apps": "Connect the tools and services that your agents work with.",
   "marketplace.description.agents": "Ready-made agents with their own instructions and skills.",
   "marketplace.description.skills": "Instructions that teach an agent a task or a tool.",
 

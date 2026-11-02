@@ -121,7 +121,7 @@ export function AgentAvatar(props: AgentAvatarProps) {
               mood={mood()}
               followPointer={props.followPointer === true}
               class={className()}
-              style={props.style}
+              style={props.style ?? {}}
             />
           }
         >

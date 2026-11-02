@@ -22,7 +22,6 @@ export const messages = {
   "marketplace.kinds": "Типы содержимого каталога",
   "marketplace.tab.agents": "Агенты",
   "marketplace.tab.skills": "Навыки",
-  "marketplace.description.apps": "Подключите инструменты и сервисы, с которыми работают ваши агенты.",
   "marketplace.description.agents": "Готовые агенты со своими инструкциями и навыками.",
   "marketplace.description.skills": "Инструкции, которые учат агента задаче или инструменту.",
 

@@ -204,7 +204,7 @@ function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boo
         options={{
           agents: STORY_AGENT_SUMMARIES.map((agent, index) => ({
             ...agent,
-            avatarCharacter: index === 0 ? "wisp" : agent.avatarCharacter,
+            ...(index === 0 ? { avatarCharacter: "wisp" } : {}),
             avatarUrl:
               index === 0 && props.image
                 ? "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
