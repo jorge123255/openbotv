@@ -63,6 +63,7 @@
 /* --------------------------------------------------------------- Canvas */
 
 .wfn-stage.wfn-canvas {
+  container: workflow-canvas / inline-size;
   display: block;
   height: 100vh;
   min-height: 0;
@@ -206,6 +207,16 @@
   display: flex;
   gap: var(--openbot-space-2);
   align-items: center;
+}
+
+.wfn-bottom-controls,
+.wfn-bottom-panels {
+  display: contents;
+}
+
+/* These panels followed the tools before they shared a scroll wrapper. Keep that paint order. */
+.wfn-bottom-panels > :is(.wfn-search, .wfn-minimap) {
+  z-index: 4;
 }
 
 /* The tool bar: tools, then Search, then Add node as the one primary action. */
@@ -428,7 +439,7 @@
 }
 
 /* Hide interface keeps only the canvas and one way back. */
-.wfn-canvas[data-hud-hidden] :is(.wfn-hud, .wfn-hud-top) {
+.wfn-canvas[data-hud-hidden] :is(.wfn-hud, .wfn-hud-top, .wfn-bottom-controls) {
   visibility: hidden;
   opacity: 0;
 }
@@ -1404,5 +1415,88 @@
   }
   .wfn-canvas[data-frame="window"] :is(.wfn-viewport, .wfn-empty) {
     top: calc(var(--left-header-height) + var(--openbot-control-xl) + var(--openbot-space-4));
+  }
+}
+
+/* Intrinsic rows keep the zoom, optional panels and scrollable tools apart in a narrow pane.
+ * The toolbar's height includes its native scrollbar; no offset depends on a guessed bar height. */
+@container workflow-canvas (max-width: 960px) {
+  .wfn-bottom-controls {
+    position: absolute;
+    right: var(--wfn-hud-inset);
+    bottom: var(--wfn-hud-inset);
+    left: var(--wfn-hud-inset);
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: var(--openbot-space-2);
+    align-items: center;
+    max-height: calc(
+      100% -
+      var(--wfn-hud-inset) -
+      var(--openbot-workspace-header-height) -
+      var(--openbot-control-xl) -
+      var(--openbot-space-4)
+    );
+    pointer-events: none;
+  }
+
+  .wfn-bottom-panels {
+    order: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--openbot-space-2);
+    align-items: center;
+    width: 100%;
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    pointer-events: auto;
+  }
+
+  .wfn-bottom-panels:not(:has(> .wfn-hud)) {
+    display: none;
+  }
+
+  :is(.wfn-bottom-controls, .wfn-bottom-panels) > .wfn-hud {
+    position: relative;
+    inset: auto;
+    flex: none;
+    min-width: 0;
+    max-width: 100%;
+    translate: none;
+    pointer-events: auto;
+  }
+
+  .wfn-bottom-panels > .wfn-minimap {
+    order: 0;
+    align-self: flex-start;
+  }
+
+  .wfn-bottom-panels > .wfn-search {
+    order: 1;
+  }
+
+  .wfn-bottom-panels > .wfn-hud-sub {
+    order: 2;
+    height: auto;
+    flex-wrap: wrap;
+  }
+
+  .wfn-bottom-controls > .wfn-hud-zoom {
+    order: 1;
+    align-self: flex-start;
+  }
+
+  .wfn-bottom-controls > :is(.wfn-hud-tools, .wfn-hud-version) {
+    order: 2;
+  }
+
+  .wfn-bottom-controls > .wfn-hud-version {
+    height: auto;
+    flex-wrap: wrap;
+    white-space: normal;
   }
 }

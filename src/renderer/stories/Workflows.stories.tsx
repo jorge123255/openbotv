@@ -70,6 +70,15 @@ export const Example: Story = {
   render: () => <WorkflowStory workflows={[competitorWatch()]} features={STORY_ALL_FEATURES} />,
 };
 
+/** A narrow canvas inside a wide window. Its HUD follows the pane, not the viewport. */
+export const NarrowCanvas: Story = {
+  render: () => (
+    <div style={{ width: "390px", "max-width": "100%" }}>
+      <WorkflowStory workflows={[competitorWatch()]} features={STORY_ALL_FEATURES} />
+    </div>
+  ),
+};
+
 /** The real app. Open More → Workflows to inspect the editor and its workspace navigation. */
 export const InApp: Story = {
   name: "In app",

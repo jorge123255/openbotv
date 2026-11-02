@@ -2951,175 +2951,205 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
           onStop={stopRun}
         />
 
-        <Show when={ui.tool === "draw"}>
-          <div class="wfn-hud wfn-hud-sub" role="toolbar" aria-label={t("workflow.canvas.tool.draw")}>
-            <HudButton
-              label={t("workflow.canvas.tool.pen")}
-              keys={["P"]}
-              pressed={ui.draw === "pen"}
-              onClick={() => setDraw("pen")}
-            >
-              <Pencil />
-            </HudButton>
-            <HudButton
-              label={t("workflow.canvas.tool.marker")}
-              keys={["M"]}
-              pressed={ui.draw === "marker"}
-              onClick={() => setDraw("marker")}
-            >
-              <Highlighter />
-            </HudButton>
-            <HudButton
-              label={t("workflow.canvas.tool.eraser")}
-              keys={["E"]}
-              pressed={ui.draw === "eraser"}
-              onClick={() => setDraw("eraser")}
-            >
-              <Eraser />
-            </HudButton>
-            <span class="wfn-hud-separator" aria-hidden="true" />
-            <ColorButtons
-              options={translated(t, COLORS)}
-              value={ui.ink}
-              name={(label) => t("workflow.canvas.tool.inkColor", { name: label })}
-              onPick={setInkColor}
-            />
-          </div>
-        </Show>
-        <Show when={ui.tool === "note"}>
-          <div class="wfn-hud wfn-hud-sub" role="toolbar" aria-label={t("workflow.canvas.tool.note")}>
-            <ColorButtons
-              options={translated(t, TONES)}
-              value={ui.note}
-              name={(label) => t("workflow.canvas.tool.noteTone", { name: label })}
-              onPick={setNoteTone}
-            />
-          </div>
-        </Show>
-        <Show when={ui.tool === "shape"}>
-          <div class="wfn-hud wfn-hud-sub" role="toolbar" aria-label={t("workflow.canvas.tool.shapes")}>
-            <DropdownMenu.Root placement="top" gutter={8} getAnchorRect={hudBarRect} modal={false}>
-              <DropdownMenu.Trigger
-                class={`${buttonVariants({ variant: "ghost", size: "sm" })} wfn-hud-button wfn-hud-fill`}
-                aria-label={t("workflow.canvas.tool.fillNamed", {
-                  name: t(COLORS.find((option) => option.value === ui.fill)?.label ?? "workflow.color.ink"),
-                })}
-              >
-                <Swatch color={ui.fill} />
-                <ChevronDown class="wfn-hud-chevron" aria-hidden="true" />
-              </DropdownMenu.Trigger>
-              <DropdownMenu.Portal>
-                <PickerMenu
-                  label={t("workflow.canvas.tool.fill")}
-                  groups={fillMenu(t)}
-                  value={ui.fill}
-                  onSelect={setFill}
-                />
-              </DropdownMenu.Portal>
-            </DropdownMenu.Root>
-            <span class="wfn-hud-separator" aria-hidden="true" />
-            <For each={SHAPES}>
-              {(option) => (
+        <div class="wfn-bottom-controls">
+          <div class="wfn-bottom-panels">
+            <Show when={ui.tool === "draw"}>
+              <div class="wfn-hud wfn-hud-sub" role="toolbar" aria-label={t("workflow.canvas.tool.draw")}>
                 <HudButton
-                  label={t(option.label)}
-                  pressed={ui.shape === option.value}
-                  onClick={() => setShape(option.value)}
+                  label={t("workflow.canvas.tool.pen")}
+                  keys={["P"]}
+                  pressed={ui.draw === "pen"}
+                  onClick={() => setDraw("pen")}
                 >
-                  <ShapeIcon shape={option.value} />
+                  <Pencil />
                 </HudButton>
-              )}
-            </For>
-          </div>
-        </Show>
-        <Show when={props.versionPreview}>
-          {(open) => (
-            <WorkflowVersionBar
-              at={versionList().find((version) => version.id === open().versionId)?.label ?? ""}
-              onBack={closeVersion}
-              onMakeCurrent={makeCurrent}
-            />
-          )}
-        </Show>
-        <div
-          class="wfn-hud wfn-hud-tools"
-          role="toolbar"
-          aria-label={t("workflow.canvas.tool.label")}
-          hidden={frozen()}
-        >
-          <HudButton
-            label={t("workflow.canvas.tool.select")}
-            keys={["V"]}
-            pressed={ui.tool === "select"}
-            onClick={() => setTool("select")}
-          >
-            <MousePointer2 class="wfn-hud-arrow" />
-          </HudButton>
-          <HudButton
-            label={t("workflow.canvas.tool.pan")}
-            keys={["H"]}
-            pressed={ui.tool === "pan"}
-            onClick={() => setTool("pan")}
-          >
-            <Hand />
-          </HudButton>
-          <span class="wfn-hud-separator" aria-hidden="true" />
-          <HudButton
-            label={t("workflow.canvas.tool.draw")}
-            keys={["P"]}
-            art="draw"
-            pressed={ui.tool === "draw"}
-            onClick={() => setTool("draw")}
-          >
-            <DrawArt color={ui.ink} eraser={ui.draw === "eraser"} />
-          </HudButton>
-          <Show when={allows("note")}>
-            <HudButton
-              label={t("workflow.canvas.tool.note")}
-              keys={["N"]}
-              art="note"
-              pressed={ui.tool === "note"}
-              onClick={() => setTool("note")}
-            >
-              <StickyArt tone={ui.note} />
-            </HudButton>
-          </Show>
-          <Show when={allows("shape")}>
-            <HudButton
-              label={t("workflow.canvas.tool.shapes")}
-              keys={["R"]}
-              art="shape"
-              pressed={ui.tool === "shape"}
-              onClick={() => setTool("shape")}
-            >
-              <ShapesArt shape={ui.shape} color={ui.fill} />
-            </HudButton>
-          </Show>
-          <Show when={allows("text")}>
-            <HudButton label={t("workflow.canvas.tool.text")} onClick={() => addNode("text")}>
-              <Type />
-            </HudButton>
-          </Show>
-          <span class="wfn-hud-separator" aria-hidden="true" />
-          <HudButton
-            label={t("workflow.canvas.action.search")}
-            keys={[MOD_KEY, "F"]}
-            pressed={ui.search}
-            onClick={() => (ui.search ? closeSearch() : openSearch())}
-          >
-            <Search />
-          </HudButton>
-          <WorkflowAddMenu allowed={props.features.kinds} getAnchorRect={hudBarRect} onAdd={(kind) => addNode(kind)} />
-        </div>
+                <HudButton
+                  label={t("workflow.canvas.tool.marker")}
+                  keys={["M"]}
+                  pressed={ui.draw === "marker"}
+                  onClick={() => setDraw("marker")}
+                >
+                  <Highlighter />
+                </HudButton>
+                <HudButton
+                  label={t("workflow.canvas.tool.eraser")}
+                  keys={["E"]}
+                  pressed={ui.draw === "eraser"}
+                  onClick={() => setDraw("eraser")}
+                >
+                  <Eraser />
+                </HudButton>
+                <span class="wfn-hud-separator" aria-hidden="true" />
+                <ColorButtons
+                  options={translated(t, COLORS)}
+                  value={ui.ink}
+                  name={(label) => t("workflow.canvas.tool.inkColor", { name: label })}
+                  onPick={setInkColor}
+                />
+              </div>
+            </Show>
+            <Show when={ui.tool === "note"}>
+              <div class="wfn-hud wfn-hud-sub" role="toolbar" aria-label={t("workflow.canvas.tool.note")}>
+                <ColorButtons
+                  options={translated(t, TONES)}
+                  value={ui.note}
+                  name={(label) => t("workflow.canvas.tool.noteTone", { name: label })}
+                  onPick={setNoteTone}
+                />
+              </div>
+            </Show>
+            <Show when={ui.tool === "shape"}>
+              <div class="wfn-hud wfn-hud-sub" role="toolbar" aria-label={t("workflow.canvas.tool.shapes")}>
+                <DropdownMenu.Root placement="top" gutter={8} getAnchorRect={hudBarRect} modal={false}>
+                  <DropdownMenu.Trigger
+                    class={`${buttonVariants({ variant: "ghost", size: "sm" })} wfn-hud-button wfn-hud-fill`}
+                    aria-label={t("workflow.canvas.tool.fillNamed", {
+                      name: t(COLORS.find((option) => option.value === ui.fill)?.label ?? "workflow.color.ink"),
+                    })}
+                  >
+                    <Swatch color={ui.fill} />
+                    <ChevronDown class="wfn-hud-chevron" aria-hidden="true" />
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Portal>
+                    <PickerMenu
+                      label={t("workflow.canvas.tool.fill")}
+                      groups={fillMenu(t)}
+                      value={ui.fill}
+                      onSelect={setFill}
+                    />
+                  </DropdownMenu.Portal>
+                </DropdownMenu.Root>
+                <span class="wfn-hud-separator" aria-hidden="true" />
+                <For each={SHAPES}>
+                  {(option) => (
+                    <HudButton
+                      label={t(option.label)}
+                      pressed={ui.shape === option.value}
+                      onClick={() => setShape(option.value)}
+                    >
+                      <ShapeIcon shape={option.value} />
+                    </HudButton>
+                  )}
+                </For>
+              </div>
+            </Show>
+            <Show when={ui.search}>
+              <WorkflowSearch
+                query={query()}
+                matches={matches()}
+                onQuery={setQuery}
+                onShow={showNode}
+                onClose={closeSearch}
+              />
+            </Show>
 
-        <Show when={ui.search}>
-          <WorkflowSearch
-            query={query()}
-            matches={matches()}
-            onQuery={setQuery}
-            onShow={showNode}
-            onClose={closeSearch}
+            <Show when={minimap()}>
+              {(map) => <WorkflowMinimap map={map()} selected={board.selected()} onPan={panMinimap} />}
+            </Show>
+          </div>
+          <Show when={props.versionPreview}>
+            {(open) => (
+              <WorkflowVersionBar
+                at={versionList().find((version) => version.id === open().versionId)?.label ?? ""}
+                onBack={closeVersion}
+                onMakeCurrent={makeCurrent}
+              />
+            )}
+          </Show>
+          <div
+            class="wfn-hud wfn-hud-tools"
+            role="toolbar"
+            aria-label={t("workflow.canvas.tool.label")}
+            hidden={frozen()}
+          >
+            <HudButton
+              label={t("workflow.canvas.tool.select")}
+              keys={["V"]}
+              pressed={ui.tool === "select"}
+              onClick={() => setTool("select")}
+            >
+              <MousePointer2 class="wfn-hud-arrow" />
+            </HudButton>
+            <HudButton
+              label={t("workflow.canvas.tool.pan")}
+              keys={["H"]}
+              pressed={ui.tool === "pan"}
+              onClick={() => setTool("pan")}
+            >
+              <Hand />
+            </HudButton>
+            <span class="wfn-hud-separator" aria-hidden="true" />
+            <HudButton
+              label={t("workflow.canvas.tool.draw")}
+              keys={["P"]}
+              art="draw"
+              pressed={ui.tool === "draw"}
+              onClick={() => setTool("draw")}
+            >
+              <DrawArt color={ui.ink} eraser={ui.draw === "eraser"} />
+            </HudButton>
+            <Show when={allows("note")}>
+              <HudButton
+                label={t("workflow.canvas.tool.note")}
+                keys={["N"]}
+                art="note"
+                pressed={ui.tool === "note"}
+                onClick={() => setTool("note")}
+              >
+                <StickyArt tone={ui.note} />
+              </HudButton>
+            </Show>
+            <Show when={allows("shape")}>
+              <HudButton
+                label={t("workflow.canvas.tool.shapes")}
+                keys={["R"]}
+                art="shape"
+                pressed={ui.tool === "shape"}
+                onClick={() => setTool("shape")}
+              >
+                <ShapesArt shape={ui.shape} color={ui.fill} />
+              </HudButton>
+            </Show>
+            <Show when={allows("text")}>
+              <HudButton label={t("workflow.canvas.tool.text")} onClick={() => addNode("text")}>
+                <Type />
+              </HudButton>
+            </Show>
+            <span class="wfn-hud-separator" aria-hidden="true" />
+            <HudButton
+              label={t("workflow.canvas.action.search")}
+              keys={[MOD_KEY, "F"]}
+              pressed={ui.search}
+              onClick={() => (ui.search ? closeSearch() : openSearch())}
+            >
+              <Search />
+            </HudButton>
+            <WorkflowAddMenu
+              allowed={props.features.kinds}
+              getAnchorRect={hudBarRect}
+              onAdd={(kind) => addNode(kind)}
+            />
+          </div>
+
+          <WorkflowZoomMenu
+            scale={camera.scale}
+            minScale={MIN_SCALE}
+            maxScale={MAX_SCALE}
+            minimap={ui.minimap}
+            onZoom={(action) => {
+              if (action === "in") zoomBy(ZOOM_STEP);
+              else if (action === "out") zoomBy(1 / ZOOM_STEP);
+              else if (action === "reset") zoomTo(1);
+              else fitView(true);
+            }}
+            onZoomTo={zoomTo}
+            onToggleMinimap={() =>
+              setUi((draft) => {
+                draft.minimap = !draft.minimap;
+              })
+            }
           />
-        </Show>
+        </div>
 
         <WorkflowDropMenu
           open={drop() !== undefined}
@@ -3131,29 +3161,6 @@ export function WorkflowCanvas(props: WorkflowCanvasProps) {
           onPick={pickDrop}
           onClose={closeDrop}
           onHeight={setDropHeight}
-        />
-
-        <Show when={minimap()}>
-          {(map) => <WorkflowMinimap map={map()} selected={board.selected()} onPan={panMinimap} />}
-        </Show>
-
-        <WorkflowZoomMenu
-          scale={camera.scale}
-          minScale={MIN_SCALE}
-          maxScale={MAX_SCALE}
-          minimap={ui.minimap}
-          onZoom={(action) => {
-            if (action === "in") zoomBy(ZOOM_STEP);
-            else if (action === "out") zoomBy(1 / ZOOM_STEP);
-            else if (action === "reset") zoomTo(1);
-            else fitView(true);
-          }}
-          onZoomTo={zoomTo}
-          onToggleMinimap={() =>
-            setUi((draft) => {
-              draft.minimap = !draft.minimap;
-            })
-          }
         />
 
         <Show when={ui.hidden}>
