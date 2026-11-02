@@ -1,7 +1,7 @@
 import type { AgentEvent, Routine, RoutineRun } from "@openbot/contracts/ipc";
 import { Button } from "@openbot/ui";
 import type { ServerView } from "@openbot/ui/features/servers/ServerMenu";
-import { createSignal, onCleanup, onSettled } from "solid-js";
+import { createStore, onCleanup, onSettled } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { App } from "../src/App";
 import { LEFT_PANEL_COLLAPSED_STORAGE_KEY, SERVER_VIEW_STORAGE_KEY } from "../src/layout-constants";
@@ -188,7 +188,12 @@ export const CharacterSaveFailure: Story = {
 /** Controlled response order around the real App settings panel. No real host starts. */
 function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boolean }) {
   useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
-  const [phase, setPhase] = createSignal("idle");
+  const [response, setResponse] = createStore({
+    phase: "idle",
+    older: "idle",
+    uploads: 0,
+    removals: 0,
+  });
   let finishOlder: (() => void) | undefined;
   let disposeOlder: (() => void) | undefined;
   let captured = false;
@@ -209,17 +214,49 @@ function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boo
         dependencies={{
           createMock: (options) => {
             const mock = createMockOpenBot(options);
+            const setAvatar = mock.api.agent.setAvatar;
+            mock.api.agent.setAvatar = async (input) => {
+              const saved = await setAvatar(input);
+              setResponse((state) => {
+                if (input.image) state.uploads += 1;
+                else state.removals += 1;
+              });
+              return saved;
+            };
             const update = mock.api.agent.updateAgent;
             mock.api.agent.updateAgent = async (...args) => {
               if (!captured && args[0].avatarCharacter === "pebble") {
                 captured = true;
-                setPhase("pending");
+                setResponse((state) => {
+                  state.phase = "pending";
+                  state.older = "pending";
+                });
                 return new Promise((resolve, reject) => {
                   disposeOlder = () => reject(new Error("Disposed synthetic avatar request"));
                   finishOlder = () => {
                     disposeOlder = undefined;
-                    if (props.outcome === "reject") reject(new Error("Synthetic older avatar save rejection"));
-                    else void update(...args).then(resolve, reject);
+                    if (props.outcome === "reject") {
+                      setResponse((state) => {
+                        state.older = "rejected";
+                      });
+                      reject(new Error("Synthetic older avatar save rejection"));
+                    } else {
+                      // Delay the mock invocation, not a pre-upload response snapshot.
+                      void update(...args).then(
+                        (saved) => {
+                          setResponse((state) => {
+                            state.older = "succeeded";
+                          });
+                          resolve(saved);
+                        },
+                        (error) => {
+                          setResponse((state) => {
+                            state.older = "rejected";
+                          });
+                          reject(error);
+                        },
+                      );
+                    }
                   };
                 });
               }
@@ -232,16 +269,21 @@ function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boo
       />
       <div style={{ position: "fixed", bottom: "8px", left: "8px", "z-index": 10000 }}>
         <Button
-          disabled={phase() !== "pending"}
+          disabled={response.phase !== "pending"}
           onClick={() => {
             finishOlder?.();
             finishOlder = undefined;
-            setPhase("released");
+            setResponse((state) => {
+              state.phase = "released";
+            });
           }}
         >
           {props.outcome === "reject" ? "Reject older avatar save" : "Complete older avatar save"}
         </Button>
-        <output aria-label="Avatar response fixture">{phase()}</output>
+        <output aria-label="Avatar response fixture">{response.phase}</output>
+        <output aria-label="Older avatar response fixture">{response.older}</output>
+        <output aria-label="Avatar upload completions">{response.uploads}</output>
+        <output aria-label="Avatar removal completions">{response.removals}</output>
       </div>
     </>
   );
