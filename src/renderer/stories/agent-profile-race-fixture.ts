@@ -20,6 +20,12 @@ export interface AgentProfileRaceFixture {
   errors(): number;
   setEventsEnabled(enabled: boolean): void;
   reload(): Promise<void>;
+  remoteRouting(input: UpdateAgentInput): Promise<{
+    calls: string[];
+    planCards: { agentId: string; enabled: boolean }[];
+    rejected: boolean;
+    forwarded: UpdateAgentInput | null;
+  }>;
   receipts(): { updates: number; avatars: number; removals: number; events: number };
 }
 declare global {

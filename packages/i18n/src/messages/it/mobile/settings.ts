@@ -69,9 +69,6 @@ export const messages = {
   "mobile.settings.animations.footer":
     "Disattiva le animazioni per ridurre il movimento in tutta l'app. Se «Riduci movimento» è attivo nelle impostazioni del telefono, anche l'app riduce il movimento. Le animazioni qui sotto restano allora disattivate.",
   "mobile.settings.animations.all": "Animazioni",
-  "mobile.settings.animations.chatZoom": "Zoom sulle chat",
-  "mobile.settings.animations.chatZoomFooter":
-    "Una chat si apre dall'avatar nella lista e si richiude su di esso. Se è disattivato, la chat scorre da lato.",
   "mobile.settings.animations.agentFaces": "Volti degli agenti animati",
   "mobile.settings.animations.agentFacesFooter":
     "Gli avatar degli agenti muovono il volto mentre gli agenti lavorano e riposano. Se è disattivato, i volti restano fermi.",
@@ -147,6 +144,8 @@ export const messages = {
   "mobile.settings.notifications.offForEveryone": "Disattivato per tutti su questo server",
   "mobile.settings.notifications.turnOn": "Attiva",
   "mobile.settings.notifications.turnOnFor": "Attiva le notifiche di {name} per tutti su questo server",
+  "mobile.settings.notifications.chooseAgent": "Scegli per un agente",
+  "mobile.settings.notifications.chooseAnotherAgent": "Scegli un altro agente",
   "mobile.settings.notifications.levelsFooter": "Tocca di nuovo il livello di un agente perché segua il server.",
   "mobile.settings.notifications.agentsUnsupported": "Aggiorna OpenBot su questo server per scegliere gli agenti.",
   "mobile.settings.notifications.agentsOffline": "Gli agenti compaiono quando questo server è online.",
@@ -156,8 +155,8 @@ export const messages = {
   "mobile.settings.notifications.channelSilent": "Notifiche degli agenti (senza suono)",
   "mobile.settings.privacy.title": "Privacy",
   "mobile.settings.privacy.footer":
-    "Condividi l'uso delle funzioni e i risultati delle connessioni di questo telefono. Il contenuto dei messaggi e i file non vengono inviati.",
-  "mobile.settings.privacy.analytics": "Condividi i dati di analisi del prodotto",
+    "L'uso delle funzioni e i risultati delle connessioni di questo telefono vanno sempre alle analisi di OpenBot. Attivo: con l'ID del tuo account e l'email. Disattivo: solo con un ID di installazione casuale. Il contenuto dei messaggi e i file non vengono inviati.",
+  "mobile.settings.privacy.analytics": "Collega le analisi al mio account",
   "mobile.settings.privacy.retry": "Riprova a salvare l'impostazione della privacy",
   "mobile.settings.conversations.title": "Conversazioni",
   "mobile.settings.conversations.hiddenChats": "Chat nascoste",

@@ -1,9 +1,10 @@
-import type { ClientAgentSummary } from "@openbot/contracts/ipc";
+import type { ClientAgentSummary, UpdateAgentInput } from "@openbot/contracts/ipc";
 import { onCleanup, snapshot } from "solid-js";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { AppAccessGate } from "../src/AppView";
 import { AppProviders } from "../src/app-providers";
 import { useAgents } from "../src/features/agents/agents-context";
+import { updateRemoteAgent } from "../src/features/agents/remote-agent-admin";
 import { useServerSelection } from "../src/features/servers/server-selection";
 import { useServers } from "../src/features/servers/servers-context";
 import { LEFT_PANEL_COLLAPSED_STORAGE_KEY } from "../src/layout-constants";
@@ -127,6 +128,42 @@ function ResponseOrderingStory() {
         eventsEnabled = enabled;
       },
       reload: async () => agents.applyStoredAgents(await window.openbot.agent.listAgents("local")),
+      remoteRouting: async (input) => {
+        const calls: string[] = [];
+        const planCards: { agentId: string; enabled: boolean }[] = [];
+        let rejected = false;
+        let forwarded: UpdateAgentInput | null = null;
+        try {
+          await updateRemoteAgent(
+            {
+              update: async () => {
+                calls.push("admin");
+              },
+              updateHostSettings: async () => {
+                calls.push("host");
+              },
+              updateBackupModels: async () => {
+                calls.push("backup");
+              },
+              updateTaskLimit: async () => {
+                calls.push("task-limit");
+              },
+              updatePlanCard: async (agentId, enabled) => {
+                calls.push("plan-card");
+                planCards.push({ agentId, enabled });
+              },
+            },
+            input,
+            async (profile) => {
+              calls.push("profile");
+              forwarded = structuredClone(profile);
+            },
+          );
+        } catch {
+          rejected = true;
+        }
+        return { calls, planCards, rejected, forwarded };
+      },
       receipts: () => ({ ...receipts }),
     };
     ownedHooks.add(api);

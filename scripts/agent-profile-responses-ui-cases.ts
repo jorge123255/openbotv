@@ -405,4 +405,51 @@ export async function runAgentProfileResponseCases(
   cases.push(
     "Response-only merging keeps normalized arrays, null-to-absent defaults and provider-derived account removal.",
   );
+  const mixedRemote = await page.evaluate(() =>
+    window.__agentProfileRace.remoteRouting({
+      agentId: "chief",
+      avatarCharacter: "pebble",
+      access: "full",
+      quickAcknowledgement: true,
+      name: "Never sent",
+    }),
+  );
+  assert.deepEqual(mixedRemote, { calls: [], planCards: [], rejected: true, forwarded: null });
+  const planCard = await page.evaluate(() =>
+    window.__agentProfileRace.remoteRouting({
+      agentId: "chief",
+      quickAcknowledgement: true,
+    }),
+  );
+  assert.deepEqual(planCard, {
+    calls: ["plan-card"],
+    planCards: [{ agentId: "chief", enabled: true }],
+    rejected: false,
+    forwarded: null,
+  });
+  const planCardAndName = await page.evaluate(() =>
+    window.__agentProfileRace.remoteRouting({
+      agentId: "chief",
+      quickAcknowledgement: false,
+      name: "Remote name",
+    }),
+  );
+  assert.deepEqual(planCardAndName, {
+    calls: ["plan-card", "profile"],
+    planCards: [{ agentId: "chief", enabled: false }],
+    rejected: false,
+    forwarded: { agentId: "chief", name: "Remote name" },
+  });
+  const invalidDefault = await page.evaluate(() =>
+    window.__agentProfileRace.remoteRouting({
+      agentId: "chief",
+      access: "full",
+      quickAcknowledgement: null,
+      name: "Never sent",
+    }),
+  );
+  assert.deepEqual(invalidDefault, { calls: [], planCards: [], rejected: true, forwarded: null });
+  cases.push(
+    "Remote adapter rejects mixed local-only character metadata before any write, keeps plan-card changes on their dedicated route, and preflights unsupported defaults.",
+  );
 }

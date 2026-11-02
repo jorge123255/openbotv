@@ -1,7 +1,7 @@
 import { ListGroup, Typography } from "heroui-native";
 import ChevronRight from "lucide-react-native/icons/chevron-right";
-import { Children, type PropsWithChildren, type ReactNode } from "react";
-import { View } from "react-native";
+import { Children, type PropsWithChildren, type ReactNode, useState } from "react";
+import { type LayoutChangeEvent, useWindowDimensions, View } from "react-native";
 import { useCSSVariable } from "uniwind";
 import { SheetScrollView } from "@/shared/components/sheet-scroll-view";
 import { haptics } from "@/shared/lib/haptics";
@@ -63,6 +63,17 @@ export function SettingsNote({ children }: PropsWithChildren) {
   );
 }
 
+/**
+ * From the iOS "xxxLarge" text size (1.35) and its Android equivalent, a value beside its title can
+ * squeeze the title to one letter a line. As in the iOS Settings app, such a row puts the value
+ * under the title. Smaller text sizes keep the one-line row.
+ */
+const STACKED_FONT_SCALE = 1.3;
+/** A trailing value wider than this part of the row goes under the title. An icon never does. */
+const STACKED_VALUE_SHARE = 0.4;
+/** `px-4` on both sides of a row. */
+const ROW_PADDING_X = 32;
+
 export function SettingsRow({
   children,
   supportingText,
@@ -89,18 +100,44 @@ export function SettingsRow({
   expanded?: boolean;
 }>) {
   const muted = String(useCSSVariable("--openbot-text-grouped-secondary"));
+  const { fontScale } = useWindowDimensions();
+  const measures = Boolean(trailing) && fontScale >= STACKED_FONT_SCALE;
+  const [rowWidth, setRowWidth] = useState(0);
+  const [trailingWidth, setTrailingWidth] = useState(0);
+  const stacked = measures && rowWidth > 0 && trailingWidth > (rowWidth - ROW_PADDING_X) * STACKED_VALUE_SHARE;
+  const onRowLayout = measures
+    ? (event: LayoutChangeEvent) => setRowWidth(Math.round(event.nativeEvent.layout.width))
+    : undefined;
+  const measuredTrailing = (
+    <View
+      className={stacked ? "max-w-full self-start overflow-hidden" : "min-w-0 shrink"}
+      onLayout={(event) => setTrailingWidth(Math.round(event.nativeEvent.layout.width))}
+    >
+      {trailing}
+    </View>
+  );
+  const title = (
+    <>
+      {children}
+      {supportingText ? (
+        <Typography.Paragraph type="body-xs" className="text-grouped-secondary">
+          {supportingText}
+        </Typography.Paragraph>
+      ) : null}
+    </>
+  );
   const content = (
     <>
       {leading}
       <View className="min-w-0 flex-1 gap-1">
-        {children}
-        {supportingText ? (
-          <Typography.Paragraph type="body-xs" className="text-grouped-secondary">
-            {supportingText}
-          </Typography.Paragraph>
-        ) : null}
+        {title}
+        {stacked ? measuredTrailing : null}
       </View>
-      {trailing || (onPress && disclosure ? <ChevronRight size={18} color={muted} strokeWidth={1.5} /> : null)}
+      {stacked
+        ? null
+        : measures
+          ? measuredTrailing
+          : trailing || (onPress && disclosure ? <ChevronRight size={18} color={muted} strokeWidth={1.5} /> : null)}
     </>
   );
   return onPress ? (
@@ -115,10 +152,13 @@ export function SettingsRow({
       }}
       className="min-h-14 flex-row items-center gap-3 px-4 py-4"
       style={({ pressed }) => ({ opacity: disabled ? 0.45 : pressed ? 0.6 : 1 })}
+      onLayout={onRowLayout}
     >
       {content}
     </ListGroup.Item>
   ) : (
-    <View className="min-h-14 flex-row items-center gap-3 px-4 py-4">{content}</View>
+    <View className="min-h-14 flex-row items-center gap-3 px-4 py-4" onLayout={onRowLayout}>
+      {content}
+    </View>
   );
 }

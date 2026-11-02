@@ -21,6 +21,7 @@ import type { WorkflowRunView } from "@openbot/ui/features/workflows/workflow-ru
 import { Show, untrack } from "solid-js";
 import { createWorkflowsController } from "../src/features/workflows/workflows-controller";
 import type { WorkflowHost } from "../src/features/workflows/workflows-port";
+import { createMockGitHubConnector } from "../src/preview/mock-github-connector";
 import { mockWorkflows } from "../src/preview/mock-workflows";
 import { OpenBotPlayground } from "../src/preview/OpenBotPlayground";
 import { STORY_CATALOGS, type StoryWorkflow } from "./workflow-story-data";
@@ -129,6 +130,12 @@ function storyWorkflowHost(workflows: readonly StoryWorkflow[]): WorkflowHost {
       decide: async (input) => {
         if (!fixtureSteps.has(input.stepId)) await api.decide(input);
       },
+      githubHistory: async (workflowId) => {
+        const live = await api.githubHistory(workflowId);
+        const fixture = fixtures.get(workflowId)?.github;
+        if (!fixture) return live;
+        return { deliveries: [...live.deliveries, ...fixture.deliveries], runs: [...live.runs, ...fixture.runs] };
+      },
     },
     onChanged(changed) {
       listeners.add(changed);
@@ -136,6 +143,11 @@ function storyWorkflowHost(workflows: readonly StoryWorkflow[]): WorkflowHost {
     },
     places: async () => [...STORY_CATALOGS.places],
     agentLevels: async () => null,
+    githubSupported: () => true,
+    githubConnector: createMockGitHubConnector(),
+    hostName: () => undefined,
+    // A story opens no browser.
+    openUrl: async () => undefined,
   };
 }
 
@@ -146,7 +158,13 @@ export function WorkflowStory(props: { workflows: readonly StoryWorkflow[]; feat
   return (
     <Show when={story.detail()}>
       {(workflow) => (
-        <WorkflowCanvas workflow={workflow()} features={features()} catalogs={STORY_CATALOGS} {...story.props} />
+        <WorkflowCanvas
+          workflow={workflow()}
+          features={features()}
+          catalogs={STORY_CATALOGS}
+          github={story.github}
+          {...story.props}
+        />
       )}
     </Show>
   );
