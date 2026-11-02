@@ -12,6 +12,7 @@ import { Effect } from "effect";
 import { workflowStarterGraph, workflowStarters } from "../packages/ui/src/features/workflows/workflow-starters";
 import { runCauseEffect } from "../src/backend/effect-boundary";
 import { OpenBotDatabase } from "../src/backend/openbot-database";
+import { WorkflowGitHubStore } from "../src/backend/workflows/workflow-github-store";
 import { WorkflowRunStore } from "../src/backend/workflows/workflow-run-store";
 import { WorkflowStore } from "../src/backend/workflows/workflow-store";
 import { createWorkflows, type WorkflowsHandle } from "../src/backend/workflows/workflows";
@@ -38,6 +39,8 @@ async function open() {
     createWorkflows({
       store: new WorkflowStore({ database }),
       runs: new WorkflowRunStore({ database }),
+      github: new WorkflowGitHubStore({ database }),
+      githubApp: () => null,
       delivery: () => ({ status: deliveryState, turnId: "test-turn", error: null }),
       turnAnswer: () => "Hello from the test agent.",
       sendHandoff: () => Effect.sync(() => crypto.randomUUID()),
@@ -226,6 +229,31 @@ try {
     workflowStarterGraph("approval", t).nodes.every(
       (node) => !approvalGraph.nodes.some((first) => first.id === node.id),
     ),
+  );
+
+  // Main can keep more than one run open. Stop and approval must address only their own run.
+  const firstConcurrent = await start(workflows, approvalId);
+  const firstWaiting = await until(workflows, firstConcurrent, (next) => next.run.status === "approval");
+  const secondConcurrent = await start(workflows, approvalId);
+  const secondWaiting = await until(workflows, secondConcurrent, (next) => next.run.status === "approval");
+  const firstApproval = firstWaiting.steps.find((step) => step.status === "approval");
+  const secondApproval = secondWaiting.steps.find((step) => step.status === "approval");
+  assert.ok(firstApproval && secondApproval);
+  check("concurrent starter runs have separate approval steps", firstApproval.id !== secondApproval.id);
+  await runCauseEffect(workflows.stopRun(firstConcurrent));
+  await until(workflows, firstConcurrent, (next) => next.run.status === "stopped");
+  const stillWaiting = await runCauseEffect(workflows.run(secondConcurrent));
+  check(
+    "stopping one starter run leaves the other approval open",
+    stillWaiting.run.status === "approval" &&
+      stillWaiting.steps.some((step) => step.id === secondApproval.id && step.status === "approval") &&
+      outputs.length === 2,
+  );
+  await runCauseEffect(workflows.decide({ stepId: secondApproval.id, approved: true }));
+  await until(workflows, secondConcurrent, (next) => next.run.status === "done");
+  check(
+    "the other run completes once without restarting the stopped run",
+    outputs.length === 3 && (await runCauseEffect(workflows.run(firstConcurrent))).run.status === "stopped",
   );
 
   await close();

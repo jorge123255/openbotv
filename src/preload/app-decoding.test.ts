@@ -28,6 +28,7 @@ import {
   decodeMobileConnectTicket,
   decodeNotificationOpenedEvent,
   decodeNotificationPreference,
+  decodePendingMarketplaceListing,
   decodeProviderDetectionSettings,
   decodeUpdatePreference,
   decodeUpdateStatus,
@@ -100,6 +101,17 @@ const valid: [string, (value: unknown) => unknown, unknown][] = [
     "app info",
     decodeAppInfo,
     { name: "OpenBot", version: "1.0.0", platform: "darwin", variant: "dev" } satisfies AppInfo,
+  ],
+  [
+    "app info with an install ID",
+    decodeAppInfo,
+    {
+      name: "OpenBot",
+      version: "1.0.0",
+      platform: "darwin",
+      variant: "production",
+      analyticsInstallId: "install-0b5c7c9e-8d55-4a3f-9d0e-2f7c1a6b4e21",
+    } satisfies AppInfo,
   ],
   [
     "setup state",
@@ -206,6 +218,11 @@ const valid: [string, (value: unknown) => unknown, unknown][] = [
 ];
 
 const malformed: [string, (value: unknown) => unknown, unknown][] = [
+  [
+    "app info with an install ID that is not text",
+    decodeAppInfo,
+    { name: "OpenBot", version: "1.0.0", platform: "darwin", variant: "production", analyticsInstallId: 1 },
+  ],
   // The key never comes back to the renderer, so a record that carries one fails closed.
   ["a voice server with its key", decodeVoiceServerSettings, { ...voiceServer, apiKey: "sk-secret" }],
   [
@@ -309,5 +326,40 @@ describe("app decoding", () => {
 
   it.each(malformed)("rejects %s", (_name, decode, value) => {
     expect(() => decode(value)).toThrow(/^Invalid /);
+  });
+});
+
+const AGENT_ID = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+// A Marketplace link began in a URL a web page chose. Only an agent id or a skill slug of the right
+// form reaches the renderer, with no other field; anything else is no link at all.
+describe("pending Marketplace listing", () => {
+  it.each([
+    ["an agent", { kind: "agent", id: AGENT_ID }],
+    ["a skill", { kind: "skill", id: "release-notes" }],
+  ])("keeps %s", (_name, value) => {
+    expect(decodePendingMarketplaceListing(value)).toEqual(value);
+  });
+
+  it("drops a field main did not name", () => {
+    expect(decodePendingMarketplaceListing({ kind: "skill", id: "release-notes", install: true })).toEqual({
+      kind: "skill",
+      id: "release-notes",
+    });
+  });
+
+  it.each([
+    ["no link", null],
+    ["a bare slug", "release-notes"],
+    ["an unknown kind", { kind: "plugin", id: "release-notes" }],
+    ["an agent with a slug", { kind: "agent", id: "release-notes" }],
+    ["an agent id in upper case", { kind: "agent", id: AGENT_ID.toUpperCase() }],
+    ["a skill with a path", { kind: "skill", id: "../account" }],
+    ["a skill with a dot", { kind: "skill", id: "notes.md" }],
+    ["a skill slug over 64 characters", { kind: "skill", id: "a".repeat(65) }],
+    ["an empty id", { kind: "skill", id: "" }],
+    ["an id that is not text", { kind: "agent", id: 42 }],
+  ])("refuses %s", (_name, value) => {
+    expect(decodePendingMarketplaceListing(value)).toBeNull();
   });
 });

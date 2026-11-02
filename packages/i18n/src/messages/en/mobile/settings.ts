@@ -68,9 +68,6 @@ export const messages = defineMessages("mobile.settings", {
   "mobile.settings.animations.footer":
     "Turn off Animations to reduce motion in the whole app. When Reduce Motion is on in your phone settings, the app also reduces motion. The animations below then stay off.",
   "mobile.settings.animations.all": "Animations",
-  "mobile.settings.animations.chatZoom": "Zoom into chats",
-  "mobile.settings.animations.chatZoomFooter":
-    "A chat opens out of its avatar in the list and closes back into it. When this is off, a chat slides in from the side.",
   "mobile.settings.animations.agentFaces": "Animated agent faces",
   "mobile.settings.animations.agentFacesFooter":
     "Agent avatars move their faces while the agents work and rest. When this is off, the faces stay still.",
@@ -145,6 +142,8 @@ export const messages = defineMessages("mobile.settings", {
   "mobile.settings.notifications.offForEveryone": "Off for everyone on this server",
   "mobile.settings.notifications.turnOn": "Turn on",
   "mobile.settings.notifications.turnOnFor": "Turn on notifications of {name} for everyone on this server",
+  "mobile.settings.notifications.chooseAgent": "Choose for one agent",
+  "mobile.settings.notifications.chooseAnotherAgent": "Choose another agent",
   "mobile.settings.notifications.levelsFooter": "Tap an agent’s level again to follow the server.",
   "mobile.settings.notifications.agentsUnsupported": "Update OpenBot on this server to choose agents.",
   "mobile.settings.notifications.agentsOffline": "Agents show when this server is online.",
@@ -154,8 +153,8 @@ export const messages = defineMessages("mobile.settings", {
   "mobile.settings.notifications.channelSilent": "Agent notifications (no sound)",
   "mobile.settings.privacy.title": "Privacy",
   "mobile.settings.privacy.footer":
-    "Share feature use and connection results from this phone. Message contents and files are not sent.",
-  "mobile.settings.privacy.analytics": "Share product analytics",
+    "Feature use and connection results from this phone always go to OpenBot’s analytics. On: with your account ID and email. Off: with a random install ID only. Message contents and files are not sent.",
+  "mobile.settings.privacy.analytics": "Link analytics to my account",
   "mobile.settings.privacy.retry": "Retry saving privacy setting",
   "mobile.settings.conversations.title": "Conversations",
   "mobile.settings.conversations.hiddenChats": "Hidden chats",
