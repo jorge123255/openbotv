@@ -122,7 +122,6 @@ export const messages = {
   "agentSettings.descriptionPlaceholder": "Для чего нужен этот агент",
   "agentSettings.instructions": "Инструкции",
   "agentSettings.instructionsLabel": "Инструкции агента",
-  "agentSettings.instructionsResize": "Изменить размер инструкций",
   "agentSettings.instructionsEdit": "Изменить инструкции",
   "agentSettings.instructionsChangedWhileEditing":
     "Агент изменил свои инструкции, пока вы их редактировали. Сохраните снова, чтобы заменить его версию.",

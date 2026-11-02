@@ -101,7 +101,6 @@ export const messages = {
   "agentSettings.descriptionPlaceholder": "Para que serve este agente",
   "agentSettings.instructions": "Instruções",
   "agentSettings.instructionsLabel": "Instruções do agente",
-  "agentSettings.instructionsResize": "Redimensionar instruções",
   "agentSettings.instructionsEdit": "Editar instruções",
   "agentSettings.instructionsChangedWhileEditing":
     "O agente mudou suas instruções enquanto você as editava. Salve de novo para substituir a versão dele.",

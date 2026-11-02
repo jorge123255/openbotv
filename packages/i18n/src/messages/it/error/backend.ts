@@ -66,7 +66,6 @@ export const messages = {
   "error.backend.channelReferenceUnavailable": "Il messaggio del canale a cui si fa riferimento non è disponibile.",
   "error.backend.channelTaskNotFound": "Attività del canale non trovata.",
   "error.backend.channelTaskComplete": "Questa attività è già completata.",
-  "error.backend.channelTaskNotStopped": "Si può annullare solo un'attività interrotta o non riuscita.",
   "error.backend.channelSelectAgent": "Seleziona un agente.",
   "error.backend.channelLeadRequired":
     "Scegli un responsabile del canale disponibile o assegna questa attività a un membro.",
@@ -74,6 +73,7 @@ export const messages = {
     "Questa richiesta supera il limite del contesto di instradamento. Seleziona un membro o invia una richiesta più breve.",
   "error.backend.channelTaskMemberRequired": "Scegli un membro per questa attività.",
   "error.backend.channelTaskStopped": "Interrotta. Continua o riassegna questa attività.",
+  "error.backend.channelTaskNotStopped": "Si può annullare solo un'attività interrotta o non riuscita.",
   "error.backend.channelRoutingUnreadable":
     "Il responsabile non ha potuto instradare questo messaggio. Riassegnalo a un membro.",
   "error.backend.channelRoutingFailed": "L'instradamento non è riuscito. Scegli un membro o riprova.",

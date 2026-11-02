@@ -88,14 +88,10 @@ function channelRunStatusForTasks(
   // owner, the assignment limit, an unconfirmed turn, or an explicit Stop.
   const paused = tasks.find((task) => task.state === "paused");
   if (paused) return { status: "needs-attention", error: paused.error };
-  // A user cancellation is terminal but is not the lead's successful no-work decision.
-  // A person cancelled the run from its stopped task: it did not succeed.
+  // A person cancelled the run from its stopped task: that error is terminal, and the run did not
+  // succeed. A lead task cancelled with no error is the released no-work outcome, which succeeds.
   if (
-    tasks.some(
-      (task) =>
-        task.state === "cancelled" &&
-        (task.error === sourceText("error.backend.channelTaskCancelled") || task.parentTaskId === null),
-    )
+    tasks.some((task) => task.state === "cancelled" && task.error === sourceText("error.backend.channelTaskCancelled"))
   )
     return { status: "cancelled", error: null };
   // Every task is completed or cancelled. This includes the lead judging that no work was needed.

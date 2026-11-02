@@ -100,7 +100,6 @@ export const messages = {
   "agentSettings.descriptionPlaceholder": "このエージェントの用途",
   "agentSettings.instructions": "指示",
   "agentSettings.instructionsLabel": "エージェントへの指示",
-  "agentSettings.instructionsResize": "指示欄のサイズを変更",
   "agentSettings.instructionsEdit": "指示を編集",
   "agentSettings.instructionsChangedWhileEditing":
     "編集中にエージェントが指示を変更しました。もう一度保存すると、エージェントの版を置き換えます。",

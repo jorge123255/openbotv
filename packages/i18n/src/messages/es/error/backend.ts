@@ -67,13 +67,13 @@ export const messages = {
   "error.backend.channelReferenceUnavailable": "El mensaje del canal al que se hace referencia no está disponible.",
   "error.backend.channelTaskNotFound": "No se encontró la tarea del canal.",
   "error.backend.channelTaskComplete": "Esta tarea ya está completada.",
-  "error.backend.channelTaskNotStopped": "Solo se puede cancelar una tarea detenida o fallida.",
   "error.backend.channelSelectAgent": "Selecciona un agente.",
   "error.backend.channelLeadRequired": "Elige un coordinador de canal disponible o asigna esta tarea a un miembro.",
   "error.backend.channelRoutingTooLong":
     "Esta solicitud supera el límite de contexto de asignación. Selecciona un miembro o envía una solicitud más corta.",
   "error.backend.channelTaskMemberRequired": "Elige un miembro para esta tarea.",
   "error.backend.channelTaskStopped": "Detenida. Continúa o reasigna esta tarea.",
+  "error.backend.channelTaskNotStopped": "Solo se puede cancelar una tarea detenida o fallida.",
   "error.backend.channelRoutingUnreadable": "El líder no pudo dirigir este mensaje. Reasígnalo a un miembro.",
   "error.backend.channelRoutingFailed": "La asignación falló. Elige un miembro o inténtalo de nuevo.",
   "error.backend.channelLeadTimedOut":

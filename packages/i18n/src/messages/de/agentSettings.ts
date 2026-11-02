@@ -102,7 +102,6 @@ export const messages = {
   "agentSettings.descriptionPlaceholder": "Wofür dieser Agent gedacht ist",
   "agentSettings.instructions": "Anweisungen",
   "agentSettings.instructionsLabel": "Agentenanweisungen",
-  "agentSettings.instructionsResize": "Größe der Anweisungen ändern",
   "agentSettings.instructionsEdit": "Anweisungen bearbeiten",
   "agentSettings.instructionsChangedWhileEditing":
     "Der Agent hat seine Anweisungen geändert, während du sie bearbeitet hast. Speichere erneut, um seine Version zu ersetzen.",

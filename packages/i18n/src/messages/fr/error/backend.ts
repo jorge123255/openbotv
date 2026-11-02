@@ -68,7 +68,6 @@ export const messages = {
   "error.backend.channelReferenceUnavailable": "Le message de canal référencé est indisponible.",
   "error.backend.channelTaskNotFound": "Tâche de canal introuvable.",
   "error.backend.channelTaskComplete": "Cette tâche est déjà terminée.",
-  "error.backend.channelTaskNotStopped": "Seule une tâche arrêtée ou en échec peut être annulée.",
   "error.backend.channelSelectAgent": "Sélectionnez un agent.",
   "error.backend.channelLeadRequired":
     "Choisissez un responsable de canal disponible ou attribuez cette tâche à un membre.",
@@ -76,6 +75,7 @@ export const messages = {
     "Cette demande dépasse la limite de contexte de routage. Sélectionnez un membre ou envoyez une demande plus courte.",
   "error.backend.channelTaskMemberRequired": "Choisissez un membre pour cette tâche.",
   "error.backend.channelTaskStopped": "Arrêtée. Continuez ou réassignez cette tâche.",
+  "error.backend.channelTaskNotStopped": "Seule une tâche arrêtée ou en échec peut être annulée.",
   "error.backend.channelRoutingUnreadable":
     "Le responsable n'a pas pu acheminer ce message. Réassignez-le à un membre.",
   "error.backend.channelRoutingFailed": "Le routage a échoué. Choisissez un membre ou réessayez.",

@@ -69,13 +69,13 @@ export const messages = {
   "error.backend.channelReferenceUnavailable": "Die referenzierte Kanalnachricht ist nicht verfügbar.",
   "error.backend.channelTaskNotFound": "Kanalaufgabe nicht gefunden.",
   "error.backend.channelTaskComplete": "Diese Aufgabe ist bereits abgeschlossen.",
-  "error.backend.channelTaskNotStopped": "Nur eine gestoppte oder fehlgeschlagene Aufgabe kann abgebrochen werden.",
   "error.backend.channelSelectAgent": "Wähle einen Agenten.",
   "error.backend.channelLeadRequired": "Wähle eine verfügbare Kanalleitung oder weise diese Aufgabe einem Mitglied zu.",
   "error.backend.channelRoutingTooLong":
     "Diese Anfrage überschreitet die Kontextgrenze für die Zuweisung. Wähle ein Mitglied oder sende eine kürzere Anfrage.",
   "error.backend.channelTaskMemberRequired": "Wähle ein Mitglied für diese Aufgabe.",
   "error.backend.channelTaskStopped": "Gestoppt. Setze diese Aufgabe fort oder weise sie neu zu.",
+  "error.backend.channelTaskNotStopped": "Nur eine gestoppte oder fehlgeschlagene Aufgabe kann abgebrochen werden.",
   "error.backend.channelRoutingUnreadable":
     "Die Leitung konnte diese Nachricht nicht zuweisen. Weise sie einem Mitglied zu.",
   "error.backend.channelRoutingFailed": "Die Zuweisung ist fehlgeschlagen. Wähle ein Mitglied oder versuche es erneut.",
