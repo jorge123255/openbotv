@@ -553,9 +553,18 @@ index 52f73307c4ea3f22ea36f3ab05379730b2e116bd..862a2d44793ee509e75cd24d3270609f
  			cancelable: true
  		}));
 diff --git a/dist/menu-sub-trigger/CUZ7UcrE.js b/dist/menu-sub-trigger/CUZ7UcrE.js
-index 2304a4c0cedafe7d0b501e14a6097c19cc1de6ab..79fbbb417a13849ddb3cbd6f6bbe0641216de1d1 100644
+index 2304a4c0cedafe7d0b501e14a6097c19cc1de6ab..568114c75992e3f4dc3d2291d9d1575a68730747 100644
 --- a/dist/menu-sub-trigger/CUZ7UcrE.js
 +++ b/dist/menu-sub-trigger/CUZ7UcrE.js
+@@ -13,7 +13,7 @@
+ import { t as Popper } from "../popper/CfE13srM.js";
+ import { Portal, createComponent, isServer, memo, mergeProps } from "@solidjs/web";
+ import { combineStyle } from "@solid-primitives/props";
+-import { Show, createContext, createEffect, createMemo, createSignal, createUniqueId, merge, omit, onCleanup, untrack, useContext } from "solid-js";
++import { Show, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, merge, omit, onCleanup, untrack, useContext } from "solid-js";
+ import { createPresence } from "@solid-primitives/presence";
+ import { callHandler, composeEventHandlers, isPointInPolygon } from "@kobalte/utils";
+ import { createFocusTrap } from "@solid-primitives/focus";
 @@ -129,7 +129,7 @@ function Menu(props) {
  	const [focusStrategy, setFocusStrategy] = createSignal(true);
  	const [currentPlacement, setCurrentPlacement] = createSignal(others.placement);
@@ -585,7 +594,16 @@ index 2304a4c0cedafe7d0b501e14a6097c19cc1de6ab..79fbbb417a13849ddb3cbd6f6bbe0641
  	});
  	const handleClick = () => {
  		if (optionalMenubarContext !== void 0) {
-@@ -1187,7 +1189,7 @@ function MenuSubTrigger(props) {
+@@ -1167,6 +1169,8 @@
+ 			parentSelectionManager().setFocused(false);
+ 			parentSelectionManager().setFocusedKey(void 0);
+ 			if (!context.isOpen()) context.open("first");
++			// Commit child content and items before the imperative focus and collection read.
++			flush();
+ 			context.focusContent();
+ 			context.listState().selectionManager().setFocused(true);
+ 			context.listState().selectionManager().setFocusedKey(collection().getFirstKey());
+@@ -1187,7 +1191,7 @@ function MenuSubTrigger(props) {
  	createEffect(() => context.parentMenuContext()?.pointerGraceTimeoutId(), (pointerGraceTimer) => {
  		return () => {
  			window.clearTimeout(pointerGraceTimer);
@@ -594,10 +612,28 @@ index 2304a4c0cedafe7d0b501e14a6097c19cc1de6ab..79fbbb417a13849ddb3cbd6f6bbe0641
  		};
  	});
  	createEffect(() => mergedProps.id, (id) => context.registerTriggerId(id));
+@@ -1242,7 +1246,7 @@
+ 			return composeEventHandlers([mergedProps.onMouseDown, selectableItem.onMouseDown]);
+ 		},
+ 		get onFocus() {
+-			return composeEventHandlers([mergedProps.onFocus, selectableItem.onFocus]);
++			return composeEventHandlers([mergedProps.onFocus, selectableItem.onFocus, () => flush()]);
+ 		},
+ 		onPointerMove,
+ 		onPointerLeave
 diff --git a/dist/menu-sub-trigger/Cj4RVVP4.jsx b/dist/menu-sub-trigger/Cj4RVVP4.jsx
-index b0a38568346e4997cc03f97803f316dd5cdebae1..6654cbe3c3e6c65c21ccdfb0a51075410122c92d 100644
+index b0a38568346e4997cc03f97803f316dd5cdebae1..24fc3adb563cafe14c21c948c53de6147a622154 100644
 --- a/dist/menu-sub-trigger/Cj4RVVP4.jsx
 +++ b/dist/menu-sub-trigger/Cj4RVVP4.jsx
+@@ -12,7 +12,7 @@
+ import { t as DismissableLayer } from "../dismissable-layer/RyRdwdaj.jsx";
+ import { t as Popper } from "../popper/BzGqGM_d.jsx";
+ import { combineStyle } from "@solid-primitives/props";
+-import { Show, createContext, createEffect, createMemo, createSignal, createUniqueId, merge, omit, onCleanup, untrack, useContext } from "solid-js";
++import { Show, createContext, createEffect, createMemo, createSignal, createUniqueId, flush, merge, omit, onCleanup, untrack, useContext } from "solid-js";
+ import { createPresence } from "@solid-primitives/presence";
+ import { Portal, isServer } from "@solidjs/web";
+ import { callHandler, composeEventHandlers, isPointInPolygon } from "@kobalte/utils";
 @@ -129,7 +129,7 @@ function Menu(props) {
  	const [focusStrategy, setFocusStrategy] = createSignal(true);
  	const [currentPlacement, setCurrentPlacement] = createSignal(others.placement);
@@ -627,7 +663,16 @@ index b0a38568346e4997cc03f97803f316dd5cdebae1..6654cbe3c3e6c65c21ccdfb0a5107541
  	});
  	const handleClick = () => {
  		if (optionalMenubarContext !== void 0) {
-@@ -998,7 +1000,7 @@ function MenuSubTrigger(props) {
+@@ -978,6 +980,8 @@
+ 			parentSelectionManager().setFocused(false);
+ 			parentSelectionManager().setFocusedKey(void 0);
+ 			if (!context.isOpen()) context.open("first");
++			// Commit child content and items before the imperative focus and collection read.
++			flush();
+ 			context.focusContent();
+ 			context.listState().selectionManager().setFocused(true);
+ 			context.listState().selectionManager().setFocusedKey(collection().getFirstKey());
+@@ -998,7 +1002,7 @@ function MenuSubTrigger(props) {
  	createEffect(() => context.parentMenuContext()?.pointerGraceTimeoutId(), (pointerGraceTimer) => {
  		return () => {
  			window.clearTimeout(pointerGraceTimer);
@@ -636,6 +681,15 @@ index b0a38568346e4997cc03f97803f316dd5cdebae1..6654cbe3c3e6c65c21ccdfb0a5107541
  		};
  	});
  	createEffect(() => mergedProps.id, (id) => context.registerTriggerId(id));
+@@ -1008,7 +1012,7 @@
+ 	return <Polymorphic as="div" ref={[(el) => {
+ 		context.setTriggerRef(el);
+ 		setRef(el);
+-	}, mergedProps.ref]} id={mergedProps.id} role="menuitem" tabindex={selectableItem.tabIndex()} aria-haspopup="true" aria-expanded={context.isOpen() ? "true" : "false"} aria-controls={context.isOpen() ? context.contentId() : void 0} aria-disabled={mergedProps.disabled ? "true" : void 0} data-key={selectableItem.dataKey()} data-highlighted={isHighlighted() ? "" : void 0} data-disabled={mergedProps.disabled ? "" : void 0} onPointerDown={composeEventHandlers([mergedProps.onPointerDown, selectableItem.onPointerDown])} onPointerUp={composeEventHandlers([mergedProps.onPointerUp, selectableItem.onPointerUp])} onClick={composeEventHandlers([onClick, selectableItem.onClick])} onKeyDown={composeEventHandlers([onKeyDown, selectableItem.onKeyDown])} onMouseDown={composeEventHandlers([mergedProps.onMouseDown, selectableItem.onMouseDown])} onFocus={composeEventHandlers([mergedProps.onFocus, selectableItem.onFocus])} onPointerMove={onPointerMove} onPointerLeave={onPointerLeave} {...context.dataset()} {...others} />;
++	}, mergedProps.ref]} id={mergedProps.id} role="menuitem" tabindex={selectableItem.tabIndex()} aria-haspopup="true" aria-expanded={context.isOpen() ? "true" : "false"} aria-controls={context.isOpen() ? context.contentId() : void 0} aria-disabled={mergedProps.disabled ? "true" : void 0} data-key={selectableItem.dataKey()} data-highlighted={isHighlighted() ? "" : void 0} data-disabled={mergedProps.disabled ? "" : void 0} onPointerDown={composeEventHandlers([mergedProps.onPointerDown, selectableItem.onPointerDown])} onPointerUp={composeEventHandlers([mergedProps.onPointerUp, selectableItem.onPointerUp])} onClick={composeEventHandlers([onClick, selectableItem.onClick])} onKeyDown={composeEventHandlers([onKeyDown, selectableItem.onKeyDown])} onMouseDown={composeEventHandlers([mergedProps.onMouseDown, selectableItem.onMouseDown])} onFocus={composeEventHandlers([mergedProps.onFocus, selectableItem.onFocus, () => flush()])} onPointerMove={onPointerMove} onPointerLeave={onPointerLeave} {...context.dataset()} {...others} />;
+ }
+ //#endregion
+ export { MenubarContext as C, useNavigationMenuContext as S, MenuCheckboxItem as _, MenuRadioItem as a, useOptionalMenuContext as b, MenuItemLabel as c, MenuItem as d, MenuIcon as f, MenuTrigger as g, MenuContent as h, MenuRoot as i, MenuItemIndicator as l, MenuGroup as m, MenuSubContent as n, MenuRadioGroup as o, MenuGroupLabel as p, MenuSub as r, MenuPortal as s, MenuSubTrigger as t, MenuItemDescription as u, useMenuRootContext as v, useMenubarContext as w, NavigationMenuContext as x, useMenuContext as y };
 diff --git a/dist/popper/BzGqGM_d.jsx b/dist/popper/BzGqGM_d.jsx
 index 59a51a1abef975b10524d0eb99a2acdea8669fab..9866876ee5b579d06118de1cb0f785017270d6db 100644
 --- a/dist/popper/BzGqGM_d.jsx

@@ -222,9 +222,32 @@ async function menuFits(menu: Locator) {
 
 async function menuPositioned(menu: Locator) {
   await page.waitForFunction(
-    (element) =>
-      element?.isConnected && element.closest("[data-popper-positioner]")?.hasAttribute("data-kb-positioned"),
+    (element) => {
+      if (!element?.isConnected) return false;
+      const positioner = element.closest<HTMLElement>("[data-popper-positioner]");
+      if (!positioner?.hasAttribute("data-kb-positioned") || !positioner.style.transform) return false;
+      const style = getComputedStyle(positioner);
+      const written = new DOMMatrixReadOnly(positioner.style.transform);
+      const rendered = new DOMMatrixReadOnly(style.transform === "none" ? undefined : style.transform);
+      return (
+        written.a === rendered.a &&
+        written.b === rendered.b &&
+        written.c === rendered.c &&
+        written.d === rendered.d &&
+        written.e === rendered.e &&
+        written.f === rendered.f
+      );
+    },
     await menu.elementHandle(),
+  );
+  assert.equal(
+    await menu.evaluate(
+      (element) =>
+        !matchMedia("(prefers-reduced-motion: reduce)").matches ||
+        getComputedStyle(element.closest("[data-popper-positioner]") ?? element).transitionProperty === "none",
+    ),
+    true,
+    "Reduced motion must not tween the positioner's layout coordinates.",
   );
 }
 
@@ -263,19 +286,42 @@ async function traceSwitcher() {
     if (!trigger) throw new Error("Missing workflow switcher trace target.");
     const lifetime = new AbortController();
     let remaining = 96;
-    const describe = (node: EventTarget | null) =>
-      node instanceof Element
-        ? {
-            tag: node.tagName,
-            id: node.id,
-            class: node.getAttribute("class"),
-            connected: node.isConnected,
-            expanded: node.getAttribute("aria-expanded"),
-            role: node.getAttribute("role"),
-            positioned: node.closest("[data-popper-positioner]")?.hasAttribute("data-kb-positioned") ?? null,
-            bounds: node.getBoundingClientRect().toJSON(),
-          }
-        : null;
+    const describe = (node: EventTarget | null) => {
+      if (!(node instanceof Element)) return null;
+      const positioner = node.closest<HTMLElement>("[data-popper-positioner]");
+      const style = positioner && getComputedStyle(positioner);
+      return {
+        tag: node.tagName,
+        id: node.id,
+        class: node.getAttribute("class"),
+        connected: node.isConnected,
+        expanded: node.getAttribute("aria-expanded"),
+        role: node.getAttribute("role"),
+        positioned: node.closest("[data-popper-positioner]")?.hasAttribute("data-kb-positioned") ?? null,
+        bounds: node.getBoundingClientRect().toJSON(),
+        layout:
+          positioner && style
+            ? {
+                inlineTransform: positioner.style.transform,
+                computedTransform: style.transform,
+                transitionProperty: style.transitionProperty,
+                transitionDuration: style.transitionDuration,
+                transitionDelay: style.transitionDelay,
+                animations: positioner
+                  .getAnimations()
+                  .slice(0, 8)
+                  .map((animation) => ({
+                    kind: animation.constructor.name,
+                    property: animation instanceof CSSTransition ? animation.transitionProperty : null,
+                    state: animation.playState,
+                    pending: animation.pending,
+                    timing: animation.effect?.getTiming(),
+                    progress: animation.effect?.getComputedTiming().progress,
+                  })),
+              }
+            : null,
+      };
+    };
     const entries: string[] = [];
     const record = (detail: string) => {
       if (remaining-- <= 0) return;
@@ -612,6 +658,15 @@ try {
         await page.keyboard.press("ArrowRight");
         const keyboardVersions = page.getByRole("menu", { name: "Version history", exact: true });
         await keyboardVersions.waitFor();
+        await page.waitForFunction(
+          (element) => document.activeElement === element,
+          await keyboardVersions.getByRole("menuitem").first().elementHandle(),
+        );
+        assert.equal(
+          await page.evaluate(() => document.documentElement.dataset.workflowDeleteFocus),
+          "0",
+          "Right must enter Current canvas without visiting Delete workflow.",
+        );
         await menuFits(keyboardVersions);
         await keyboardVersions.getByRole("menuitem").nth(index).focus();
         await page.keyboard.press("ArrowLeft");
@@ -637,6 +692,42 @@ try {
     }
     await page.emulateMedia({ reducedMotion: "reduce" });
   }
+  // The same patched submenu primitive also serves real message context menus.
+  for (const motion of ["reduce", "no-preference"] as const) {
+    await page.emulateMedia({ reducedMotion: motion });
+    await open("conversation-messagemenu--agent-chat", '[role="article"]', 1280);
+    const message = page.getByRole("article").first();
+    const reactionsBefore = await message.locator(".message-reaction-pill").allTextContents();
+    await message.click({ button: "right" });
+    const react = page.getByRole("menuitem", { name: "React", exact: true });
+    await react.waitFor();
+    await react.focus();
+    await page.keyboard.press("ArrowRight");
+    const choices = page.getByRole("menu").filter({ has: page.getByRole("menuitemradio") });
+    await choices.waitFor();
+    await menuPositioned(choices);
+    await page.waitForFunction(
+      (element) => document.activeElement === element,
+      await choices.getByRole("menuitemradio").first().elementHandle(),
+    );
+    await page.keyboard.press("ArrowLeft");
+    await choices.waitFor({ state: "hidden" });
+    assert.equal(await react.evaluate((element) => document.activeElement === element), true);
+    await page.keyboard.press("ArrowRight");
+    await choices.waitFor();
+    await page.waitForFunction(
+      (element) => document.activeElement === element,
+      await choices.getByRole("menuitemradio").first().elementHandle(),
+    );
+    await page.keyboard.press("Escape");
+    await choices.waitFor({ state: "hidden" });
+    await page.getByRole("menu").waitFor({ state: "hidden" });
+    assert.deepEqual(await message.locator(".message-reaction-pill").allTextContents(), reactionsBefore);
+    report.cases.push(
+      `${motion}: a real message context menu opens by Right, returns to React by Left, reopens and closes by Escape; its saved reaction stays unchanged.`,
+    );
+  }
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await open("conversation-browserdock--interactive-bot-ai", ".browser-dock", 688);
   const dockEditor = page.locator('.browser-dock .composer-editor-surface[contenteditable="true"]');
   await dockEditor.fill("Offline BotAI dock message");

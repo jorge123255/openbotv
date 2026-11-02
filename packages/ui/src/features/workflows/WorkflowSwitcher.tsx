@@ -8,7 +8,7 @@
  */
 
 import { Check, ChevronRight, CopyPlus, DropdownMenu, History, Pencil, Plus, Trash2 } from "@openbot/ui";
-import { For, flush, Show } from "solid-js";
+import { For, Show } from "solid-js";
 import { useText } from "../../text";
 
 /** Open a workflow, or act on the open one. */
@@ -86,13 +86,7 @@ export function WorkflowSwitcher(props: {
         <DropdownMenu.Separator />
         <Show when={props.versions.length > 0}>
           <DropdownMenu.Sub overlap>
-            <DropdownMenu.SubTrigger
-              disabled={props.versionsDisabled}
-              onFocusIn={(event) => {
-                // Commit the trigger's native focus update before the parent menu reads its focused key.
-                if (event.target === event.currentTarget) flush();
-              }}
-            >
+            <DropdownMenu.SubTrigger disabled={props.versionsDisabled}>
               <History class="agent-context-icon" aria-hidden="true" />
               <span>{t("workflow.canvas.switcher.versions")}</span>
               <ChevronRight class="agent-context-submenu-chevron" aria-hidden="true" />
