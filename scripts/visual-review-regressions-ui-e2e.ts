@@ -49,6 +49,7 @@ const report: {
   cases: string[];
   pageErrors: string[];
   focusDiagnostics: { case: string; passed: boolean; capReached: boolean; samples: FocusSample[] }[];
+  step?: string;
   failure?: string;
 } = {
   passed: false,
@@ -152,6 +153,7 @@ await page.route("**/*", (route) => {
   return ["http:", "https:"].includes(url.protocol) && url.origin !== target.origin ? route.abort() : route.continue();
 });
 async function open(story: string, ready: string, width = 1280) {
+  report.step = story;
   await page.setViewportSize({ width, height: 800 });
   const url = new URL("/iframe.html", target);
   url.searchParams.set("id", story);
@@ -160,6 +162,25 @@ async function open(story: string, ready: string, width = 1280) {
   await page.locator(ready).first().waitFor();
   await page.locator(".startup-splash").waitFor({ state: "hidden" });
   await page.evaluate(() => document.fonts.ready);
+}
+async function openAvatarStudio() {
+  const panel = page.getByRole("complementary", { name: "Agent settings", exact: true });
+  await panel.waitFor();
+  assert.equal(await panel.count(), 1);
+  const edit = panel.getByRole("button", { name: "Edit agent avatar", exact: true });
+  await edit.waitFor();
+  assert.equal(await edit.count(), 1);
+  assert.equal(await edit.getAttribute("aria-haspopup"), "dialog");
+  assert.equal(await edit.getAttribute("aria-expanded"), "false");
+  await edit.click();
+  const studio = page.getByRole("dialog", { name: "Avatar studio", exact: true });
+  await studio.waitFor();
+  assert.equal(await studio.count(), 1);
+  assert.equal(await edit.getAttribute("aria-expanded"), "true");
+  const studioId = await studio.getAttribute("id");
+  assert.ok(studioId);
+  assert.equal(await edit.getAttribute("aria-controls"), studioId);
+  return studio;
 }
 const focusFailures: string[] = [];
 async function assertDailyFocus(caseName: string): Promise<void> {
@@ -247,10 +268,10 @@ try {
   const before = await page.evaluate(() => window.openbot.agent.listAgents("local"));
   await page.locator('.roster-row-active [data-character="wisp"]').waitFor();
   await page.locator(".conversation-title").click();
-  await page.getByRole("button", { name: "Edit agent avatar", exact: true }).click();
-  await page.getByRole("button", { name: "Pebble", exact: true }).click();
+  const saveStudio = await openAvatarStudio();
+  await saveStudio.getByRole("button", { name: "Pebble", exact: true }).click();
   await page.getByLabel("Avatar response fixture", { exact: true }).filter({ hasText: "pending" }).waitFor();
-  await page.getByRole("button", { name: "Sprout", exact: true }).click();
+  await saveStudio.getByRole("button", { name: "Sprout", exact: true }).click();
   await page.locator('.roster-row-active [data-character="sprout"]').waitFor();
   const newer = (await page.evaluate(() => window.openbot.agent.listAgents("local"))).find(
     (agent) => agent.id === "chief",
@@ -261,8 +282,14 @@ try {
   await page.getByLabel("Avatar response fixture", { exact: true }).filter({ hasText: "released" }).waitFor();
   // A rendered-frame event lets the rejected promise chain and its reactive DOM updates settle.
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-  assert.equal(await page.getByRole("button", { name: "Sprout", exact: true }).getAttribute("aria-pressed"), "true");
-  assert.equal(await page.getByRole("button", { name: "Wisp", exact: true }).getAttribute("aria-pressed"), "false");
+  assert.equal(
+    await saveStudio.getByRole("button", { name: "Sprout", exact: true }).getAttribute("aria-pressed"),
+    "true",
+  );
+  assert.equal(
+    await saveStudio.getByRole("button", { name: "Wisp", exact: true }).getAttribute("aria-pressed"),
+    "false",
+  );
   assert.equal(await page.locator(".agent-settings-save-error").count(), 0);
   assert.equal(
     await page
@@ -286,8 +313,11 @@ try {
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Close side panel", exact: true }).click();
   await page.locator(".conversation-title").click();
-  await page.getByRole("button", { name: "Edit agent avatar", exact: true }).click();
-  assert.equal(await page.getByRole("button", { name: "Sprout", exact: true }).getAttribute("aria-pressed"), "true");
+  const reopenedStudio = await openAvatarStudio();
+  assert.equal(
+    await reopenedStudio.getByRole("button", { name: "Sprout", exact: true }).getAttribute("aria-pressed"),
+    "true",
+  );
   report.cases.push(
     "Wisp→older Pebble pending→newer Sprout saved→older rejection keeps Sprout in editor/roster/stage and after reopening, without stale panel/chat error or identity/seed/image changes.",
   );
@@ -296,20 +326,17 @@ try {
     (agent) => agent.id === "chief",
   );
   await page.locator(".conversation-title").click();
-  await page.getByRole("button", { name: "Edit agent avatar", exact: true }).click();
-  await page.getByRole("button", { name: "Pebble", exact: true }).click();
+  const uploadStudio = await openAvatarStudio();
+  await uploadStudio.getByRole("button", { name: "Pebble", exact: true }).click();
   await page.getByLabel("Avatar response fixture", { exact: true }).filter({ hasText: "pending" }).waitFor();
-  await page
-    .locator(".avatar-editor")
-    .getByLabel("Attach files", { exact: true })
-    .setInputFiles({
-      name: "replacement.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-        "base64",
-      ),
-    });
+  await uploadStudio.getByLabel("Attach files", { exact: true }).setInputFiles({
+    name: "replacement.png",
+    mimeType: "image/png",
+    buffer: Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+      "base64",
+    ),
+  });
   await page.waitForFunction(
     async () =>
       (await window.openbot.agent.listAgents("local"))
@@ -340,8 +367,8 @@ try {
   );
   await open("app--character-save-failure", ".roster-row-active .agent-avatar-custom img");
   await page.locator(".conversation-title").click();
-  await page.getByRole("button", { name: "Edit agent avatar", exact: true }).click();
-  await page.getByRole("button", { name: "Pebble", exact: true }).click();
+  const failureStudio = await openAvatarStudio();
+  await failureStudio.getByRole("button", { name: "Pebble", exact: true }).click();
   await page.locator(".agent-settings-save-error").waitFor();
   await page.locator(".message-error-label").filter({ hasText: "Could not save agent settings" }).waitFor();
   report.cases.push(
@@ -443,6 +470,9 @@ try {
   report.passed = true;
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
+  await page.screenshot({ path: resolve(output, "failure.png") }).catch(() => {
+    // Preserve the test failure if the browser has already closed.
+  });
   throw error;
 } finally {
   writeFileSync(resolve(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
