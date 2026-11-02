@@ -26,6 +26,7 @@ import { remoteAdminServer } from "../servers/server-capabilities";
 import { useServers } from "../servers/servers-context";
 import { useWindowPage } from "../window/window-page-context";
 import type { CreationPreference, DevelopmentCreation } from "./agent-creation-model";
+import { agentUpdateResponseFields, createAgentProfileResponses } from "./agent-profile-responses";
 import { AGENT_SELECTION_STORAGE_KEY, readAgentSelection, writeAgentSelection } from "./agent-selection";
 import { agentsPort } from "./agents-port";
 import {
@@ -86,6 +87,7 @@ const Agents = createSimpleContext({
     const [modelOptions, setModelOptions] = createSignal<ClientAgentModelOption[]>([]);
     const selectionServerId = untrack(activeServerId);
     const scopeIsCurrent = createScopeGuard();
+    const profileResponses = createAgentProfileResponses();
     // A chat window shows its one agent, and keeps the choice of the main window as it is.
     const chatWindowAgentId = usePlatform().chatWindow?.agentId;
     let savedAgentId = chatWindowAgentId ?? readAgentSelection(AGENT_SELECTION_STORAGE_KEY)[selectionServerId] ?? "";
@@ -142,8 +144,12 @@ const Agents = createSimpleContext({
       usage: (serverId) => agentsPort().providerAdmin.accountUsage(serverId),
       applied: (host) => {
         for (const profile of agentList()) {
-          const next = withHostProfileAccount(profile, host);
-          if (next !== profile) updateStored(profile, next);
+          const current = profileResponses.current(profile);
+          const next = withHostProfileAccount(current, host);
+          if (next !== current) {
+            profileResponses.observe(profile, next);
+            updateStored(profile, next);
+          }
         }
       },
     });
@@ -216,6 +222,7 @@ const Agents = createSimpleContext({
     }
 
     function applyStoredAgents(storedAgents: ClientAgentSummary[]): void {
+      if (!scopeIsCurrent()) return;
       const currentById = new Map(agentList().map((agent) => [agent.id, agent]));
       const host = untrack(hostAccounts.host);
       const profiles = storedAgents.flatMap((stored) => {
@@ -223,9 +230,12 @@ const Agents = createSimpleContext({
         const next = toAgentProfile(withHostAgentAccount(stored, host));
         const existing = currentById.get(next.id);
         if (!existing) return [createStoredProfile(next)];
-        if (!agentProfilesEqual(existing, next)) updateStored(existing, next);
+        const headChanged = profileResponses.observe(existing, next);
+        if (headChanged || !agentProfilesEqual(existing, next)) updateStored(existing, next);
         return [existing];
       });
+      const present = new Set(profiles.map((profile) => profile.id));
+      for (const [id, profile] of currentById) if (!present.has(id)) profileResponses.invalidate(profile);
       setAgentList(profiles);
       setAgentListSettled(true);
       setActiveAgentId((current) => {
@@ -253,6 +263,7 @@ const Agents = createSimpleContext({
       const agent = agentList()[index];
       if (!agent) return null;
       hiddenAgentIds.add(agentId);
+      profileResponses.invalidate(agent);
       setAgentList((current) => current.filter((candidate) => candidate.id !== agentId));
       return () => {
         if (!hiddenAgentIds.delete(agentId)) return;
@@ -297,6 +308,11 @@ const Agents = createSimpleContext({
       updates: Omit<UpdateAgentInput, "agentId">,
       shouldReportError: () => boolean = () => true,
     ): Promise<void> {
+      if (!scopeIsCurrent()) return;
+      const request = profileResponses.begin(
+        agentList().find((agent) => agent.id === agentId),
+        agentUpdateResponseFields(updates),
+      );
       const serverId = activeServerId();
       const analytics = desktopAnalytics.scope();
       const properties = analyticsAgentProperties(agentId);
@@ -306,15 +322,23 @@ const Agents = createSimpleContext({
           agentId,
           ...updates,
         });
-        const next = toAgentProfile(stored);
-        if (updates.provider !== undefined || updates.providerAccountId !== undefined) hostAccounts.schedule();
-        setAgentList((current) => {
-          const existingIndex = current.findIndex((agent) => agent.id === agentId);
-          if (existingIndex === -1) return [...current, createStoredProfile(next)];
-          const existing = current[existingIndex];
-          if (existing) updateStored(existing, next);
-          return [...current];
-        });
+        if (
+          scopeIsCurrent() &&
+          profileResponses.valid(
+            request,
+            agentList().find((agent) => agent.id === agentId),
+          )
+        ) {
+          const next = toAgentProfile(stored);
+          if (updates.provider !== undefined || updates.providerAccountId !== undefined) hostAccounts.schedule();
+          setAgentList((current) => {
+            const existing = current.find((agent) => agent.id === agentId);
+            if (!existing) return current;
+            const merged = profileResponses.merge(request, existing, next);
+            if (merged) updateStored(existing, merged);
+            return current;
+          });
+        }
         analytics.track("agent_action", {
           action: "update",
           changed_fields: changedFields,
@@ -329,7 +353,15 @@ const Agents = createSimpleContext({
           failure_code: "update_failed",
           ...(properties ?? {}),
         });
-        if (shouldReportError()) appendUiError(agentId, error, currentText().t("agent.error.settingsFailed"), serverId);
+        if (
+          scopeIsCurrent() &&
+          profileResponses.currentError(
+            request,
+            agentList().find((agent) => agent.id === agentId),
+          ) &&
+          shouldReportError()
+        )
+          appendUiError(agentId, error, currentText().t("agent.error.settingsFailed"), serverId);
         throw error;
       }
     }
@@ -339,18 +371,32 @@ const Agents = createSimpleContext({
       image: AvatarImageInput | null,
       shouldReportError: () => boolean = () => true,
     ): Promise<void> {
+      if (!scopeIsCurrent()) return;
+      const request = profileResponses.begin(
+        agentList().find((agent) => agent.id === agentId),
+        new Set(["avatarUrl"]),
+      );
       const serverId = activeServerId();
       const analytics = desktopAnalytics.scope();
       const properties = analyticsAgentProperties(agentId);
       try {
         const stored = await agentsPort().agent.setAvatar({ agentId, image });
-        const next = toAgentProfile(stored);
-        setAgentList((current) => {
-          const existing = current.find((agent) => agent.id === agentId);
-          if (!existing) return [...current, createStoredProfile(next)];
-          updateStored(existing, next);
-          return current;
-        });
+        if (
+          scopeIsCurrent() &&
+          profileResponses.valid(
+            request,
+            agentList().find((agent) => agent.id === agentId),
+          )
+        ) {
+          const next = toAgentProfile(stored);
+          setAgentList((current) => {
+            const existing = current.find((agent) => agent.id === agentId);
+            if (!existing) return current;
+            const merged = profileResponses.merge(request, existing, next);
+            if (merged) updateStored(existing, merged);
+            return current;
+          });
+        }
         analytics.track("agent_action", {
           action: "update",
           changed_fields: ["avatar"],
@@ -365,7 +411,15 @@ const Agents = createSimpleContext({
           failure_code: "avatar_update_failed",
           ...(properties ?? {}),
         });
-        if (shouldReportError()) appendUiError(agentId, error, currentText().t("agent.error.avatarFailed"), serverId);
+        if (
+          scopeIsCurrent() &&
+          profileResponses.currentError(
+            request,
+            agentList().find((agent) => agent.id === agentId),
+          ) &&
+          shouldReportError()
+        )
+          appendUiError(agentId, error, currentText().t("agent.error.avatarFailed"), serverId);
         throw error;
       }
     }

@@ -186,7 +186,7 @@ export const CharacterSaveFailure: Story = {
 };
 
 /** Controlled response order around the real App settings panel. No real host starts. */
-function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boolean }) {
+function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boolean; completed?: boolean }) {
   useStoredLayoutValue(LEFT_PANEL_COLLAPSED_STORAGE_KEY, "false");
   const [response, setResponse] = createStore({
     phase: "idle",
@@ -227,9 +227,11 @@ function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boo
             mock.api.agent.updateAgent = async (...args) => {
               if (!captured && args[0].avatarCharacter === "pebble") {
                 captured = true;
+                // In this mode the host write/event finish first; only immutable response delivery waits.
+                const completed = props.completed ? structuredClone(await update(...args)) : undefined;
                 setResponse((state) => {
                   state.phase = "pending";
-                  state.older = "pending";
+                  state.older = completed ? "completed" : "pending";
                 });
                 return new Promise((resolve, reject) => {
                   disposeOlder = () => reject(new Error("Disposed synthetic avatar request"));
@@ -240,6 +242,11 @@ function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boo
                         state.older = "rejected";
                       });
                       reject(new Error("Synthetic older avatar save rejection"));
+                    } else if (completed) {
+                      setResponse((state) => {
+                        state.older = "succeeded";
+                      });
+                      resolve(completed);
                     } else {
                       // Delay the mock invocation, not a pre-upload response snapshot.
                       void update(...args).then(
@@ -291,6 +298,9 @@ function AvatarResponseStory(props: { outcome: "reject" | "succeed"; image?: boo
 
 export const AvatarSaveRace: Story = { render: () => <AvatarResponseStory outcome="reject" /> };
 export const AvatarUploadRace: Story = { render: () => <AvatarResponseStory outcome="succeed" image /> };
+export const AvatarCompletedResponseRace: Story = {
+  render: () => <AvatarResponseStory outcome="succeed" image completed />,
+};
 
 /** Valid old seed text is not a character selection. */
 export const LegacySeedWorkspace: Story = {

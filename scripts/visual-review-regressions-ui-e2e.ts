@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "playwright-core";
+import { runAgentProfileResponseCases } from "./agent-profile-responses-ui-cases";
 import { readScriptArguments } from "./script-arguments";
 
 const args = readScriptArguments({
@@ -198,9 +199,12 @@ async function openAvatarStudio() {
   assert.equal(await edit.getAttribute("aria-controls"), studioId);
   return studio;
 }
+function assertImage(actual: string | null | undefined, expected: string | null | undefined, surface: string): void {
+  assert.equal(actual === expected, true, `${surface} must match the expected image.`);
+}
 // Only the synthetic upload story is sampled. Never write image bytes or full data URLs.
 async function recordAvatarUpload(stage: string): Promise<void> {
-  if (report.step !== "app--avatar-upload-race") return;
+  if (!["app--avatar-upload-race", "app--avatar-completed-response-race"].includes(report.step ?? "")) return;
   const { avatarUrl, ...sample } = await page.evaluate(async () => {
     const agent = (await window.openbot.agent.listAgents("local")).find((item) => item.id === "chief");
     const text = (label: string) => document.querySelector(`[aria-label="${label}"]`)?.textContent ?? null;
@@ -370,92 +374,119 @@ try {
   report.cases.push(
     "Wisp→older Pebble pending→newer Sprout saved→older rejection keeps Sprout in editor/roster/stage and after reopening, without stale panel/chat error or identity/seed/image changes.",
   );
-  await open("app--avatar-upload-race", ".roster-row-active .agent-avatar-custom img");
-  const uploadAgentsBefore = await page.evaluate(() => window.openbot.agent.listAgents("local"));
-  const uploadBefore = uploadAgentsBefore.find((agent) => agent.id === "chief");
-  await recordAvatarUpload("initial");
-  assert.ok(uploadBefore, "The fixture must contain Chief.");
-  assert.ok(uploadBefore.avatarUrl?.startsWith("data:image/png;"), "The fixture must start with its original PNG.");
-  assert.equal(uploadBefore.avatarCharacter, "wisp");
-  assert.equal(
-    await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"),
-    uploadBefore.avatarUrl,
-  );
-  await page.locator(".conversation-title").click();
-  const uploadStudio = await openAvatarStudio();
-  await uploadStudio.getByRole("button", { name: "Pebble", exact: true }).click();
-  await page.getByLabel("Avatar response fixture", { exact: true }).filter({ hasText: "pending" }).waitFor();
-  const uploadInput = uploadStudio.getByLabel("Attach files", { exact: true });
-  await uploadInput.setInputFiles({
-    name: "replacement.png",
-    mimeType: "image/png",
-    // A valid 32×32 red/blue checker differs from the original black 1×1 PNG.
-    buffer: Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAS0lEQVR4nO3OsQ0AIAwDwezCEEzCOExMTR02SApkufnC5csXY9+sduYq99sHAAAA7AD1QdcDAADAD1AfdD0AAAD8APVB1wMAAMAOeKz+FJct+8o2AAAAAElFTkSuQmCC",
-      "base64",
-    ),
-  });
-  await page.waitForFunction(
-    () => document.querySelector('[aria-label="Avatar upload completions"]')?.textContent === "1",
-  );
-  const replacementAgent = await (
-    await page.waitForFunction(async (originalUrl) => {
-      const agent = (await window.openbot.agent.listAgents("local")).find((item) => item.id === "chief");
-      return agent?.avatarUrl?.startsWith("data:image/webp;") && agent.avatarUrl !== originalUrl ? agent : null;
-    }, uploadBefore.avatarUrl)
-  ).jsonValue();
-  const replacement = replacementAgent?.avatarUrl;
-  assert.ok(replacement && replacement !== uploadBefore.avatarUrl);
-  await page.waitForFunction(
-    (input) =>
-      input instanceof HTMLInputElement &&
-      input.value === "" &&
-      input.closest(".avatar-editor")?.querySelector(".avatar-image-upload")?.matches(":enabled") === true,
-    await uploadInput.elementHandle(),
-  );
-  assert.equal(await page.getByLabel("Avatar response fixture", { exact: true }).textContent(), "pending");
-  assert.equal(await page.getByLabel("Older avatar response fixture", { exact: true }).textContent(), "pending");
-  assert.equal(await page.getByLabel("Avatar removal completions", { exact: true }).textContent(), "0");
-  assert.equal(await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"), replacement);
-  await recordAvatarUpload("upload-complete-before-older-release");
-  // This releases the synthetic host response without outside-pointer dismissal of the editor.
-  await page.getByRole("button", { name: "Complete older avatar save", exact: true }).dispatchEvent("click");
-  await page.waitForFunction(
-    () => document.querySelector('[aria-label="Older avatar response fixture"]')?.textContent === "succeeded",
-  );
-  await page.waitForFunction(
-    async () =>
-      (await window.openbot.agent.listAgents("local")).find((agent) => agent.id === "chief")?.avatarCharacter ===
-      "pebble",
-  );
-  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
-  const uploadAgentsAfter = await page.evaluate(() => window.openbot.agent.listAgents("local"));
-  assert.equal(uploadAgentsAfter.length, uploadAgentsBefore.length);
-  for (const prior of uploadAgentsBefore) {
-    const next = uploadAgentsAfter.find((agent) => agent.id === prior.id);
-    assert.ok(next);
-    for (const key of ["id", "avatarSeed", "avatarHue", "threadId", "workspacePath"] as const)
-      assert.equal(next[key], prior[key]);
-    assert.equal(next.avatarUrl, prior.id === "chief" ? replacement : prior.avatarUrl);
-    assert.equal(next.avatarCharacter, prior.id === "chief" ? "pebble" : prior.avatarCharacter);
+  for (const [story, completed] of [
+    ["app--avatar-upload-race", false],
+    ["app--avatar-completed-response-race", true],
+  ] as const) {
+    await open(story, ".roster-row-active .agent-avatar-custom img");
+    const uploadAgentsBefore = await page.evaluate(() => window.openbot.agent.listAgents("local"));
+    const uploadBefore = uploadAgentsBefore.find((agent) => agent.id === "chief");
+    await recordAvatarUpload(`${story}:initial`);
+    assert.ok(uploadBefore, "The fixture must contain Chief.");
+    assert.ok(uploadBefore.avatarUrl?.startsWith("data:image/png;"), "The fixture must start with its original PNG.");
+    assert.equal(uploadBefore.avatarCharacter, "wisp");
+    assertImage(
+      await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"),
+      uploadBefore.avatarUrl,
+      "Initial roster photo",
+    );
+    await page.locator(".conversation-title").click();
+    const uploadStudio = await openAvatarStudio();
+    await uploadStudio.getByRole("button", { name: "Pebble", exact: true }).click();
+    await page.getByLabel("Avatar response fixture", { exact: true }).filter({ hasText: "pending" }).waitFor();
+    const uploadInput = uploadStudio.getByLabel("Attach files", { exact: true });
+    await uploadInput.setInputFiles({
+      name: "replacement.png",
+      mimeType: "image/png",
+      // A valid 32×32 red/blue checker differs from the original black 1×1 PNG.
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAS0lEQVR4nO3OsQ0AIAwDwezCEEzCOExMTR02SApkufnC5csXY9+sduYq99sHAAAA7AD1QdcDAADAD1AfdD0AAAD8APVB1wMAAMAOeKz+FJct+8o2AAAAAElFTkSuQmCC",
+        "base64",
+      ),
+    });
+    await page.waitForFunction(
+      () => document.querySelector('[aria-label="Avatar upload completions"]')?.textContent === "1",
+    );
+    const replacementAgent = await (
+      await page.waitForFunction(async (originalUrl) => {
+        const agent = (await window.openbot.agent.listAgents("local")).find((item) => item.id === "chief");
+        return agent?.avatarUrl?.startsWith("data:image/webp;") && agent.avatarUrl !== originalUrl ? agent : null;
+      }, uploadBefore.avatarUrl)
+    ).jsonValue();
+    const replacement = replacementAgent?.avatarUrl;
+    assert.ok(replacement && replacement !== uploadBefore.avatarUrl);
+    await page.waitForFunction(
+      (input) =>
+        input instanceof HTMLInputElement &&
+        input.value === "" &&
+        input.closest(".avatar-editor")?.querySelector(".avatar-image-upload")?.matches(":enabled") === true,
+      await uploadInput.elementHandle(),
+    );
+    assert.equal(await page.getByLabel("Avatar response fixture", { exact: true }).textContent(), "pending");
+    assert.equal(
+      await page.getByLabel("Older avatar response fixture", { exact: true }).textContent(),
+      completed ? "completed" : "pending",
+    );
+    assert.equal(await page.getByLabel("Avatar removal completions", { exact: true }).textContent(), "0");
+    assertImage(
+      await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"),
+      replacement,
+      "Roster photo",
+    );
+    await recordAvatarUpload(`${story}:upload-complete-before-older-release`);
+    // This releases the synthetic host response without outside-pointer dismissal of the editor.
+    await page.getByRole("button", { name: "Complete older avatar save", exact: true }).dispatchEvent("click");
+    await page.waitForFunction(
+      () => document.querySelector('[aria-label="Older avatar response fixture"]')?.textContent === "succeeded",
+    );
+    await page.waitForFunction(
+      async () =>
+        (await window.openbot.agent.listAgents("local")).find((agent) => agent.id === "chief")?.avatarCharacter ===
+        "pebble",
+    );
+    await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+    const uploadAgentsAfter = await page.evaluate(() => window.openbot.agent.listAgents("local"));
+    assert.equal(uploadAgentsAfter.length, uploadAgentsBefore.length);
+    for (const prior of uploadAgentsBefore) {
+      const next = uploadAgentsAfter.find((agent) => agent.id === prior.id);
+      assert.ok(next);
+      for (const key of ["id", "avatarSeed", "avatarHue", "threadId", "workspacePath"] as const)
+        assert.equal(next[key], prior[key]);
+      assertImage(next.avatarUrl, prior.id === "chief" ? replacement : prior.avatarUrl, "Stored photo");
+      assert.equal(next.avatarCharacter, prior.id === "chief" ? "pebble" : prior.avatarCharacter);
+    }
+    assert.equal(await page.getByLabel("Avatar upload completions", { exact: true }).textContent(), "1");
+    assert.equal(await page.getByLabel("Avatar removal completions", { exact: true }).textContent(), "0");
+    assert.equal(await page.locator(".agent-settings-save-error").count(), 0);
+    assert.equal(
+      await page
+        .locator(".message-error-label")
+        .filter({ hasText: /Could not (save agent settings|update the avatar)/ })
+        .count(),
+      0,
+    );
+    assertImage(
+      await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"),
+      replacement,
+      "Roster photo",
+    );
+    assert.equal(await page.locator(".companion-stage").count(), 0);
+    assertImage(
+      await page.locator(".conversation-title .agent-avatar-custom img").getAttribute("src"),
+      replacement,
+      "Header photo",
+    );
+    assertImage(
+      await uploadStudio.locator(".avatar-image-upload-preview img").getAttribute("src"),
+      replacement,
+      "Studio photo",
+    );
+    await recordAvatarUpload(`${story}:older-completed-photo-retained`);
+    await page.screenshot({ path: resolve(output, `${story}-new-photo-retained.png`) });
+    report.cases.push(
+      `${story}: distinct photo survives ${completed ? "completed old response delivery" : "delayed host invocation"}; no removal, stale error or identity/workspace change.`,
+    );
   }
-  assert.equal(await page.getByLabel("Avatar upload completions", { exact: true }).textContent(), "1");
-  assert.equal(await page.getByLabel("Avatar removal completions", { exact: true }).textContent(), "0");
-  assert.equal(await page.locator(".agent-settings-save-error").count(), 0);
-  assert.equal(
-    await page
-      .locator(".message-error-label")
-      .filter({ hasText: /Could not (save agent settings|update the avatar)/ })
-      .count(),
-    0,
-  );
-  assert.equal(await page.locator(".roster-row-active .agent-avatar-custom img").getAttribute("src"), replacement);
-  assert.equal(await page.locator(".companion-stage").count(), 0);
-  await recordAvatarUpload("older-completed-photo-retained");
-  await page.screenshot({ path: resolve(output, "avatar-new-photo-retained.png") });
-  report.cases.push(
-    "A distinct photo completes real input normalization/upload before delayed character-save completion; no image removal, stale error or identity/seed/workspace change follows.",
-  );
   await open("app--character-save-failure", ".roster-row-active .agent-avatar-custom img");
   await page.locator(".conversation-title").click();
   const failureStudio = await openAvatarStudio();
@@ -556,6 +587,7 @@ try {
   await releaseAnimationFrames();
   assert.equal(await composer.evaluate((element) => element === document.activeElement), true);
   report.cases.push("Leaving Usage before its pending focus frame keeps focus in the chat after disposal.");
+  await runAgentProfileResponseCases(page, open, report.cases);
   assert.deepEqual(report.pageErrors, []);
   assert.deepEqual(focusFailures, [], "First-activation focus must pass in each motion mode.");
   report.passed = true;
