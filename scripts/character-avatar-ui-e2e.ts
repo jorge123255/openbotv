@@ -534,12 +534,18 @@ try {
     report.step = `Long reply names at ${width}px`;
     await page.setViewportSize({ width, height: 1000 });
     await assertChatCardLayout(4, false);
-    assert.deepEqual(
-      await page
-        .locator(".awaiting-replies-item")
-        .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-state"))),
-      ["replied", "working", "failed", "asked"],
-    );
+    // A waiting question has its own visible status. data-state belongs to the shared task glyph,
+    // so it contains done/pending rather than the domain's replied/working states.
+    assert.deepEqual(await page.locator(".awaiting-replies-state-label").allTextContents(), [
+      "Replied",
+      "Waiting for your answer",
+      "Failed",
+      "Asked",
+    ]);
+    const replyActions = page.locator(".awaiting-replies-item").getByRole("button");
+    assert.equal(await replyActions.count(), 2);
+    await page.getByRole("button", { name: "Steer Research and source verification", exact: true }).waitFor();
+    await page.getByRole("button", { name: "Answer Sales outbound and account follow-up", exact: true }).waitFor();
     await replyHeader.focus();
     for (const button of await page.locator(".awaiting-replies-item button").all()) {
       await page.keyboard.press("Tab");
