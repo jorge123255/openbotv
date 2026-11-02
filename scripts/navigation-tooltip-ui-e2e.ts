@@ -17,7 +17,7 @@ const channel = args.values["browser-channel"] ?? "chromium";
 assert.ok(["chrome", "chromium"].includes(channel));
 const output = resolve(import.meta.dirname, "../.openbot-build/navigation-tooltip-ui-e2e");
 mkdirSync(output, { recursive: true });
-const report: { passed: boolean; cases: string[]; pageErrors: string[]; failure?: string } = {
+const report: { passed: boolean; cases: string[]; pageErrors: string[]; step?: string; failure?: string } = {
   passed: false,
   cases: [],
   pageErrors: [],
@@ -78,6 +78,7 @@ try {
     const workflows = rail.getByRole("button", { name: "Workflows", exact: true });
     const editor = page.locator('.composer-editor-surface[contenteditable="true"]').first();
     await editor.fill("Keep the tooltip regression draft.");
+    report.step = `${reducedMotion}: Agents label before the first raw Workflows click`;
     await agents.hover();
     const label = page.getByRole("tooltip", { name: "Agents", exact: true });
     await label.waitFor();
@@ -90,19 +91,31 @@ try {
     await pointerClick(workflows);
     await page.locator('.wfn-canvas[data-frame="window"]').waitFor();
     assert.equal(await workflows.getAttribute("aria-current"), "page");
-    // Return through a second tooltip handoff without moving away from the navigation row.
+    report.cases.push(
+      `${reducedMotion}: at1024px, a visible Agents label does not block the first raw Workflows click.`,
+    );
+    // Click dismisses a tooltip. Re-enter from a different trigger to test a real handoff within the rail.
+    report.step = `${reducedMotion}: re-enter Agents within the rail`;
+    await agents.hover();
+    await label.waitFor();
+    report.step = `${reducedMotion}: enter Workflows from Agents`;
     await workflows.hover();
-    await page.getByRole("tooltip", { name: "Workflows", exact: true }).waitFor();
+    const workflowLabel = page.getByRole("tooltip", { name: "Workflows", exact: true });
+    await workflowLabel.waitFor();
+    assert.equal(await workflowLabel.evaluate((element) => getComputedStyle(element).pointerEvents), "none");
     await hit(agents);
+    await page.screenshot({ path: resolve(output, `workflows-hover-${reducedMotion}-1024.png`) });
+    report.step = `${reducedMotion}: raw Agents return click and retained draft`;
     await pointerClick(agents);
     await page.locator(".roster-row").first().waitFor();
     assert.equal(await agents.getAttribute("aria-current"), "page");
     assert.equal(await editor.innerText(), "Keep the tooltip regression draft.");
     report.cases.push(
-      `${reducedMotion}: at1024px, hovering Agents then directly clicking Workflows navigates on the first click; returning preserves the draft.`,
+      `${reducedMotion}: a fresh Workflows label handoff does not block the raw Agents return click; the draft stays intact.`,
     );
   }
   await open("window-pagerail--shared-quota", ".window-rail");
+  report.step = "Interactive account usage card";
   await page.locator(".window-rail-accounts button").first().hover();
   const card = page.locator(".window-rail-usage-card");
   await card.waitFor();
@@ -120,6 +133,9 @@ try {
   report.passed = true;
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
+  await page.screenshot({ path: resolve(output, "failure.png") }).catch(() => {
+    // Preserve the test failure if the browser has already closed.
+  });
   throw error;
 } finally {
   writeFileSync(resolve(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
