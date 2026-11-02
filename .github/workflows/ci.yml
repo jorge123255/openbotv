@@ -556,6 +556,10 @@ jobs:
         if: ${{ !cancelled() }}
         run: bun scripts/agent-mcp-scope-e2e.ts
 
+      - name: Run the SVG attachment E2E test
+        if: ${{ !cancelled() }}
+        run: bun run test:svg-attachments
+
       - name: Run the agent MCP server tools E2E test
         if: ${{ !cancelled() }}
         run: bun run test:agent-mcp-tools
@@ -667,6 +671,7 @@ jobs:
             .openbot-build/backup-model-failover-e2e/
             .openbot-build/zip-attachment-e2e/
             .openbot-build/mp4-attachment-e2e/
+            .openbot-build/svg-attachment-e2e/
             .openbot-build/agent-mcp-tools-e2e/
             .openbot-build/agent-mcp-scope-e2e/
             .openbot-build/mcp-server-unreadable-row-e2e/

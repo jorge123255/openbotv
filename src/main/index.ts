@@ -656,6 +656,7 @@ function registerIpcHandlers({
   resourceMonitor,
   routineFlows,
   workflows,
+  workflowGitHub,
   routineResults,
 }: ApplicationServices): void {
   // Every renderer-to-main endpoint is bound by one of these, one file per domain under ./ipc.
@@ -789,7 +790,7 @@ function registerIpcHandlers({
     ...sharedTableIpcHandlers({ service, remoteServers }),
     ...routineIpcHandlers({ service, remoteServers }),
     ...routineFlowIpcHandlers({ routineFlows, remoteServers }),
-    ...workflowIpcHandlers({ workflows, events, remoteServers }),
+    ...workflowIpcHandlers({ workflows, events, github: workflowGitHub, remoteServers }),
     ...routineResultIpcHandlers({ routineResults }),
     ...channelMemoryIpcHandlers({ service, remoteServers }),
     ...channelRoutineIpcHandlers({ service, remoteServers }),
@@ -1374,12 +1375,18 @@ if (!hasSingleInstanceLock) {
       // Before the renderer loads: the trust boundary and every protocol it fetches through have to
       // be in place before the first request can arrive.
       registerIpcHandlers(built);
+      // A Signal socket of the host can be dead after sleep without knowing it; devices then cannot connect.
+      const renewHostSignal = () =>
+        void runCauseEffect(built.teamWebRtcBridge.renewHostSignal()).catch((error) =>
+          logger.warn("Unable to renew the host Signal connection after sleep:", toLogValue(error)),
+        );
       if (localServerChild) {
         // No window, menu, tray, Dynamic Island or renderer: the desktop app is the interface.
         const childRoutineWake = new RoutineWake({ routines: service, isOnline: () => net.isOnline() });
         powerMonitor.on("suspend", () => childRoutineWake.suspend());
         powerMonitor.on("resume", () => childRoutineWake.resume());
         powerMonitor.on("resume", () => built.messaging.resume());
+        powerMonitor.on("resume", renewHostSignal);
         teardown.push(0, "routine wake", () => childRoutineWake.dispose());
         void runCauseEffect(built.agentInitialization.start()).catch((error) => {
           logger.error("Unable to initialize the local agent backend:", toLogValue(error));
@@ -1458,6 +1465,12 @@ if (!hasSingleInstanceLock) {
       await runCauseEffect(dynamicIsland.initialize()).catch((error) =>
         logger.error("Unable to initialize Dynamic Island:", toLogValue(error)),
       );
+      const reconcileDynamicIsland = () =>
+        void Effect.runPromise(dynamicIsland.reconcileWindow()).catch((error) =>
+          logger.error("Unable to reconcile Dynamic Island displays:", toLogValue(error)),
+        );
+      // The island pages load beside the main window, not before it.
+      reconcileDynamicIsland();
       await windows.loadRenderer(mainWindow);
       performance.mark("openbot:renderer-loaded");
       // `sendToRenderer` dropped the server changes made while the window loaded: the host list and
@@ -1465,10 +1478,6 @@ if (!hasSingleInstanceLock) {
       forwardServers(remoteServers.list());
       // After the load: `sendToRenderer` drops events aimed at a window that is still loading.
       await Effect.runPromise(remoteServers.startEventConnections());
-      const reconcileDynamicIsland = () =>
-        void Effect.runPromise(dynamicIsland.reconcileWindow()).catch((error) =>
-          logger.error("Unable to reconcile Dynamic Island displays:", toLogValue(error)),
-        );
       screen.on("display-added", reconcileDynamicIsland);
       screen.on("display-removed", reconcileDynamicIsland);
       screen.on("display-metrics-changed", reconcileDynamicIsland);
@@ -1476,6 +1485,7 @@ if (!hasSingleInstanceLock) {
       powerMonitor.on("resume", () => void Effect.runPromise(remoteServers.wake()));
       // A Slack socket can be dead after sleep without knowing it; reconnect instead of waiting for a ping.
       powerMonitor.on("resume", () => built.messaging.resume());
+      powerMonitor.on("resume", renewHostSignal);
       const routineWake = new RoutineWake({ routines: service, isOnline: () => net.isOnline() });
       powerMonitor.on("suspend", () => routineWake.suspend());
       powerMonitor.on("resume", () => routineWake.resume());

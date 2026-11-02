@@ -16,9 +16,14 @@ import {
   AgentStepsDisclosure,
   type AgentStepsFacts,
 } from "@openbot/ui/features/conversation/AgentSteps";
+import type { AttachmentMediaSource } from "@openbot/ui/features/conversation/AttachmentCards";
 import { branchPointIds } from "@openbot/ui/features/conversation/branch-points";
 import { type ChatMessageAuthor, ChatMessageRow } from "@openbot/ui/features/conversation/ChatMessageRow";
 import { ComposerAddMenu } from "@openbot/ui/features/conversation/ComposerAddMenu";
+import {
+  ComposerAttachmentRow,
+  type ComposerPendingImage,
+} from "@openbot/ui/features/conversation/ComposerAttachmentRow";
 import {
   ComposerEditor,
   type ComposerPasteResult,
@@ -111,6 +116,13 @@ export interface AgentThreadViewProps {
   draft: string;
   /** The files that the draft names. */
   draftAttachments?: DraftAttachment[] | undefined;
+  /** The images of the draft that show in the thumbnail row. A send takes them with the text. */
+  rowAttachments?: readonly DraftAttachment[] | undefined;
+  /** The pasted images that still import, with their local previews. */
+  pendingImages?: readonly ComposerPendingImage[] | undefined;
+  onRemoveAttachment?: ((attachment: DraftAttachment) => void) | undefined;
+  /** Loads the images of a client that gets no `previewUrl`. */
+  mediaSource?: AttachmentMediaSource | undefined;
   onDraftChange: (text: string) => void;
   /** Receives pasted files. Without it, a file paste does nothing here. */
   onPasteFiles?:
@@ -272,7 +284,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
       return;
     }
     const text = props.draft.trim();
-    if (!text || sending() || voiceBusy()) return;
+    if (draftEmpty() || sending() || voiceBusy()) return;
     setSending(true);
     try {
       await props.onSend(text);
@@ -342,7 +354,10 @@ export function AgentThreadView(props: AgentThreadViewProps) {
   const queued = () => (props.task && props.task.queuedMessages.length > 0 ? props.task : undefined);
   const hold = () => (props.task ? agentThreadHoldText(props.task, props.limit, t) : null);
   const sendLabel = () => t(recording() ? "composer.send.voice" : "composer.send.message");
-  const draftEmpty = () => props.draft.trim().length === 0;
+  const hasRow = () =>
+    Boolean(props.onRemoveAttachment) &&
+    ((props.rowAttachments?.length ?? 0) > 0 || (props.pendingImages?.length ?? 0) > 0);
+  const draftEmpty = () => props.draft.trim().length === 0 && (props.rowAttachments?.length ?? 0) === 0;
   /** As in the agent's own chat: Send, Send what was said while a recording runs, or Stop while the thread works. */
   const sendButton = () => (
     <ComposerSendControl
@@ -392,6 +407,7 @@ export function AgentThreadView(props: AgentThreadViewProps) {
                   onOpenLink={props.onOpenLink}
                   onPreview={props.onPreview}
                   onAttachmentAction={props.onAttachmentAction}
+                  mediaSource={props.mediaSource}
                   onDownload={(attachment) => props.onAttachmentAction(attachment, "download")}
                   macWindowControls={props.macWindowControls}
                   actions={messageActions(message())}
@@ -476,12 +492,23 @@ export function AgentThreadView(props: AgentThreadViewProps) {
         </Show>
         <form
           class="composer agent-thread-composer"
-          data-compact="true"
+          data-compact={hasRow() ? undefined : "true"}
+          data-has-attachments={hasRow() ? "" : undefined}
           onSubmit={(event) => {
             event.preventDefault();
             void send();
           }}
         >
+          <Show when={props.onRemoveAttachment}>
+            {(remove) => (
+              <ComposerAttachmentRow
+                attachments={props.rowAttachments ?? []}
+                pending={props.pendingImages}
+                removeDisabled={sending() || voicePhase() === "transcribing"}
+                onRemove={(attachment) => remove()(attachment)}
+              />
+            )}
+          </Show>
           <div class="composer-input-label">
             <ComposerEditor
               agentId={props.agent.id}

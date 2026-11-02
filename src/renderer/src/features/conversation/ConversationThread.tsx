@@ -24,7 +24,13 @@ import { HostToolAskCard } from "./HostToolAskCard";
 import { createTurnSteps } from "./turn-steps";
 
 /** A thread takes files only from this computer, which reads every supported type. */
-const THREAD_ATTACHMENT_ACCEPT = supportedAttachmentExtensions({ eml: true, media: true, zip: true, mp4: true })
+const THREAD_ATTACHMENT_ACCEPT = supportedAttachmentExtensions({
+  eml: true,
+  media: true,
+  zip: true,
+  mp4: true,
+  svg: true,
+})
   .map((extension) => `.${extension}`)
   .join(",");
 
@@ -119,6 +125,10 @@ export function ConversationThread() {
   const draft = () => {
     const key = threadComposer.openDraftKey();
     return key ? threadComposer.draft(key) : undefined;
+  };
+  const rowImages = () => {
+    const key = threadComposer.openDraftKey();
+    return key ? threadComposer.rowImages(key) : [];
   };
   // The preload imports the picked files, and the view routes them to the open thread.
   const openPicker = () => {
@@ -236,8 +246,13 @@ export function ConversationThread() {
             mcpServers={mcpServers()}
             draft={draft()?.text ?? ""}
             draftAttachments={draft()?.attachments}
+            rowAttachments={rowImages()}
+            pendingImages={threadComposer.pendingImages(threadComposer.openDraftKey())}
+            onRemoveAttachment={(attachment) =>
+              threadComposer.removeAttachment(threadComposer.openDraftKey(), attachment.id)
+            }
             onDraftChange={(text) => threadComposer.setText(threadComposer.openDraftKey(), text)}
-            onPasteFiles={threadComposer.pasteFiles}
+            onPasteFiles={(files, selection) => threadComposer.pasteFiles(files, selection)}
             onOpenDraftAttachment={(attachment) =>
               canPreviewAttachment(attachment)
                 ? void previewAttachment(attachment)
@@ -252,6 +267,7 @@ export function ConversationThread() {
             onOpenLink={(url) => void openExternalMessageUrl(url)}
             onPreview={(attachment) => void previewAttachment(attachment)}
             onAttachmentAction={attachmentAction}
+            mediaSource={props.runtime?.attachmentMedia}
             macWindowControls={props.platform === "darwin"}
             approval={current().threads.approval}
             onRespondApproval={(decision) =>
