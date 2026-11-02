@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium, type Locator } from "playwright-core";
+import { type LogoAnimationRecord, logoAnimationsRespectReducedMotion } from "./logo-motion-check";
 import { readScriptArguments } from "./script-arguments";
 
 const args = readScriptArguments({
@@ -18,11 +19,28 @@ const channel = args.values["browser-channel"] ?? "chromium";
 assert.ok(["chrome", "chromium"].includes(channel));
 const output = resolve(import.meta.dirname, "../.openbot-build/botai-whole-app-ui-e2e");
 mkdirSync(output, { recursive: true });
-const report: { passed: boolean; cases: string[]; screenshots: string[]; pageErrors: string[]; failure?: string } = {
+interface LogoMotionSample {
+  phase: string;
+  reducedMotion: boolean;
+  focused: boolean;
+  clickReaction: string | null;
+  easterEgg: string | null;
+  animations: LogoAnimationRecord[];
+  eyes: { animationName: string; transform: string }[];
+}
+const report: {
+  passed: boolean;
+  cases: string[];
+  screenshots: string[];
+  pageErrors: string[];
+  logoMotion: LogoMotionSample[];
+  failure?: string;
+} = {
   passed: false,
   cases: [],
   screenshots: [],
   pageErrors: [],
+  logoMotion: [],
 };
 const browser = await chromium.launch({ channel, headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
@@ -44,6 +62,82 @@ async function open(story: string, ready: string, width = 1280) {
 async function shot(name: string) {
   await page.screenshot({ path: resolve(output, `${name}.png`) });
   report.screenshots.push(`${name}.png`);
+}
+async function checkReducedLogoMotion(logo: Locator, phase: string): Promise<void> {
+  const sample: LogoMotionSample = await logo.evaluate((element, phase) => {
+    const focused = document.activeElement === element;
+    const focusVisible = element.matches(":focus-visible");
+    return {
+      phase,
+      reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+      focused,
+      clickReaction: element.getAttribute("data-click-reaction"),
+      easterEgg: element.getAttribute("data-easter-egg"),
+      animations: element.getAnimations({ subtree: true }).map((animation): LogoAnimationRecord => {
+        const effect = animation.effect instanceof KeyframeEffect ? animation.effect : null;
+        const timing = effect?.getTiming();
+        const computed = effect?.getComputedTiming();
+        return {
+          type:
+            animation instanceof CSSTransition
+              ? "CSSTransition"
+              : animation instanceof CSSAnimation
+                ? "CSSAnimation"
+                : "Animation",
+          animationName: animation instanceof CSSAnimation ? animation.animationName : null,
+          transitionProperty: animation instanceof CSSTransition ? animation.transitionProperty : null,
+          // Identity is essential: a descendant's shadow is not the observed root focus ring.
+          rootSvgTarget: element instanceof SVGSVGElement && effect?.target === element,
+          rootFocused: focused,
+          focusVisible,
+          pseudoElement: effect ? effect.pseudoElement : null,
+          duration: typeof timing?.duration === "number" ? timing.duration : null,
+          activeDuration: typeof computed?.activeDuration === "number" ? computed.activeDuration : null,
+          endTime: typeof computed?.endTime === "number" ? computed.endTime : null,
+          delay: timing?.delay ?? null,
+          endDelay: timing?.endDelay ?? null,
+          iterationStart: timing?.iterationStart ?? null,
+          iterations: timing?.iterations ?? null,
+        };
+      }),
+      eyes: [...element.querySelectorAll(".app-logo-eye-motion, .app-logo-eye, .app-logo-botai-eye")].map((eye) => {
+        const style = getComputedStyle(eye);
+        return { animationName: style.animationName, transform: style.transform };
+      }),
+    };
+  }, phase);
+  report.logoMotion.push(sample);
+  assert.equal(sample.reducedMotion, true);
+  assert.equal(
+    logoAnimationsRespectReducedMotion(sample.animations),
+    true,
+    `${phase}: ${JSON.stringify(sample.animations)}`,
+  );
+  assert.equal(sample.clickReaction, null, phase);
+  assert.equal(sample.easterEgg, null, phase);
+  assert.ok(sample.eyes.length > 0, "The fixture must contain logo eyes.");
+  assert.ok(
+    sample.eyes.every((eye) => eye.animationName === "none" && eye.transform === "none"),
+    phase,
+  );
+}
+function assertRejectedLogoSample(
+  phase: string,
+  expected: Pick<LogoAnimationRecord, "type" | "transitionProperty" | "duration">,
+): void {
+  const sample = report.logoMotion.at(-1);
+  assert.ok(sample);
+  assert.equal(sample.phase, phase);
+  assert.deepEqual(
+    sample.animations.map(({ type, transitionProperty, duration, rootSvgTarget }) => ({
+      type,
+      transitionProperty,
+      duration,
+      rootSvgTarget,
+    })),
+    [{ ...expected, rootSvgTarget: true }],
+  );
+  assert.equal(logoAnimationsRespectReducedMotion(sample.animations), false);
 }
 async function reachable(control: Locator) {
   await control.scrollIntoViewIfNeeded();
@@ -176,11 +270,64 @@ try {
   }
   await open("auth-accountlogin--sign-in", ".account-login");
   const logo = page.getByRole("button", { name: "Animate BotAI logo", exact: true });
+  await checkReducedLogoMotion(logo, "Before focus");
   await reachable(logo);
+  await checkReducedLogoMotion(logo, "Keyboard focus");
   await logo.press("Enter");
-  assert.equal(await logo.evaluate((element) => element.getAnimations({ subtree: true }).length), 0);
+  assert.equal(await logo.evaluate((element) => element === document.activeElement), true);
+  await checkReducedLogoMotion(logo, "After Enter");
   report.cases.push(
-    "BotAI sign-in logo keeps its accessible keyboard control and has no animation under reduced motion.",
+    "BotAI sign-in logo keeps keyboard focus feedback and suppresses logo motion under reduced motion; only its measured root focus-shadow micro-transition is allowed.",
+  );
+  // The real check above observes the transient. Finish it only to set up native negative controls.
+  await logo.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+  });
+  const rootMotion = await logo.evaluateHandle((element) => {
+    const animation = element.animate([{ transform: "translateX(0px)" }, { transform: "translateX(2px)" }], {
+      duration: 0.01,
+      fill: "both",
+    });
+    animation.pause();
+    return animation;
+  });
+  try {
+    await assert.rejects(checkReducedLogoMotion(logo, "Negative control: root transform"), { code: "ERR_ASSERTION" });
+    assertRejectedLogoSample("Negative control: root transform", {
+      type: "Animation",
+      transitionProperty: null,
+      duration: 0.01,
+    });
+  } finally {
+    await rootMotion.evaluate((animation) => animation.cancel());
+    await rootMotion.dispose();
+  }
+  await logo.evaluate(async (element) => {
+    await Promise.all(element.getAnimations({ subtree: true }).map((animation) => animation.finished));
+    element.style.transition = "box-shadow 1s linear";
+    void getComputedStyle(element).boxShadow;
+    element.style.boxShadow = "none";
+    const animations = element.getAnimations();
+    const [transition] = animations;
+    if (
+      animations.length !== 1 ||
+      !(transition instanceof CSSTransition) ||
+      transition.transitionProperty !== "box-shadow" ||
+      !(transition.effect instanceof KeyframeEffect) ||
+      transition.effect.target !== element ||
+      transition.effect.getTiming().duration !== 1000
+    )
+      throw new Error("The negative control must create one native root shadow transition of 1000ms.");
+    transition.pause();
+  });
+  await assert.rejects(checkReducedLogoMotion(logo, "Negative control: long focus shadow"), { code: "ERR_ASSERTION" });
+  assertRejectedLogoSample("Negative control: long focus shadow", {
+    type: "CSSTransition",
+    transitionProperty: "box-shadow",
+    duration: 1000,
+  });
+  report.cases.push(
+    "Native negative controls still reject a tiny root transform and a longer focus-shadow transition.",
   );
   await page.emulateMedia({ reducedMotion: "no-preference" });
   const splashUrl = new URL("/iframe.html?id=app-startupsplash--sequence&viewMode=story", target);
