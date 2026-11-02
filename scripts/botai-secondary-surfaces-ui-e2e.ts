@@ -7,8 +7,12 @@ import { readScriptArguments } from "./script-arguments";
 
 const args = readScriptArguments({
   usage:
-    "bun scripts/botai-secondary-surfaces-ui-e2e.ts --url=<local-storybook-url> [--browser-channel=chrome|chromium]",
-  options: { url: { type: "string" }, "browser-channel": { type: "string" } },
+    "bun scripts/botai-secondary-surfaces-ui-e2e.ts --url=<local-storybook-url> [--browser-channel=chrome|chromium] [--trace-workflow-switcher]",
+  options: {
+    url: { type: "string" },
+    "browser-channel": { type: "string" },
+    "trace-workflow-switcher": { type: "boolean" },
+  },
 });
 if (!args) process.exit(0);
 const target = new URL(args.values.url ?? "http://localhost:6006");
@@ -23,6 +27,8 @@ const report: {
   cases: string[];
   screenshots: string[];
   pageErrors: string[];
+  switcherEvents: string[];
+  switcherTraceEnabled: boolean;
   step?: string;
   failure?: string;
 } = {
@@ -30,6 +36,8 @@ const report: {
   cases: [],
   screenshots: [],
   pageErrors: [],
+  switcherEvents: [],
+  switcherTraceEnabled: args.values["trace-workflow-switcher"] === true,
 };
 const browser = await chromium.launch({ channel, headless: true });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 }, reducedMotion: "reduce" });
@@ -55,7 +63,7 @@ async function shot(name: string) {
   await page.screenshot({ path: resolve(output, `${name}.png`) });
   report.screenshots.push(`${name}.png`);
 }
-async function reachable(control: Locator) {
+async function centerHit(control: Locator) {
   await control.scrollIntoViewIfNeeded();
   const result = await control.evaluate((element) => {
     const r = element.getBoundingClientRect();
@@ -68,6 +76,10 @@ async function reachable(control: Locator) {
     };
   });
   assert.equal(result.reachable, true, `Control center must receive pointer events: ${JSON.stringify(result)}`);
+  return result;
+}
+async function reachable(control: Locator) {
+  const result = await centerHit(control);
   await control.focus();
   assert.equal(await control.evaluate((element) => element === document.activeElement), true, `${result.name}: focus`);
 }
@@ -81,6 +93,7 @@ async function fullyFits(control: Locator) {
       element.closest<HTMLElement>(".wfn-search-results"),
       element.closest<HTMLElement>(".wfn-bottom-panels"),
       element.closest<HTMLElement>(".wfn-canvas"),
+      element.closest<HTMLElement>('[role="menu"]'),
     ].flatMap((clip) => {
       if (!clip || getComputedStyle(clip).display === "contents") return [];
       const d = clip.getBoundingClientRect();
@@ -171,6 +184,152 @@ async function workflowControls() {
   }
   await separateHuds();
 }
+
+async function searchRows() {
+  const search = page.getByRole("search", { name: "Search the canvas", exact: true });
+  await search.getByRole("textbox").fill("e");
+  await page.waitForFunction(() => document.querySelectorAll(".wfn-search-result").length === 8);
+  assert.equal(
+    await search.locator(".wfn-search-results").evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+    true,
+    "Search rows must not widen the results scrollport.",
+  );
+  for (const row of await search.locator(".wfn-search-result").all()) {
+    await reachable(row);
+    await fullyFits(row);
+  }
+}
+
+async function menuFits(menu: Locator) {
+  const box = await menu.boundingBox();
+  const viewport = page.viewportSize();
+  assert.ok(box && viewport);
+  assert.ok(
+    box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height,
+    `Menu must fit before scrolling any item: ${JSON.stringify({ box, viewport })}`,
+  );
+  assert.equal(
+    await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    true,
+    "An open menu must not cause horizontal page overflow.",
+  );
+  for (const item of await menu.getByRole("menuitem").all()) {
+    await reachable(item);
+    await fullyFits(item);
+  }
+}
+
+async function switcherMenu(trigger: Locator) {
+  // Kobalte names the root menu with aria-labelledby, which takes precedence over aria-label.
+  await page.waitForFunction(
+    (element) =>
+      element?.isConnected &&
+      element.getAttribute("aria-expanded") === "true" &&
+      Boolean(element.getAttribute("aria-controls")),
+    await trigger.elementHandle(),
+  );
+  const id = await trigger.getAttribute("aria-controls");
+  assert.ok(id, "The expanded switcher must identify its menu.");
+  const menu = page.locator(`[id=${JSON.stringify(id)}][role="menu"]`);
+  await menu.waitFor();
+  assert.equal(await menu.getAttribute("aria-labelledby"), await trigger.getAttribute("id"));
+  return menu;
+}
+
+async function captureSwitcherTrace() {
+  const trace = await page.evaluate(() => document.documentElement.dataset.workflowSwitcherTrace);
+  if (trace) report.switcherEvents.push(`${report.step}: ${trace}`);
+}
+
+// Bounded test-only evidence. Geometry reads can affect timing; retest without tracing after diagnosis.
+async function traceSwitcher() {
+  await page.evaluate(() => {
+    const trigger = document.querySelector(".wfn-hud-switcher");
+    if (!trigger) throw new Error("Missing workflow switcher trace target.");
+    const lifetime = new AbortController();
+    let remaining = 96;
+    const describe = (node: EventTarget | null) =>
+      node instanceof Element
+        ? {
+            tag: node.tagName,
+            id: node.id,
+            class: node.getAttribute("class"),
+            connected: node.isConnected,
+            expanded: node.getAttribute("aria-expanded"),
+            role: node.getAttribute("role"),
+            bounds: node.getBoundingClientRect().toJSON(),
+          }
+        : null;
+    const entries: string[] = [];
+    const record = (detail: string) => {
+      if (remaining-- <= 0) return;
+      entries.push(
+        JSON.stringify({
+          time: performance.now(),
+          detail,
+          trigger: describe(trigger),
+          active: describe(document.activeElement),
+          menus: [...document.querySelectorAll('.wfs-menu[role="menu"]')].map(describe),
+        }),
+      );
+      document.documentElement.dataset.workflowSwitcherTrace = JSON.stringify(entries);
+      if (remaining === 0) {
+        lifetime.abort();
+        observer.disconnect();
+      }
+    };
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === "attributes" && mutation.target === trigger) {
+          record(JSON.stringify({ type: "expanded", previous: mutation.oldValue }));
+        } else if (mutation.type === "childList") {
+          const menus = (nodes: NodeList) =>
+            [...nodes].flatMap((node) =>
+              node instanceof Element
+                ? [node, ...node.querySelectorAll(".wfs-menu")]
+                    .filter((element) => element.matches(".wfs-menu"))
+                    .map(describe)
+                : [],
+            );
+          const added = menus(mutation.addedNodes);
+          const removed = menus(mutation.removedNodes);
+          if (added.length || removed.length) record(JSON.stringify({ type: "menu-mount", added, removed }));
+        }
+      }
+    });
+    observer.observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ["aria-expanded"],
+      attributeOldValue: true,
+    });
+    for (const type of ["pointerdown", "pointerup", "click", "focusin", "focusout"]) {
+      document.addEventListener(
+        type,
+        (event) => {
+          const detail = {
+            type,
+            trusted: event.isTrusted,
+            target: describe(event.target),
+            point: event instanceof MouseEvent ? { x: event.clientX, y: event.clientY, button: event.button } : null,
+            pointer: event instanceof PointerEvent ? event.pointerType : null,
+            path: event
+              .composedPath()
+              .filter((node) => node instanceof Element)
+              .map((node) => node.tagName),
+          };
+          record(JSON.stringify({ phase: "capture", ...detail }));
+          queueMicrotask(() =>
+            record(JSON.stringify({ phase: "after-dispatch", ...detail, prevented: event.defaultPrevented })),
+          );
+        },
+        { capture: true, signal: lifetime.signal },
+      );
+    }
+    record(JSON.stringify({ type: "installed" }));
+  });
+}
 try {
   await open("workflows--in-app", ".roster-row");
   const rail = page.locator(".window-rail");
@@ -223,16 +382,13 @@ try {
       const tools = page.locator(".wfn-hud-tools");
       await tools.getByRole("button", { name: "Search", exact: true }).click();
       const search = page.getByRole("search", { name: "Search the canvas", exact: true });
-      await search.getByRole("textbox").fill("e");
-      await page.waitForFunction(() => document.querySelectorAll(".wfn-search-result").length === 8);
-      // This also protects the previous desktop paint order after grouping the panels.
-      await reachable(search.locator(".wfn-search-result").last());
-      await fullyFits(search.locator(".wfn-search-result").last());
+      // Check both long snippets and short labels, including the last visible result.
+      await searchRows();
       await page.keyboard.press("Escape");
       await search.waitFor({ state: "hidden" });
       await shot(`workflow-controls-${theme}-${width}`);
       report.cases.push(
-        `${theme} workflow at ${width}px: all eight tool centers, zoom, keyboard focus, full fit and last search result remain reachable.`,
+        `${theme} workflow at ${width}px: all eight tool centers, zoom, keyboard focus, full fit and all eight Search rows remain reachable.`,
       );
     }
 
@@ -240,6 +396,10 @@ try {
     const narrow = await page.locator(".wfn-canvas").boundingBox();
     assert.ok(narrow && Math.abs(narrow.width - 390) < 1);
     await workflowControls();
+    await page.locator(".wfn-hud-tools").getByRole("button", { name: "Search", exact: true }).click();
+    await searchRows();
+    await page.keyboard.press("Escape");
+    await page.locator(".wfn-search").waitFor({ state: "hidden" });
     await shot(`workflow-narrow-pane-${theme}`);
     report.cases.push(`${theme} 390px canvas inside a 1280px window follows its own width.`);
 
@@ -282,8 +442,7 @@ try {
     await tools.getByRole("button", { name: "Draw", exact: true }).click();
     await tools.getByRole("button", { name: "Search", exact: true }).click();
     const search = page.getByRole("search", { name: "Search the canvas", exact: true });
-    await search.getByRole("textbox").fill("e");
-    await page.waitForFunction(() => document.querySelectorAll(".wfn-search-result").length === 8);
+    await searchRows();
     await separateHuds();
     const panels = page.locator(".wfn-bottom-panels");
     assert.equal(await panels.evaluate((element) => element.scrollHeight > element.clientHeight), true);
@@ -316,11 +475,21 @@ try {
     await page.locator(".wfn-minimap").waitFor({ state: "hidden" });
     await workflowControls();
     await page.setViewportSize({ width: 390, height: 800 });
-    await page.locator(".wfn-hud-switcher").click();
-    await page.getByRole("menuitem", { name: "Version history", exact: true }).press("ArrowRight");
+    report.step = `workflow switcher pointer: ${theme}, 390px after combined panels`;
+    if (report.switcherTraceEnabled) await traceSwitcher();
+    const switcher = page.locator(".wfn-hud-switcher");
+    assert.equal(await switcher.getAttribute("aria-expanded"), "false");
+    await centerHit(switcher);
+    await switcher.click();
+    const rootMenu = await switcherMenu(switcher);
+    await rootMenu.waitFor();
+    assert.equal(await switcher.getAttribute("aria-expanded"), "true");
+    await menuFits(rootMenu);
+    await rootMenu.getByRole("menuitem", { name: "Version history", exact: true }).hover();
     const versions = page.getByRole("menu", { name: "Version history", exact: true });
     await versions.waitFor();
     assert.equal(await versions.getByRole("menuitem").count(), 4);
+    await menuFits(versions);
     await versions.getByRole("menuitem").nth(1).click();
     const preview = page.getByRole("region", { name: "Version preview", exact: true });
     await preview.waitFor();
@@ -335,6 +504,31 @@ try {
     await workflowControls();
     report.cases.push(
       `${theme} narrow zoom presets/in/out, palettes, Add node menu, combined search/minimap/draw and version preview remain reachable; hide/show releases canvas hits and reverses without adding nodes or restoring a version.`,
+    );
+
+    await captureSwitcherTrace();
+    // A separate fixture proves keyboard navigation, without rescuing a failed pointer case.
+    await open("workflows--example", ".wfn-hud-tools", 390, theme);
+    const keyboardSwitcher = page.locator(".wfn-hud-switcher");
+    await keyboardSwitcher.focus();
+    await keyboardSwitcher.press("Space");
+    const keyboardMenu = await switcherMenu(keyboardSwitcher);
+    await keyboardMenu.waitFor();
+    assert.equal(await keyboardSwitcher.getAttribute("aria-expanded"), "true");
+    const versionTrigger = keyboardMenu.getByRole("menuitem", { name: "Version history", exact: true });
+    await versionTrigger.focus();
+    await versionTrigger.press("ArrowRight");
+    const keyboardVersions = page.getByRole("menu", { name: "Version history", exact: true });
+    await keyboardVersions.waitFor();
+    await menuFits(keyboardVersions);
+    await page.keyboard.press("ArrowLeft");
+    await keyboardVersions.waitFor({ state: "hidden" });
+    assert.equal(await versionTrigger.evaluate((element) => document.activeElement === element), true);
+    await versionTrigger.press("Escape");
+    await keyboardMenu.waitFor({ state: "hidden" });
+    await page.waitForFunction((element) => document.activeElement === element, await keyboardSwitcher.elementHandle());
+    report.cases.push(
+      `${theme} narrow workflow menu opens by Space; ArrowRight/ArrowLeft and Escape close submenus and restore focus in a separate keyboard fixture.`,
     );
   }
   await open("conversation-browserdock--interactive-bot-ai", ".browser-dock", 688);
@@ -414,6 +608,12 @@ try {
   report.passed = true;
 } catch (error) {
   report.failure = error instanceof Error ? error.message : String(error);
+  await captureSwitcherTrace().catch(() => {
+    // Keep the original failure if the browser has already closed.
+  });
+  await shot("failure").catch(() => {
+    // Keep the original failure if the browser has already closed.
+  });
   throw error;
 } finally {
   writeFileSync(resolve(output, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
