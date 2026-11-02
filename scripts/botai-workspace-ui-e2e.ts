@@ -162,7 +162,7 @@ try {
     ["auth-accountlogin--invalid-code", ".account-login", 390],
     ["auth-accountlogin--sign-in", ".account-login", 1280],
     ["setup-firstrunflow--choice-narrow", ".first-run-choice", 390],
-    ["settings-agentimport--review-narrow", ".agent-import-guide", 390],
+    ["settings-agentimport--review-narrow", ".agent-import label.agent-import-row", 390],
     ["settings-transfer--import-review", ".instance-transfer", 800],
     ["settings-vaultpanel--ready", ".vault-panel", 800],
     ["foundations-confirmdialog--with-error", '[role="alertdialog"]', 390],
