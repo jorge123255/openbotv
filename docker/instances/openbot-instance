@@ -17,7 +17,8 @@
 # the container can only read. The container never gets the Docker socket.
 #
 # `backup` stops an instance, copies all of /data into one archive in OPENBOT_BACKUP_DIR, and starts
-# it again. `verify` unpacks a backup into a folder that no container mounts and checks it. `restore`
+# it again, unless --keep-stopped is given. `verify` unpacks a backup into a folder that no container
+# mounts and checks it. `restore`
 # replaces /data with a backup and does not start the instance. Root never opens a database or
 # unpacks an archive: agents can change every file in /data, so the user of the data does that.
 set -euo pipefail
@@ -63,8 +64,10 @@ Usage: openbot-instance <command>
                               for an update.
   run <name> <command>        Run `openbot <command>` in the instance, for example
                               status, login, mobile-connect or name.
-  backup <name> [--verify]    Stop the instance, copy /data to OPENBOT_BACKUP_DIR, and start it
-                              again. With --verify, then verify the new backup.
+  backup <name> [--verify] [--keep-stopped]
+                              Stop the instance, copy /data to OPENBOT_BACKUP_DIR, and start it
+                              again. With --verify, then verify the new backup. With
+                              --keep-stopped, never restart it after the stop, even on failure.
   verify <name> [<backup>]    Unpack a backup, the newest when none is given, into a temporary
                               folder and check its databases and keys.
   restore <name> <backup> [--replace]
@@ -554,12 +557,13 @@ lock_instance() {
 
 backup() {
   [ "$#" -ge 1 ] || fail "Give the name of the instance."
-  local name=$1 verify_after=0 status made final
+  local name=$1 verify_after=0 keep_stopped=0 status made final
   shift
   check_name "$name"
   while [ "$#" -gt 0 ]; do
     case $1 in
       --verify) verify_after=1 ;;
+      --keep-stopped) keep_stopped=1 ;;
       *) fail "Unknown option $1." ;;
     esac
     shift
@@ -573,7 +577,7 @@ backup() {
   made=$(mktemp)
   # shellcheck disable=SC2064 # The value is fixed now.
   trap "rm -f -- '$made'" EXIT
-  run_step "$status" backup backup_steps "$name" "$made"
+  run_step "$status" backup backup_steps "$name" "$made" "$keep_stopped"
   final=$(cat "$made")
   # Old backups go only after the new one is complete, and verified when --verify is given. When the
   # verification fails, they all stay.
@@ -581,7 +585,7 @@ backup() {
   prune_backups "$name" "$final"
 }
 
-# Removes the partial copy, and starts the instance again when the backup stopped it.
+# Removes the partial copy. Only a normal backup can restart the source after a failure.
 backup_cleanup() {
   rm -rf -- "$PARTIAL"
   [ "$RESTART" -eq 0 ] || docker start "$CONTAINER" >/dev/null || echo "$CONTAINER did not start again." >&2
@@ -589,7 +593,7 @@ backup_cleanup() {
 
 # Runs in a subshell, so its globals end with it. Each failure ends it, and the trap cleans up.
 backup_steps() {
-  local name=$1 made_file=$2 details_file=$3 data=$DATA/$1/data root used available stamp final archive
+  local name=$1 made_file=$2 keep_stopped=$3 details_file=$4 data=$DATA/$1/data root used available stamp final archive
   local version image image_id was_running=false exit_code=null stopped_at downtime=0 archive_bytes
   local archive_sha locations compressor=(gzip -1)
   CONTAINER=openbot-$1
@@ -634,12 +638,15 @@ backup_steps() {
   fi
   container_running "$CONTAINER" && was_running=true
   if $was_running; then
-    RESTART=1
+    [ "$keep_stopped" -eq 1 ] || RESTART=1
     echo "Stopping $CONTAINER."
     stopped_at=$(date +%s)
     docker stop "$CONTAINER" >/dev/null
     ! container_running "$CONTAINER" || fail "$CONTAINER did not stop."
     exit_code=$(docker inspect --format '{{.State.ExitCode}}' "$CONTAINER")
+    if [ "$keep_stopped" -eq 1 ] && [ "$exit_code" != 0 ]; then
+      fail "OpenBot stopped with exit code $exit_code. The source stays stopped; no migration backup was made."
+    fi
     [ "$exit_code" = 0 ] ||
       echo "OpenBot stopped with exit code $exit_code. SQLite keeps the last complete transaction." >&2
   fi
@@ -654,19 +661,24 @@ backup_steps() {
   tar --create --file=- --directory="$data" --numeric-owner --sparse --one-file-system \
     --exclude=./lost+found . | "${compressor[@]}" >"$PARTIAL/$archive"
   if $was_running; then
-    RESTART=0
-    docker start "$CONTAINER" >/dev/null
-    downtime=$(($(date +%s) - stopped_at))
-    echo "Started $CONTAINER again after $downtime s."
+    if [ "$keep_stopped" -eq 0 ]; then
+      RESTART=0
+      docker start "$CONTAINER" >/dev/null
+      downtime=$(($(date +%s) - stopped_at))
+      echo "Started $CONTAINER again after $downtime s."
+    else
+      downtime=$(($(date +%s) - stopped_at))
+    fi
   fi
 
   # Read the archive again from the destination, so that the checksum is of what was written.
   archive_sha=$(sha256sum "$PARTIAL/$archive" | cut -d ' ' -f 1)
   archive_bytes=$(stat --format=%s "$PARTIAL/$archive")
   cp "$(env_file "$name")" "$PARTIAL/instance.env"
-  printf '{\n  "format": "openbot-instance-backup",\n  "formatVersion": 1,\n  "instance": "%s",\n  "createdAt": "%s",\n  "openbotVersion": "%s",\n  "image": %s,\n  "imageId": %s,\n  "archive": "%s",\n  "archiveBytes": %s,\n  "archiveSha256": "%s",\n  "dataBytes": %s,\n  "locations": [%s],\n  "excluded": ["lost+found"],\n  "wasRunning": %s,\n  "stopExitCode": %s,\n  "downtimeSeconds": %s\n}\n' \
+  printf '{\n  "format": "openbot-instance-backup",\n  "formatVersion": 1,\n  "instance": "%s",\n  "createdAt": "%s",\n  "openbotVersion": "%s",\n  "image": %s,\n  "imageId": %s,\n  "archive": "%s",\n  "archiveBytes": %s,\n  "archiveSha256": "%s",\n  "dataBytes": %s,\n  "locations": [%s],\n  "excluded": ["lost+found"],\n  "wasRunning": %s,\n  "stopExitCode": %s,\n  "downtimeSeconds": %s,\n  "keptStopped": %s\n}\n' \
     "$name" "$(utc_now)" "$version" "$(json_string "$image")" "$(json_string "$image_id")" "$archive" \
     "$archive_bytes" "$archive_sha" "$used" "${locations%, }" "$was_running" "$exit_code" "$downtime" \
+    "$([ "$keep_stopped" -eq 1 ] && echo true || echo false)" \
     >"$PARTIAL/manifest.json"
   (cd "$PARTIAL" && sha256sum -- "$archive" required.sha256 instance.env) >"$PARTIAL/SHA256SUMS"
   sync --file-system "$PARTIAL/SHA256SUMS"
@@ -676,7 +688,11 @@ backup_steps() {
   echo "$final" >"$made_file"
   printf ',\n  "backup": %s,\n  "archiveBytes": %s,\n  "downtimeSeconds": %s' \
     "$(json_string "$final")" "$archive_bytes" "$downtime" >"$details_file"
-  echo "Backup $final: $(human_bytes "$archive_bytes"), $downtime s offline."
+  if [ "$keep_stopped" -eq 1 ]; then
+    echo "Backup $final: $(human_bytes "$archive_bytes"). The source stays stopped. Verify the backup before cutover."
+  else
+    echo "Backup $final: $(human_bytes "$archive_bytes"), $downtime s offline."
+  fi
 }
 
 # Deletes the oldest complete backups of instance $1 above OPENBOT_BACKUP_KEEP. The new backup $2 stays
