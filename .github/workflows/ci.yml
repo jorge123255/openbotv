@@ -595,6 +595,10 @@ jobs:
           bun scripts/grok-bot-inference-usage-e2e.ts
           bun scripts/grok-bot-cached-usage-diagnostic-e2e.ts
 
+      - name: Run the workflow starters E2E test
+        if: ${{ !cancelled() }}
+        run: bun scripts/workflow-starters-e2e.ts
+
       - name: Run the workflow model steps E2E test
         if: ${{ !cancelled() }}
         run: bun run test:workflow-model-steps
@@ -683,6 +687,7 @@ jobs:
             .openbot-build/antigravity-accounts-e2e/
             .openbot-build/antigravity-usage-metering-e2e/
             .openbot-build/workflow-model-steps-e2e/
+            .openbot-build/workflow-starters-e2e/
             .openbot-build/opencode-usage-metering-e2e/
             .openbot-build/claude-api-key-e2e/
             .openbot-build/cursor-usage-e2e/
@@ -1103,9 +1108,18 @@ jobs:
           bun scripts/ollama-quota-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/channel-send-retry-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           bun scripts/local-skill-sharing-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+          bun scripts/workflow-starters-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           node --import tsx scripts/migration-preparation-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           node --import tsx scripts/hermes-gateway-setup-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
           node --import tsx scripts/migration-assessment-ui-e2e.ts --url=http://127.0.0.1:6006 --browser-channel=chromium
+
+      - name: Upload workflow starter UI evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: workflow-starters-ui-e2e
+          path: .openbot-build/workflow-starters-ui-e2e/
+          if-no-files-found: ignore
 
       - name: Upload offline migration assessment UI evidence
         if: always()

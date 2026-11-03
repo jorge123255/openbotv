@@ -10,10 +10,12 @@
 import { Check, ChevronRight, CopyPlus, DropdownMenu, History, Pencil, Plus, Trash2 } from "@openbot/ui";
 import { For, Show } from "solid-js";
 import { useText } from "../../text";
+import type { WorkflowStarter, WorkflowStarterKind } from "./workflow-starters";
 
 /** Open a workflow, or act on the open one. */
 export type SwitcherAction =
   | "new"
+  | `starter:${WorkflowStarterKind}`
   | "rename"
   | "duplicate"
   | "delete"
@@ -47,6 +49,7 @@ export function WorkflowSwitcher(props: {
   versionsDisabled: boolean;
   /** A read-only canvas shows the list only. */
   readOnly: boolean;
+  starters: readonly WorkflowStarter[];
   onAction: (action: SwitcherAction) => void;
 }) {
   const { t } = useText();
@@ -83,6 +86,14 @@ export function WorkflowSwitcher(props: {
           </span>
           <span>{t("workflow.canvas.switcher.new")}</span>
         </DropdownMenu.Item>
+        <For each={props.starters}>
+          {(starter) => (
+            <DropdownMenu.Item onSelect={() => props.onAction(`starter:${starter.kind}`)}>
+              <Plus class="agent-context-icon" aria-hidden="true" />
+              <span>{t(starter.title)}</span>
+            </DropdownMenu.Item>
+          )}
+        </For>
         <DropdownMenu.Separator />
         <Show when={props.versions.length > 0}>
           <DropdownMenu.Sub>

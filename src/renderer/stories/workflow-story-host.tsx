@@ -12,6 +12,7 @@ import {
   WORKFLOW_NODE_KINDS,
   WORKFLOW_OUTPUT_TARGETS,
   WORKFLOW_TRIGGER_TYPES,
+  type WorkflowGraph,
   type WorkflowRunPage,
   type WorkflowVersion,
 } from "@openbot/contracts/ipc";
@@ -23,7 +24,7 @@ import { PageRail, type PageRailPage } from "@openbot/ui/features/window/PageRai
 import { WorkflowCanvas } from "@openbot/ui/features/workflows/WorkflowCanvas";
 import { WORKFLOW_FEATURES_V1, type WorkflowFeatures } from "@openbot/ui/features/workflows/workflow-model";
 import type { WorkflowRunView } from "@openbot/ui/features/workflows/workflow-run-view";
-import { createSignal, Show, untrack } from "solid-js";
+import { createSignal, onSettled, Show, untrack } from "solid-js";
 import { fn } from "storybook/test";
 import { defaultSidebarLayout } from "../src/features/sidebar/sidebar-sections";
 import { createWorkflowsController } from "../src/features/workflows/workflows-controller";
@@ -31,6 +32,7 @@ import type { WorkflowHost } from "../src/features/workflows/workflows-port";
 import { createMockGitHubConnector } from "../src/preview/mock-github-connector";
 import { mockWorkflows } from "../src/preview/mock-workflows";
 import { STORY_AGENTS } from "./fixtures";
+import type { WorkflowStarterFixture } from "./workflow-starter-fixture";
 import { STORY_CATALOGS, type StoryWorkflow } from "./workflow-story-data";
 
 /** Every node kind, trigger and output, for the stories whose workflows use them all. */
@@ -171,6 +173,117 @@ export function WorkflowStory(props: { workflows: readonly StoryWorkflow[]; feat
           catalogs={STORY_CATALOGS}
           github={story.github}
           {...story.props}
+        />
+      )}
+    </Show>
+  );
+}
+
+/** Real canvas/controller over private synthetic data, observed by the browser E2E script. */
+export function WorkflowStarterRegressionStory() {
+  const host = storyWorkflowHost([
+    {
+      id: "starter-regression",
+      title: "Canvas regression",
+      graph: {
+        nodes: [],
+        edges: [],
+        strokes: [
+          {
+            id: "existing-ink",
+            brush: "pen",
+            color: "blue",
+            width: 3,
+            points: [
+              { x: 0, y: 700 },
+              { x: 300, y: 720 },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: "existing-workflow",
+      title: "Existing workflow",
+      graph: {
+        nodes: [
+          {
+            id: "existing-prompt",
+            kind: "prompt",
+            at: { x: 0, y: 0 },
+            fields: { text: "Keep this existing workflow." },
+          },
+        ],
+        edges: [],
+        strokes: [],
+      },
+    },
+  ]);
+  let creates = 0;
+  let runs = 0;
+  const savedCounts = new Map<string, number>([
+    ["starter-regression", 0],
+    ["existing-workflow", 1],
+  ]);
+  const observedHost: WorkflowHost = {
+    ...host,
+    workflows: {
+      ...host.workflows,
+      create: async (input) => {
+        creates += 1;
+        const result = await host.workflows.create(input);
+        savedCounts.set(result.summary.id, result.graph.nodes.length);
+        return result;
+      },
+      saveGraph: async (input) => {
+        const result = await host.workflows.saveGraph(input);
+        if (result.ok) savedCounts.set(input.workflowId, input.graph.nodes.length);
+        return result;
+      },
+      startRun: (input) => {
+        runs += 1;
+        return host.workflows.startRun(input);
+      },
+    },
+  };
+  const story = createWorkflowsController(observedHost);
+  const [readOnly, setReadOnly] = createSignal(false);
+  const changes: WorkflowGraph[] = [];
+  const fixture: WorkflowStarterFixture = {
+    async read() {
+      const list = await host.workflows.list();
+      const workflows = await Promise.all(list.map((summary) => host.workflows.get(summary.id)));
+      return {
+        current: workflows.find((workflow) => workflow.summary.id === story.detail()?.summary.id),
+        workflows,
+        changes: structuredClone(changes),
+        creates,
+        runs,
+      };
+    },
+    savedNodeCount: () => savedCounts.get(story.detail()?.summary.id ?? "") ?? -1,
+    setReadOnly,
+  };
+  onSettled(() => {
+    window.openbotWorkflowStarterFixture = fixture;
+    return () => {
+      delete window.openbotWorkflowStarterFixture;
+    };
+  });
+  return (
+    <Show when={story.detail()}>
+      {(workflow) => (
+        <WorkflowCanvas
+          workflow={workflow()}
+          features={WORKFLOW_FEATURES_V1}
+          catalogs={STORY_CATALOGS}
+          github={story.github}
+          {...story.props}
+          readOnly={readOnly()}
+          onGraphChange={(graph) => {
+            changes.push(structuredClone(graph));
+            story.props.onGraphChange(graph);
+          }}
         />
       )}
     </Show>

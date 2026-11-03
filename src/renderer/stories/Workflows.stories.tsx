@@ -5,6 +5,7 @@
  * other. A run in these stories uses the preview mock, not a provider.
  */
 
+import { translateFor } from "@openbot/i18n";
 import { Toaster } from "@openbot/ui";
 import { AgentNode } from "@openbot/ui/features/workflows/WorkflowAgentNode";
 import { ApprovalNode } from "@openbot/ui/features/workflows/WorkflowApprovalNode";
@@ -17,7 +18,8 @@ import { OutputNode } from "@openbot/ui/features/workflows/WorkflowOutputNode";
 import { PromptNode } from "@openbot/ui/features/workflows/WorkflowPromptNode";
 import { TextNode } from "@openbot/ui/features/workflows/WorkflowTextNode";
 import { TriggerNode } from "@openbot/ui/features/workflows/WorkflowTriggerNode";
-import type { WorkflowCatalogs } from "@openbot/ui/features/workflows/workflow-model";
+import { WORKFLOW_FEATURES_V1, type WorkflowCatalogs } from "@openbot/ui/features/workflows/workflow-model";
+import { workflowStarterGraph } from "@openbot/ui/features/workflows/workflow-starters";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { NodeGallery } from "./workflow-node-gallery";
 import {
@@ -33,7 +35,12 @@ import {
   storyWebhook,
   todayAt,
 } from "./workflow-story-data";
-import { STORY_ALL_FEATURES, WorkflowInAppStory, WorkflowStory } from "./workflow-story-host";
+import {
+  STORY_ALL_FEATURES,
+  WorkflowInAppStory,
+  WorkflowStarterRegressionStory,
+  WorkflowStory,
+} from "./workflow-story-host";
 
 const TASK = "Check competitor sites, changelogs and launch posts since yesterday";
 const RESULT = AGENT_RESULT;
@@ -109,6 +116,43 @@ export const EmptyCanvas: Story = {
   render: () => (
     <WorkflowStory
       workflows={[{ id: "untitled", title: "Untitled workflow", graph: { nodes: [], edges: [], strokes: [] } }]}
+    />
+  ),
+};
+
+export const StarterRegression: Story = {
+  name: "Starter interaction regression",
+  render: () => <WorkflowStarterRegressionStory />,
+};
+
+export const ApprovalStarter: Story = {
+  name: "Connected approval starter",
+  render: () => (
+    <WorkflowStory
+      workflows={[
+        { id: "approval-starter", title: "Approval flow", graph: workflowStarterGraph("approval", translateFor("en")) },
+      ]}
+    />
+  ),
+};
+
+export const AgentReviewStarter: Story = {
+  name: "Connected agent review starter",
+  render: () => (
+    <WorkflowStory
+      workflows={[
+        { id: "agent-starter", title: "Agent review flow", graph: workflowStarterGraph("agent", translateFor("en")) },
+      ]}
+    />
+  ),
+};
+
+export const StartersUnavailable: Story = {
+  name: "Host without starter capabilities",
+  render: () => (
+    <WorkflowStory
+      workflows={[{ id: "limited-host", title: "Limited host", graph: { nodes: [], edges: [], strokes: [] } }]}
+      features={{ ...WORKFLOW_FEATURES_V1, triggers: ["schedule"], outputs: [] }}
     />
   ),
 };
