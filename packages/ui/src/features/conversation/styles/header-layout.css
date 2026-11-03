@@ -1,12 +1,17 @@
 .conversation-header {
   display: flex;
-  height: 38px;
+  flex-wrap: wrap;
+  column-gap: var(--openbot-space-2);
+  row-gap: var(--openbot-space-1);
+  min-height: var(--openbot-workspace-header-height);
+  height: auto;
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 0;
-  padding: 0 12px 0 8px;
+  border-bottom: 1px solid var(--openbot-border);
+  padding: var(--openbot-space-2) var(--openbot-space-4);
   background: transparent;
+  container: conversation-header / inline-size;
 }
 
 .conversation-heading-group {

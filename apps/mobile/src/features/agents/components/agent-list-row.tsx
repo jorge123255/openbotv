@@ -16,6 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
+import { useCSSVariable } from "uniwind";
 import { useAgentChatPreview } from "@/features/agents/components/agent-chat-preview";
 import { AgentAndroidMenu, AgentContextMenuLink } from "@/features/agents/components/agent-context-menu";
 import { AgentPinAvatar } from "@/features/agents/components/agent-pin-avatar";
@@ -101,7 +102,8 @@ interface AgentListRowProps {
  */
 export const AgentListRow = memo(function AgentListRow({ agent, leftInset = 20, rightInset = 20 }: AgentListRowProps) {
   const { t } = useText();
-  const background = useChatRowBackground(agent.id);
+  const background = useChatRowBackground(agent.id, "surface");
+  const border = String(useCSSVariable("--openbot-border-grouped"));
   const pinBlocked = useMobileWorkspaceSelector(
     ({ pinnedAgentIds, pinnedChannelIds }) => !canToggleAgentPin([...pinnedAgentIds, ...pinnedChannelIds], agent.id),
   );
@@ -163,12 +165,13 @@ export const AgentListRow = memo(function AgentListRow({ agent, leftInset = 20, 
     >
       {({ pressed }) => (
         <View
-          className="min-h-20 w-full flex-row items-center gap-3 py-1"
+          className="min-h-24 flex-row items-center gap-3 rounded-3xl border p-3 my-1"
           style={{
             backgroundColor: background,
             opacity: pressed ? 0.58 : 1,
-            paddingLeft: leftInset,
-            paddingRight: rightInset,
+            marginLeft: leftInset,
+            marginRight: rightInset,
+            borderColor: border,
           }}
         >
           {avatar}

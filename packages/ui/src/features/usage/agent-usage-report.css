@@ -72,27 +72,27 @@
   margin-bottom: var(--openbot-space-4);
 }
 
-/* One line, never two. A wrapped second row put two entries under five and read as a
-   second, more important group; the entries are a tail of decreasing interest instead, so
-   a panel too narrow to hold them all drops the last ones rather than rewrapping. */
+/* Each metric keeps its own tile and remains available at every width. */
 .agent-usage-totals {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: calc(var(--openbot-space-6) * 2);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: var(--openbot-space-3);
   margin-top: var(--openbot-space-4);
-  overflow: hidden;
 }
 .agent-usage-totals dt {
   font-size: var(--openbot-text-sm);
   color: var(--openbot-text-muted);
   margin-bottom: var(--openbot-space-1);
-  white-space: nowrap;
+  line-height: var(--openbot-leading-sm);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .agent-usage-totals dd {
   margin: 0;
   font-size: var(--openbot-text-xl);
   font-variant-numeric: tabular-nums;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .agent-usage-table {
   overflow-x: auto;
@@ -147,4 +147,31 @@
   margin-top: var(--openbot-space-3);
   max-width: 72ch;
   line-height: 1.6;
+}
+
+.agent-usage-summary,
+.agent-usage-trend,
+.agent-usage-total-panel,
+.agent-usage-breakdown {
+  min-width: 0;
+  padding: var(--openbot-space-6);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-surface);
+}
+.agent-usage-summary {
+  gap: var(--openbot-space-6);
+}
+.agent-usage-totals > div {
+  min-width: 0;
+  padding: var(--openbot-space-3);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-sidebar);
+}
+.agent-usage-provider-heading {
+  flex-wrap: wrap;
+  gap: var(--openbot-space-2);
+}
+.agent-usage-overview {
+  gap: var(--openbot-space-4);
 }

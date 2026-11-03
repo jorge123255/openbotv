@@ -9,6 +9,7 @@
   --task-list-glyph: var(--openbot-icon-md);
 
   position: relative;
+  container: awaiting-replies / inline-size;
   z-index: 9;
   width: auto;
   margin: 0 12px calc(-1 * var(--awaiting-composer-overlap));
@@ -129,5 +130,50 @@
 
   .awaiting-replies-item[data-state="active"] .awaiting-replies-state-label {
     animation: none;
+  }
+}
+
+/* The chat can narrow beside settings while the window remains wide. Keep identity and state in
+ * separate grid rows instead of letting an unshrinkable name paint over the status. */
+@container awaiting-replies (max-width: 320px) {
+  .awaiting-replies .awaiting-replies-item {
+    display: grid;
+    grid-template-columns: var(--openbot-icon-md) minmax(0, 1fr);
+    gap: var(--openbot-space-1) var(--openbot-space-2);
+  }
+  .awaiting-replies-avatar {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: start;
+    margin-top: var(--openbot-space-0-5);
+  }
+  .awaiting-replies-text {
+    grid-column: 2;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--openbot-space-1);
+  }
+  .awaiting-replies-name {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .awaiting-replies-preview {
+    max-width: 100%;
+  }
+  .awaiting-replies-state {
+    grid-column: 2;
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  .awaiting-replies-detail,
+  .awaiting-replies-state-label {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+  .awaiting-replies-open,
+  .awaiting-replies-steer {
+    grid-column: 2;
+    justify-self: start;
+    max-width: 100%;
   }
 }

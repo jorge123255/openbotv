@@ -12,8 +12,6 @@ import {
 } from "@/features/settings/components/settings-content";
 import { useText } from "@/shared/lib/text";
 
-const PRODUCT_NAME = "OpenBot";
-
 export function AboutSettingsScreen() {
   const { t } = useText();
   const version = Constants.expoConfig?.version ?? t("mobile.settings.about.development");
@@ -40,7 +38,7 @@ export function AboutSettingsScreen() {
         <AppLogo size={56} interactive />
         <View className="items-center gap-1">
           <Typography.Heading type="h4" align="center">
-            {PRODUCT_NAME}
+            {t("mobile.auth.brand")}
           </Typography.Heading>
           <Typography.Paragraph type="body-xs" align="center" className="text-grouped-secondary" selectable>
             {versionLabel}

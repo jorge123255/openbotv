@@ -16,42 +16,42 @@
   --openbot-provider-current: currentcolor;
   /* Main screen canvas and drawer, used by the native app. The desktop also uses the sidebar, the
      sheet (its menus) and the grouped tokens, so tokens-light.css sets them too. */
-  --openbot-bg-native-canvas: #141414;
-  --openbot-bg-native-sidebar: #141414;
+  --openbot-bg-native-canvas: #15101b;
+  --openbot-bg-native-sidebar: #1b1422;
   /* Grouped sheet surfaces, used by the native app. */
-  --openbot-bg-sheet: #141414;
-  --openbot-bg-grouped: #212121;
-  --openbot-text-grouped-secondary: #96969b;
-  --openbot-border-grouped: #333335;
+  --openbot-bg-sheet: #1b1422;
+  --openbot-bg-grouped: #261c30;
+  --openbot-text-grouped-secondary: #c1accd;
+  --openbot-border-grouped: #46334f;
   --openbot-radius-grouped: 16px;
   /* The milky chrome of the native app where it has no Liquid Glass: the search field and bar buttons. */
-  --openbot-bg-chrome-glass: rgba(38, 38, 40, 0.96);
-  --openbot-border-chrome-glass: rgba(255, 255, 255, 0.08);
+  --openbot-bg-chrome-glass: rgba(38, 28, 48, 0.96);
+  --openbot-border-chrome-glass: rgba(228, 204, 247, 0.14);
   /* The fill of that chrome over a real blur, lighter than the solid glass. */
-  --openbot-bg-chrome-blur: rgba(26, 26, 28, 0.62);
+  --openbot-bg-chrome-blur: rgba(38, 28, 48, 0.62);
 
   /* Neutral color system. Keep UI colors here, not in components. */
-  --openbot-bg-canvas: #1a1a1a;
+  --openbot-bg-canvas: #15101b;
   /* The Tasks card in a chat. Opaque, a step off the canvas, so the text stays readable. */
-  --openbot-task-card-bg: #1c1c1e;
+  --openbot-task-card-bg: #241a2e;
   /* The window frame around the page card, darker than the card, so the card comes forward. */
-  --openbot-bg-frame: #0d0d0d;
+  --openbot-bg-frame: #100b15;
   /* A rail inside a menu, a step darker than the menu sheet. */
   --openbot-bg-sheet-inset: #101010;
-  --openbot-bg-canvas-clear: rgba(26, 26, 26, 0);
-  --openbot-bg-sidebar: #1a1a1a;
-  --openbot-marketplace-detail-bg: #111111;
-  --openbot-bg-surface: #212121;
-  --openbot-bg-surface-raised: #242424;
-  --openbot-bg-control: #212121;
-  --openbot-bg-control-hover: #242424;
-  --openbot-bg-control-active: #2a2a2a;
-  --openbot-tabs-bar-bg: #212121;
-  --openbot-tabs-pill-bg: #2a2a2a;
-  --openbot-bg-overlay: rgba(26, 26, 26, 0.92);
+  --openbot-bg-canvas-clear: rgba(21, 16, 27, 0);
+  --openbot-bg-sidebar: #1b1422;
+  --openbot-marketplace-detail-bg: #1b1422;
+  --openbot-bg-surface: #261c30;
+  --openbot-bg-surface-raised: #30233c;
+  --openbot-bg-control: #241a2e;
+  --openbot-bg-control-hover: #352740;
+  --openbot-bg-control-active: #43314f;
+  --openbot-tabs-bar-bg: #1b1422;
+  --openbot-tabs-pill-bg: #453151;
+  --openbot-bg-overlay: rgba(27, 20, 34, 0.98);
   --openbot-dialog-overlay: rgba(0, 0, 0, 0.1);
   --openbot-dialog-ring: rgba(255, 255, 255, 0.1);
-  --openbot-bg-glass: rgba(33, 33, 33, 0.76);
+  --openbot-bg-glass: rgba(38, 28, 48, 0.86);
 
   /* Translucent glass surfaces: the landing page, and the browser dock and previews of the desktop. */
   --openbot-glass-surface: rgba(255, 255, 255, 0.07);
@@ -91,12 +91,12 @@
   --openbot-queue-border: var(--openbot-border-strong);
   --openbot-queue-text: var(--openbot-text-primary);
   --openbot-queue-action: var(--openbot-text-muted);
-  --openbot-border: rgba(255, 255, 255, 0.035);
-  --openbot-border-strong: rgba(255, 255, 255, 0.045);
+  --openbot-border: rgba(255, 255, 255, 0.065);
+  --openbot-border-strong: rgba(255, 255, 255, 0.11);
   --openbot-image-outline: rgba(255, 255, 255, 0.1);
   /* Focus is neutral: a grey border or a thin grey ring, never blue and never a halo. */
   --openbot-border-focus: var(--openbot-text-muted);
-  --openbot-text-primary: #ffffff;
+  --openbot-text-primary: #f8f2ff;
   --openbot-text-on-light: #141414;
   --openbot-surface-light: #f0f0f0;
   /* Not a duplicate of surface-light/text-on-light: tokens-native.css swaps this pair
@@ -117,9 +117,9 @@
   --openbot-onboarding-desktop-blue: #7eb4f2;
   --openbot-onboarding-desktop-indigo: #6f7de8;
   --openbot-onboarding-window: #f3f5f8;
-  --openbot-text-secondary: #dcdcdc;
-  --openbot-text-muted: #979797;
-  --openbot-text-dim: #6a6a6a;
+  --openbot-text-secondary: #d8cce0;
+  --openbot-text-muted: #b0a0ba;
+  --openbot-text-dim: #8a7798;
   --openbot-text-readable: rgba(255, 255, 255, 0.52);
   --openbot-text-muted-on-light: rgba(20, 20, 20, 0.52);
   --openbot-text-dim-on-light: rgba(20, 20, 20, 0.36);
@@ -127,18 +127,15 @@
   --openbot-download-card-chip: rgba(20, 20, 20, 0.1);
   --openbot-download-card-border: rgba(20, 20, 20, 0.16);
   --openbot-download-card-focus: rgba(242, 242, 242, 0.86);
-  --openbot-text-placeholder: #bfbfbf;
+  --openbot-text-placeholder: #b8a7c4;
   --openbot-text-on-accent: #ffffff;
   --openbot-text-on-status: #07130c;
-  /* Hue 210, sampled from the reference UIs rather than picked: their status dot is
-     #007cf7 and their link and section headings are #42a0ff, both hue 210. The palette
-     sat at hue 206, which reads cyan next to them, and accent-text was 71% light,
-     which reads washed out. */
-  --openbot-accent: #007cf7;
-  --openbot-accent-hover: #1f8fff;
-  --openbot-accent-text: #42a0ff;
-  --openbot-accent-soft: rgba(0, 124, 247, 0.16);
-  --openbot-accent-strong: rgba(0, 124, 247, 0.34);
+  /* BotAI: warm violet actions on plum-black and aubergine surfaces. */
+  --openbot-accent: #8050ca;
+  --openbot-accent-hover: #8b59d5;
+  --openbot-accent-text: #dcc1ff;
+  --openbot-accent-soft: rgba(170, 119, 229, 0.17);
+  --openbot-accent-strong: rgba(193, 145, 245, 0.62);
   --openbot-settings-text-muted: rgba(255, 255, 255, 0.59);
   --openbot-provider-codex: var(--openbot-text-primary);
   --openbot-provider-claude: #d97757;
@@ -282,6 +279,15 @@
    * landing page carry type above 24px; .landing-hero-logo is sized in em off
    * --openbot-text-hero, so that token is layout, not just type. */
   --openbot-text-display: 32px;
+  --openbot-navigation-width: 192px;
+  --openbot-workspace-header-height: 64px;
+  --openbot-roster-avatar-size: 64px;
+  --openbot-character-shell: #f4f0ff;
+  --openbot-character-visor: #11142c;
+  --openbot-character-eye: #a4efff;
+  /* Organic character faces keep dark ink on their light artwork in either theme. */
+  --openbot-character-ink: #25152f;
+  --openbot-character-shadow: rgba(8, 9, 25, 0.32);
   --openbot-text-usage-total: clamp(2rem, 5cqi, 3.5rem);
   --openbot-leading-display: 38px;
   --openbot-text-hero: clamp(3rem, 8vw, 6.5rem);

@@ -118,6 +118,7 @@ export const STORY_AGENTS: AgentProfile[] = STORY_AGENT_SUMMARIES.map((agent, in
   ...(agent.computerUse === undefined ? {} : { computerUse: agent.computerUse }),
   threadId: agent.threadId,
   workspacePath: agent.workspacePath,
+  ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
   avatarSeed: agent.avatarSeed,
   avatarHue: agent.avatarHue,
   avatarUrl: agent.avatarUrl,

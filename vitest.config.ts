@@ -73,6 +73,9 @@ export default defineConfig({
           // faster option is not used here.
           pool: "vmThreads",
           environment: "jsdom",
+          // Bloub ships precompiled DOM templates. Keep its Solid imports in the browser graph
+          // even though the dependency is owned by UI/brand rather than the root workspace.
+          server: { deps: { inline: ["@norbert_bodziony/bloub"] } },
           // Strictly longer than the DOM wait deadline, for the reason the node
           // project states: a slow runner should fail with the query that never
           // matched, not with vitest's generic "test timed out".

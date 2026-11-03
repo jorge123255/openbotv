@@ -8,6 +8,8 @@ import {
 } from "@norbert_bodziony/bloub";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 
+export { AVATAR_CHARACTERS, type AvatarCharacter } from "@openbot/contracts/ipc";
+
 export type SupportedAvatarSilhouetteId = Exclude<ShapeId, "goutte">;
 
 export interface BloubAvatarProfile {

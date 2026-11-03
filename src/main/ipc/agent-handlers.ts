@@ -443,14 +443,16 @@ export function agentIpcHandlers({
       }),
       generateProfile: scopedHandler(parseGenerateAgentProfile, {
         local: (input) => runCauseEffect(service.generateProfile(input, sidebarLayout.getSnapshot().sections)),
-        remote: (input, serverId) =>
-          runCauseEffect(
+        remote: (input, serverId) => {
+          if (input.draft?.avatarCharacter !== undefined) throw new Error(sourceText("error.agent.settingsLocalOnly"));
+          return runCauseEffect(
             remoteServers.request(serverId, TEAM_API_ROUTES.agents.generateProfile, decodeAgentProfileDraft, {
               method: "POST",
               body: input,
               timeoutMs: 150_000,
             }),
-          ),
+          );
+        },
       }),
       askSideQuestion: scopedHandler(parseAskSideQuestion, {
         local: (input) => runCauseEffect(service.askSideQuestion(input)),
@@ -473,23 +475,27 @@ export function agentIpcHandlers({
       }),
       saveProfile: scopedHandler(parseSaveAgentProfile, {
         local: (input) => runCauseEffect(service.saveProfile(input, sidebarLayout, host.conversationSender())),
-        remote: (input, serverId) =>
-          runCauseEffect(
+        remote: (input, serverId) => {
+          if (input.draft.avatarCharacter !== undefined) throw new Error(sourceText("error.agent.settingsLocalOnly"));
+          return runCauseEffect(
             remoteServers.request(serverId, TEAM_API_ROUTES.agents.saveProfile, decodeSaveAgentProfileResult, {
               method: "POST",
               body: input,
             }),
-          ),
+          );
+        },
       }),
       createAgent: scopedHandler(parseCreateAgent, {
         local: (parsed) => runCauseEffect(service.createAgent(parsed, undefined, undefined, host.conversationSender())),
-        remote: (parsed, serverId) =>
-          runCauseEffect(
+        remote: (parsed, serverId) => {
+          if (parsed.avatarCharacter !== undefined) throw new Error(sourceText("error.agent.settingsLocalOnly"));
+          return runCauseEffect(
             remoteServers.request(serverId, TEAM_API_ROUTES.agents.all, decodeAgentSummary, {
               method: "POST",
               body: parsed,
             }),
-          ),
+          );
+        },
       }),
       duplicateAgent: scopedHandler(parseAgentId, {
         local: (agentId) =>
@@ -503,6 +509,7 @@ export function agentIpcHandlers({
       updateAgent: scopedHandler(parseUpdateAgent, {
         local: (input) => runCauseEffect(service.updateAgent(input)),
         remote: async (input, serverId) => {
+          if (input.avatarCharacter !== undefined) throw new Error(sourceText("error.agent.settingsLocalOnly"));
           // The Team API does not carry access, and a team member must not be able to widen it.
           if (input.mcpServerIds !== undefined) {
             throw new Error(sourceText("error.agent.settingsLocalOnly"));

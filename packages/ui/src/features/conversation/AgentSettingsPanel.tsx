@@ -1,3 +1,4 @@
+import type { AvatarCharacter } from "@openbot/brand/bloub-avatar";
 import { agentProviderDescriptor, agentProviderName, foreignProvider } from "@openbot/contracts/agent-providers";
 import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
@@ -93,6 +94,7 @@ import {
 } from "solid-js";
 import { useText } from "../../text";
 import { AVATAR_HUE_LABEL } from "../agents/avatar-hue-label";
+import { CharacterChoices } from "../agents/CharacterChoices";
 import { SERVER_NOTIFICATION_LEVEL_LABELS } from "../servers/ServerActionItems";
 import { type AgentFolderCalls, AgentFoldersPage, AgentFoldersRow, createAgentFolders } from "./AgentFolders";
 import { AgentNewChatDialog } from "./AgentNewChatDialog";
@@ -169,13 +171,23 @@ export interface AgentSettingsPanelProps {
   links?: JSX.Element;
   detailOpen?: boolean;
   children?: JSX.Element;
-  onUpdateAgent: (agentId: string, updates: Omit<UpdateAgentInput, "agentId">) => Promise<void>;
+  /** The application must honor the optional error guard when an operation becomes obsolete. */
+  onUpdateAgent: (
+    agentId: string,
+    updates: Omit<UpdateAgentInput, "agentId">,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
   onUpdateRuntimeSettings: (
     agentId: string,
     settings: AgentRuntimeSettings,
     updates: AgentRuntimeSettingsPatch,
   ) => Promise<boolean>;
-  onSetAgentAvatar: (agentId: string, image: AvatarImageInput | null) => Promise<void>;
+  characterSupported?: boolean;
+  onSetAgentAvatar: (
+    agentId: string,
+    image: AvatarImageInput | null,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
   /**
    * Starts a new chat with the agent after the user confirms. The agent forgets the messages before
    * it and keeps its setup. Left out when the host cannot do it.
@@ -239,6 +251,7 @@ interface AgentTextFields {
 }
 
 interface AvatarEditor {
+  character: AvatarCharacter;
   batch: number;
   candidateSeed: string;
   hue: AvatarHue | null;
@@ -291,6 +304,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   const [newChatOpen, setNewChatOpen] = createSignal(false);
   const [draft, setDraft] = createStore<AgentSettingsDraft>({
     avatar: {
+      character: "shape",
       batch: 0,
       candidateSeed: "agent",
       hue: null,
@@ -446,6 +460,8 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   let instructionsSaveTimer: ReturnType<typeof setTimeout> | undefined;
   let activeTextSave: TextSaveRequest | null = null;
   let disposed = false;
+  let avatarEditGeneration = 0;
+  let avatarUploadRequest = 0;
   const pendingTextSaves = new Map<string, TextSaveRequest>();
 
   createEffect(
@@ -475,6 +491,7 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
           runtimeSettings.provider,
           runtimeSettings.model,
           runtimeSettings.reasoningEffort,
+          agent.avatarCharacter,
           agent.avatarSeed,
           String(agent.avatarHue),
         ].join("\u0000"),
@@ -495,6 +512,8 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
         lastSignature = signature;
         lastAgentId = agent.id;
         if (agentChanged) {
+          avatarEditGeneration += 1;
+          avatarUploadRequest += 1;
           returnFocusPage = null;
           setPage(null);
         }
@@ -522,9 +541,11 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
           state.runtime.provider = runtimeSettings.provider;
           state.runtime.model = runtimeSettings.model;
           state.runtime.reasoningEffort = runtimeSettings.reasoningEffort;
+          state.avatar.character = agent.avatarCharacter ?? "shape";
           state.avatar.seed = agent.avatarSeed;
           state.avatar.hue = agent.avatarHue;
           if (agentChanged) {
+            state.avatar.uploadBusy = false;
             state.avatar.candidateSeed = agent.avatarSeed;
             state.avatar.batch = 0;
             state.avatar.pickerOpen = false;
@@ -553,13 +574,14 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
   async function saveAgentPatch(
     updates: Omit<UpdateAgentInput, "agentId">,
     agentId = props.agent.id,
+    isCurrent: () => boolean = () => true,
   ): Promise<boolean> {
-    if (!disposed && props.agent.id === agentId) setSaveError(null);
+    if (!disposed && props.agent.id === agentId && isCurrent()) setSaveError(null);
     try {
-      await props.onUpdateAgent(agentId, updates);
+      await props.onUpdateAgent(agentId, updates, isCurrent);
       return true;
     } catch (error) {
-      if (!disposed && props.agent.id === agentId) {
+      if (!disposed && props.agent.id === agentId && isCurrent()) {
         setSaveError(errorMessage(error, t("agentSettings.saveFailed")), error);
       }
       return false;
@@ -696,50 +718,86 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
     queueTextSave(textSaveRequest("description", props.agent.id));
   }
 
-  async function setCustomAvatar(image: AvatarImageInput | null): Promise<boolean> {
-    if (draft.avatar.uploadBusy) return false;
+  async function setCustomAvatar(image: AvatarImageInput | null, agentId = props.agent.id): Promise<boolean> {
+    if (disposed || props.agent.id !== agentId || draft.avatar.uploadBusy) return false;
+    const upload = ++avatarUploadRequest;
+    const generation = avatarEditGeneration;
+    const isCurrent = () => !disposed && props.agent.id === agentId && avatarUploadRequest === upload;
     setDraft((state) => {
       state.avatar.uploadBusy = true;
       state.saveError = null;
     });
     try {
-      await props.onSetAgentAvatar(props.agent.id, image);
+      await props.onSetAgentAvatar(agentId, image, () => isCurrent() && avatarEditGeneration === generation);
       return true;
     } catch (error) {
-      setSaveError(errorMessage(error, t("agentSettings.avatar.saveFailed")), error);
+      if (isCurrent() && avatarEditGeneration === generation)
+        setSaveError(errorMessage(error, t("agentSettings.avatar.saveFailed")), error);
       return false;
     } finally {
-      setDraft((state) => {
-        state.avatar.uploadBusy = false;
-      });
+      if (isCurrent())
+        setDraft((state) => {
+          state.avatar.uploadBusy = false;
+        });
     }
   }
 
   async function uploadAgentAvatar(file: File | undefined): Promise<void> {
-    if (!file) return;
+    if (!file || disposed) return;
+    const agentId = props.agent.id;
+    const request = ++avatarEditGeneration;
+    const upload = ++avatarUploadRequest;
+    const isCurrent = () => !disposed && props.agent.id === agentId && avatarEditGeneration === request;
     setDraft((state) => {
       state.avatar.uploadBusy = true;
       state.saveError = null;
     });
     try {
       const image = await normalizeAvatarFile(file);
-      await props.onSetAgentAvatar(props.agent.id, image);
+      if (!isCurrent()) return;
+      await props.onSetAgentAvatar(agentId, image, isCurrent);
     } catch (error) {
-      setSaveError(errorMessage(error, t("agentSettings.avatar.processFailed")), error);
+      if (isCurrent()) setSaveError(errorMessage(error, t("agentSettings.avatar.processFailed")), error);
     } finally {
-      setDraft((state) => {
-        state.avatar.uploadBusy = false;
-      });
-      if (avatarFileInput) avatarFileInput.value = "";
+      if (!disposed && props.agent.id === agentId && avatarUploadRequest === upload) {
+        setDraft((state) => {
+          state.avatar.uploadBusy = false;
+        });
+        if (avatarFileInput) avatarFileInput.value = "";
+      }
     }
   }
 
+  async function selectAvatarCharacter(character: AvatarCharacter): Promise<void> {
+    if (props.characterSupported === false || disposed) return;
+    const previousImage = avatarUrl();
+    const agentId = props.agent.id;
+    const request = ++avatarEditGeneration;
+    const isCurrent = () => !disposed && props.agent.id === agentId && avatarEditGeneration === request;
+    setDraft((state) => {
+      state.avatar.character = character;
+    });
+    const saved = await saveAgentPatch({ avatarCharacter: character }, agentId, isCurrent);
+    // An older completion must not roll back a newer choice or clear its image.
+    if (!isCurrent()) return;
+    if (!saved) {
+      setDraft((state) => {
+        state.avatar.character = props.agent.avatarCharacter ?? "shape";
+      });
+      return;
+    }
+    if (previousImage && avatarUrl() === previousImage) await setCustomAvatar(null, agentId);
+  }
+
   async function selectGeneratedAvatar(seed: string): Promise<void> {
-    if (avatarUrl() && !(await setCustomAvatar(null))) return;
+    const agentId = props.agent.id;
+    const request = ++avatarEditGeneration;
+    if (avatarUrl() && !(await setCustomAvatar(null, agentId))) return;
+    if (disposed || props.agent.id !== agentId || avatarEditGeneration !== request) return;
     setDraft((state) => {
       state.avatar.seed = seed;
     });
-    await saveAgentPatch({ avatarSeed: seed });
+    await saveAgentPatch({ avatarSeed: seed }, agentId);
   }
 
   async function selectModel(
@@ -1064,13 +1122,20 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                   }
                 >
                   <Popover.Trigger class="agent-settings-avatar" aria-label={t("agentSettings.avatar.edit")}>
-                    <AgentAvatar seed={draft.avatar.seed} hue={draft.avatar.hue} url={avatarUrl()} motion="always" />
+                    <AgentAvatar
+                      seed={draft.avatar.seed}
+                      character={draft.avatar.character}
+                      hue={draft.avatar.hue}
+                      url={avatarUrl()}
+                      motion="always"
+                    />
                     <span class="agent-settings-avatar-badge" aria-hidden="true">
                       <Pencil class="agent-settings-avatar-badge-icon" />
                     </span>
                   </Popover.Trigger>
                   <Popover.Content class="avatar-editor" aria-hidden={draft.avatar.pickerOpen ? undefined : "true"}>
-                    <Popover.Title class="sr-only">{t("agentSettings.avatar.editor")}</Popover.Title>
+                    <Popover.Title class="avatar-studio-title">{t("agentSettings.avatar.editor")}</Popover.Title>
+                    <p class="avatar-studio-hint">{t("agentSettings.avatar.studioHint")}</p>
                     <Input
                       ref={(element) => (avatarFileInput = element)}
                       class="sr-only"
@@ -1087,7 +1152,10 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                             variant="outline"
                             type="button"
                             disabled={draft.avatar.uploadBusy}
-                            onClick={() => void setCustomAvatar(null)}
+                            onClick={() => {
+                              avatarEditGeneration += 1;
+                              void setCustomAvatar(null);
+                            }}
                           >
                             {t("common.remove")}
                           </Button>
@@ -1110,7 +1178,12 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                             </svg>
                           }
                         >
-                          <AgentAvatar seed={draft.avatar.seed} hue={draft.avatar.hue} url={avatarUrl()} />
+                          <AgentAvatar
+                            seed={draft.avatar.seed}
+                            character={draft.avatar.character}
+                            hue={draft.avatar.hue}
+                            url={avatarUrl()}
+                          />
                         </Show>
                       </span>
                       <span>
@@ -1121,64 +1194,76 @@ export default function AgentSettingsPanel(props: AgentSettingsPanelProps) {
                       </span>
                     </Button>
                     <div class="avatar-editor-divider" />
-                    <div class="avatar-editor-heading">
-                      <span>{t("agentSettings.avatar.generatedFace")}</span>
-                      <div class="avatar-editor-actions">
-                        <Show when={draft.avatar.seed !== props.agent.id}>
+                    <Show when={props.characterSupported !== false}>
+                      <CharacterChoices
+                        character={draft.avatar.character}
+                        seed={draft.avatar.seed}
+                        hue={draft.avatar.hue}
+                        hasImage={!!avatarUrl()}
+                        disabled={draft.avatar.uploadBusy}
+                        onSelect={(character) => void selectAvatarCharacter(character)}
+                      />
+                    </Show>
+                    <Show when={props.characterSupported === false || draft.avatar.character === "shape"}>
+                      <div class="avatar-editor-heading">
+                        <span>{t("agentSettings.avatar.generatedFace")}</span>
+                        <div class="avatar-editor-actions">
+                          <Show when={draft.avatar.seed !== props.agent.id}>
+                            <IconButton
+                              variant="outline"
+                              type="button"
+                              label={t("agentSettings.avatar.resetToId")}
+                              onClick={() => {
+                                setDraft((state) => {
+                                  state.avatar.candidateSeed = props.agent.id;
+                                  state.avatar.batch = 0;
+                                });
+                                void selectGeneratedAvatar(props.agent.id);
+                              }}
+                            >
+                              <RotateCcw aria-hidden="true" />
+                            </IconButton>
+                          </Show>
                           <IconButton
                             variant="outline"
                             type="button"
-                            label={t("agentSettings.avatar.resetToId")}
-                            onClick={() => {
+                            label={t("agentSettings.avatar.newSet")}
+                            onClick={() =>
                               setDraft((state) => {
-                                state.avatar.candidateSeed = props.agent.id;
-                                state.avatar.batch = 0;
-                              });
-                              void selectGeneratedAvatar(props.agent.id);
-                            }}
-                          >
-                            <RotateCcw aria-hidden="true" />
-                          </IconButton>
-                        </Show>
-                        <IconButton
-                          variant="outline"
-                          type="button"
-                          label={t("agentSettings.avatar.newSet")}
-                          onClick={() =>
-                            setDraft((state) => {
-                              state.avatar.candidateSeed = state.avatar.seed;
-                              state.avatar.batch += 1;
-                            })
-                          }
-                        >
-                          <RefreshCw aria-hidden="true" />
-                        </IconButton>
-                      </div>
-                    </div>
-                    <fieldset class="avatar-face-grid" aria-label={t("agentSettings.avatar.faces")}>
-                      <For each={avatarCandidates()}>
-                        {(seed, index) => (
-                          <Button
-                            variant="ghost"
-                            type="button"
-                            class={[
-                              "avatar-face-choice",
-                              { "avatar-choice-selected": !avatarUrl() && draft.avatar.seed === seed },
-                            ]}
-                            aria-label={
-                              !avatarUrl() && draft.avatar.seed === seed
-                                ? t("agentSettings.avatar.selected")
-                                : t("agentSettings.avatar.option", { number: index() + 1 })
+                                state.avatar.candidateSeed = state.avatar.seed;
+                                state.avatar.batch += 1;
+                              })
                             }
-                            aria-pressed={!avatarUrl() && draft.avatar.seed === seed ? "true" : "false"}
-                            data-cuelume-tap="select"
-                            onClick={() => void selectGeneratedAvatar(seed)}
                           >
-                            <AgentAvatar seed={seed} hue={draft.avatar.hue} />
-                          </Button>
-                        )}
-                      </For>
-                    </fieldset>
+                            <RefreshCw aria-hidden="true" />
+                          </IconButton>
+                        </div>
+                      </div>
+                      <fieldset class="avatar-face-grid" aria-label={t("agentSettings.avatar.faces")}>
+                        <For each={avatarCandidates()}>
+                          {(seed, index) => (
+                            <Button
+                              variant="ghost"
+                              type="button"
+                              class={[
+                                "avatar-face-choice",
+                                { "avatar-choice-selected": !avatarUrl() && draft.avatar.seed === seed },
+                              ]}
+                              aria-label={
+                                !avatarUrl() && draft.avatar.seed === seed
+                                  ? t("agentSettings.avatar.selected")
+                                  : t("agentSettings.avatar.option", { number: index() + 1 })
+                              }
+                              aria-pressed={!avatarUrl() && draft.avatar.seed === seed ? "true" : "false"}
+                              data-cuelume-tap="select"
+                              onClick={() => void selectGeneratedAvatar(seed)}
+                            >
+                              <AgentAvatar seed={seed} hue={draft.avatar.hue} />
+                            </Button>
+                          )}
+                        </For>
+                      </fieldset>
+                    </Show>
                     <div class="avatar-editor-divider" />
                     <div class="avatar-editor-heading">
                       <span>{t("agentSettings.avatar.color")}</span>

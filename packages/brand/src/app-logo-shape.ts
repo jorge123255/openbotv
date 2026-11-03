@@ -12,3 +12,11 @@ export const APP_LOGO_EYE_POINTS = {
   right:
     "145.65 93.61 166.79 81.41 140.83 101.52 175.58 81.46 138.3 109.53 183.18 83.63 137.55 117.43 189.67 87.33 139.67 129.39 197.88 95.78 142.92 136.32 201.52 102.48 149.03 143.86 204.07 112.08 159.14 150.37 203.51 124.75 169.28 152.61 199.82 134.98",
 } as const;
+
+/** BotAI GUI artwork. Native application icons and upstream attribution are separate assets. */
+export const BOTAI_LOGO_PATH =
+  "M 60 186 V 66 Q 60 30 102 30 H 132 Q 192 30 192 78 Q 192 120 138 120 H 102 Q 54 120 54 162 Q 54 210 120 210 H 144 Q 204 210 204 162 Q 204 120 144 120";
+export const BOTAI_LOGO_EYES = {
+  left: { x: 108, y: 72, radius: 12 },
+  right: { x: 138, y: 162, radius: 12 },
+} as const;

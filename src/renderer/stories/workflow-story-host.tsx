@@ -15,22 +15,15 @@ import {
   type WorkflowRunPage,
   type WorkflowVersion,
 } from "@openbot/contracts/ipc";
-import { accountUsageProviderRows } from "@openbot/ui/features/account/account-usage-view";
-import { Sidebar } from "@openbot/ui/features/sidebar/Sidebar";
-import type { SidebarView } from "@openbot/ui/features/sidebar/sidebar-types";
-import { HelpMenu } from "@openbot/ui/features/updates/HelpMenu";
-import { PageRail, type PageRailPage } from "@openbot/ui/features/window/PageRail";
 import { WorkflowCanvas } from "@openbot/ui/features/workflows/WorkflowCanvas";
 import { WORKFLOW_FEATURES_V1, type WorkflowFeatures } from "@openbot/ui/features/workflows/workflow-model";
 import type { WorkflowRunView } from "@openbot/ui/features/workflows/workflow-run-view";
-import { createSignal, Show, untrack } from "solid-js";
-import { fn } from "storybook/test";
-import { defaultSidebarLayout } from "../src/features/sidebar/sidebar-sections";
+import { Show, untrack } from "solid-js";
 import { createWorkflowsController } from "../src/features/workflows/workflows-controller";
 import type { WorkflowHost } from "../src/features/workflows/workflows-port";
 import { createMockGitHubConnector } from "../src/preview/mock-github-connector";
 import { mockWorkflows } from "../src/preview/mock-workflows";
-import { STORY_AGENTS } from "./fixtures";
+import { OpenBotPlayground } from "../src/preview/OpenBotPlayground";
 import { STORY_CATALOGS, type StoryWorkflow } from "./workflow-story-data";
 
 /** Every node kind, trigger and output, for the stories whose workflows use them all. */
@@ -177,99 +170,9 @@ export function WorkflowStory(props: { workflows: readonly StoryWorkflow[]; feat
   );
 }
 
-const usageRows = accountUsageProviderRows(null);
-
-/**
- * The workflow canvas in the desktop window: the page rail and the server menu are the real app
- * components. The canvas is a page that covers the agent list, as the schedule, usage and Marketplace
- * pages do. Its bar goes in the window's top row after the server menu, and the canvas fills the card.
- */
-export function WorkflowInAppStory(props: { workflows: readonly StoryWorkflow[]; features?: WorkflowFeatures }) {
-  const story = createWorkflowsController(storyWorkflowHost(untrack(() => props.workflows)));
-  const features = () => props.features ?? WORKFLOW_FEATURES_V1;
-  const [page, setPage] = createSignal<PageRailPage | null>("routines");
-  const [view, setView] = createSignal<SidebarView>("routines");
+/** Real workspace navigation over the offline workflow mock. Open Workflows from More. */
+export function WorkflowInAppStory(props: { workflows: readonly StoryWorkflow[] }) {
   return (
-    <div class="app-window wfn-app">
-      <PageRail
-        hidden={false}
-        current={page()}
-        pinned={["routines", "workflows", "usage"]}
-        onPinChange={fn()}
-        usageRows={usageRows}
-        onAgents={() => setPage("agents")}
-        onRoutines={() => setPage("routines")}
-        onSchedule={() => setPage("schedule")}
-        onUsage={() => setPage("usage")}
-        onMarketplace={fn()}
-        onSettings={() => setPage("settings")}
-        help={
-          <HelpMenu
-            news={[]}
-            triggerClass="window-rail-button"
-            onOpenWhatsNew={fn()}
-            onOpenChangelog={fn()}
-            onOpenGuides={fn()}
-            onOpenDiscord={fn()}
-            onSendFeedback={fn()}
-          />
-        }
-      />
-      <div
-        class="app-frame app-frame-edge app-frame-platform-darwin"
-        data-window-page-kind="titled"
-        style="--left-panel-width: 280px"
-      >
-        <Sidebar
-          serverName="Local"
-          onOpenServerSettings={fn()}
-          agents={STORY_AGENTS}
-          activeAgentId=""
-          people={[]}
-          directThreads={[]}
-          activeDirectMemberId={null}
-          agentStates={{}}
-          agentMoods={{}}
-          layout={defaultSidebarLayout()}
-          collapsedSectionIds={[]}
-          onMutateLayout={fn(async () => undefined)}
-          onToggleSection={fn()}
-          pinnedItems={[]}
-          peopleOrder={[]}
-          onPin={fn()}
-          onUnpin={fn()}
-          onReorderPinned={fn()}
-          onReorderPeople={fn()}
-          onSelectAgent={fn()}
-          onSelectPerson={fn()}
-          onCreateAgent={fn()}
-          onEditAgent={fn()}
-          onDeleteAgent={async () => undefined}
-          compact={false}
-          onExpand={fn()}
-          onOpenSearch={fn()}
-          onOpenMarketplace={fn()}
-          channels={[]}
-          onSelectChannel={fn()}
-          onCreateChannel={fn()}
-          view={view()}
-          onViewChange={setView}
-        />
-        <div class="window-page wfn-app-pane">
-          <Show when={story.detail()}>
-            {(workflow) => (
-              <WorkflowCanvas
-                workflow={workflow()}
-                features={features()}
-                catalogs={STORY_CATALOGS}
-                github={story.github}
-                frame="window"
-                {...story.props}
-              />
-            )}
-          </Show>
-        </div>
-      </div>
-    </div>
+    <OpenBotPlayground options={{ workflows: props.workflows.map(({ id, title, graph }) => ({ id, title, graph })) }} />
   );
 }

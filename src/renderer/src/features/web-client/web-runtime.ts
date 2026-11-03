@@ -1267,6 +1267,7 @@ export function createWebWorkspaceRuntime(
       return value;
     },
     async createAgent(input) {
+      if (input.avatarCharacter !== undefined) throw new Error(currentText().t("error.agent.settingsLocalOnly"));
       const value = await request("POST", TEAM_API_ROUTES.agents.all, { ...input });
       if (!isClientAgentSummary(value)) throw new Error(currentText().t("error.remote.invalidData"));
       return value;
@@ -1283,6 +1284,7 @@ export function createWebWorkspaceRuntime(
       return { agent: value.agent, layout: value.layout } satisfies DuplicateAgentResult;
     },
     async updateAgent(input) {
+      if (input.avatarCharacter !== undefined) throw new Error(currentText().t("error.agent.settingsLocalOnly"));
       // The released agent route ignores the account, so it goes on `provider-accounts-v1` after the
       // profile: a provider change there returns the agent to the new provider's own sign-in.
       // Backup models stay on the host computer: the Team API does not carry them.

@@ -1,3 +1,4 @@
+import type { AvatarMood } from "@openbot/brand/bloub-avatar-motion";
 import type {
   AccountUsage,
   AgentApproval,
@@ -191,6 +192,8 @@ export interface ConversationProps {
   /** Opens the notification settings at a server, where the user changes the level of its agents. */
   onOpenNotificationSettings?: ((serverId: string, trigger: HTMLElement) => void) | undefined;
   agent: AgentProfile | undefined;
+  /** The host-derived mood shared with this agent's roster face. */
+  avatarMood?: AvatarMood | undefined;
   agents: AgentProfile[];
   /**
    * The agents that the composer offers for a mention. Absent means `agents`. A hidden agent gets no
@@ -279,8 +282,16 @@ export interface ConversationProps {
    * limit. The waiting block names it for each agent that this agent asked.
    */
   agentWaits?: Record<string, SidebarAgentWait> | undefined;
-  onUpdateAgent: (agentId: string, updates: Omit<UpdateAgentInput, "agentId">) => Promise<void>;
-  onSetAgentAvatar: (agentId: string, image: AvatarImageInput | null) => Promise<void>;
+  onUpdateAgent: (
+    agentId: string,
+    updates: Omit<UpdateAgentInput, "agentId">,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
+  onSetAgentAvatar: (
+    agentId: string,
+    image: AvatarImageInput | null,
+    shouldReportError?: () => boolean,
+  ) => Promise<void>;
   /**
    * Sends one message. `clientMessageId` names it for the host, so a retry with the same id
    * returns the first receipt; the answer carries the host's id for the message, or why it failed.

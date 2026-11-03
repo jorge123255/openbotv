@@ -1,6 +1,5 @@
 import { type ChatWindowTarget, canAdministerServer } from "@openbot/contracts/ipc";
 import { AGENT_HIDDEN_CAPABILITY } from "@openbot/contracts/team-protocol/current";
-import { computeAgentAvatarMoods } from "@openbot/ui/features/agents/agent-avatar-mood";
 import { Sidebar } from "@openbot/ui/features/sidebar/Sidebar";
 import { SidebarCommunityCard } from "@openbot/ui/features/sidebar/SidebarCommunityCard";
 import { SidebarMachineCard } from "@openbot/ui/features/sidebar/SidebarMachineCard";
@@ -20,7 +19,7 @@ import { useTurns } from "../../turns";
 import { useAgentTasks } from "../agent-tasks/agent-tasks-context";
 import { useAgentThreads } from "../agent-threads/agent-threads-context";
 import { useAgentActions } from "../agents/agent-actions";
-import { attentionByAgent } from "../agents/agent-runtime-snapshot";
+import { useAgentAvatarMoods } from "../agents/agent-avatar-moods";
 import { agentThreadAttention } from "../agents/agent-thread-attention";
 import { useAgents } from "../agents/agents-context";
 import { useChannels } from "../channels/channels-context";
@@ -93,7 +92,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
   // The host refuses a member: a hidden agent stops for every member, as a deleted one does.
   const hideAllowed = () =>
     activeServerSupportsCapability(AGENT_HIDDEN_CAPABILITY) && serverRoleCanAdminister(activeServer());
-  const { activeTurns, queues, failedTurns, usageLimits, pendingPrompts, pendingApprovals, approvals } = useTurns();
+  const { activeTurns, queues, failedTurns, usageLimits, pendingPrompts, approvals } = useTurns();
   const { unreadReplies, recentReplies, markAllAgentMessagesRead } = useConversation();
   const { directPeople, teamPresence } = usePresence();
   const { activeDirectMember, activeDirectMemberId, directThreads } = useDirectMessages();
@@ -236,19 +235,7 @@ export function WorkspaceSidebar(props: { peopleEnabled: boolean }) {
     });
   });
 
-  /* The badge says what an agent is doing; the face says how it is going. `isAgentWorking` is
-   * shared, and a routine mark only replaces the badge for that same agent. */
-  const agentMoods = createMemo(() =>
-    computeAgentAvatarMoods({
-      agentIds: agentList().map((agent) => agent.id),
-      activeTurns: workingTurns(),
-      queues: queues(),
-      failedTurns: failedTurns(),
-      pendingPrompts: attentionByAgent(pendingPrompts(), agentList()),
-      pendingApprovals: pendingApprovals(),
-      recentReplies: recentReplies(),
-    }),
-  );
+  const agentMoods = useAgentAvatarMoods();
 
   return (
     <Sidebar

@@ -4,7 +4,7 @@
  */
 
 import type { AppFormat, AppTextKey, AppTranslate } from "@openbot/i18n";
-import { AudioLines, Button, LabelTooltip, LabelTooltipTrigger } from "@openbot/ui";
+import { AudioLines, Button, LabelTooltip, LabelTooltipTrigger, Plus } from "@openbot/ui";
 import { createEffect, createMemo, createSignal, For, onSettled, Show } from "solid-js";
 import type { AvatarMood } from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
@@ -12,7 +12,6 @@ import { useText } from "../../text";
 import { AgentAvatar } from "../agents/AgentAvatar";
 import {
   partitionRoster,
-  ROSTER_CATEGORY_HUE,
   ROSTER_FILTERS,
   type RosterEntry,
   type RosterEntrySource,
@@ -72,6 +71,7 @@ function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number 
   const state = () => props.agentStates[rowProps.entry.id];
   const needsYou = () => state()?.kind === "waiting";
   const mood = (): AvatarMood => (rowProps.entry.asleep ? "asleep" : (props.agentMoods[rowProps.entry.id] ?? "idle"));
+  const motion = () => (!rowProps.entry.asleep && props.activeAgentId === rowProps.entry.id ? "always" : "idle");
   const copy = () => {
     const current = agent();
     return current ? rosterCopy(current, state(), t, format) : "";
@@ -109,12 +109,7 @@ function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number 
             <span class="roster-avatar">
               <span class="roster-ring roster-ring-outer" aria-hidden="true" />
               <span class="roster-ring" aria-hidden="true" />
-              <AgentAvatar
-                agent={current()}
-                hue={ROSTER_CATEGORY_HUE[rowProps.entry.category]}
-                mood={mood()}
-                motion="idle"
-              />
+              <AgentAvatar agent={current()} mood={mood()} motion={motion()} />
               <Show when={needsYou()}>
                 <span class="roster-ask" aria-hidden="true">
                   ?
@@ -127,8 +122,8 @@ function RosterRow(rowProps: { entry: RosterEntry; rising: boolean; now: number 
                 <strong>{current().name}</strong>
               </span>
               <span class="roster-status roster-status-short">{copy()}</span>
+              <span class="roster-time">{time()}</span>
             </span>
-            <span class="roster-time">{time()}</span>
           </LabelTooltipTrigger>
         </LabelTooltip>
       )}
@@ -239,10 +234,15 @@ export function SidebarRoster() {
       aria-label={t("sidebar.roster.title")}
       onScroll={scrollFades.measure}
     >
-      <h2 class="roster-heading">
-        <span class="roster-live" aria-hidden="true" />
-        {t("sidebar.roster.title")}
-      </h2>
+      <div class="roster-header">
+        <h2 class="roster-heading">{t("sidebar.roster.title")}</h2>
+        <Show when={props.createSupported !== false}>
+          <Button type="button" size="sm" class="roster-create" onClick={props.onCreateAgent}>
+            <Plus aria-hidden="true" />
+            {t("sidebar.new.agent")}
+          </Button>
+        </Show>
+      </div>
       <fieldset class="roster-filters" aria-label={t("sidebar.roster.filterLabel")}>
         <For each={ROSTER_FILTERS}>
           {(category) => (
@@ -271,6 +271,12 @@ export function SidebarRoster() {
           </Show>
         }
       >
+        <Show when={shown().active.length > 0}>
+          <h3 class="roster-active-head">
+            <span class="roster-live" aria-hidden="true" />
+            {t("sidebar.roster.activeCount", { count: shown().active.length })}
+          </h3>
+        </Show>
         <For each={shown().active}>
           {(entry) => <RosterRow entry={entry} rising={rising().has(entry.id)} now={now()} />}
         </For>

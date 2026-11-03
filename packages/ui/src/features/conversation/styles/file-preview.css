@@ -25,12 +25,14 @@
 
 .file-preview-header {
   display: flex;
-  height: 39px;
+  min-height: var(--openbot-control-xl);
+  height: auto;
   flex: 0 0 auto;
   align-items: center;
   gap: 8px;
   border-bottom: 1px solid var(--openbot-border);
-  padding: 0 7px 0 11px;
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  background: var(--openbot-bg-sidebar);
 }
 
 .file-preview-header h2 {

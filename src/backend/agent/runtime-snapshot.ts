@@ -172,6 +172,7 @@ export function buildRuntimeSnapshot({
     notifications: agent.notifications,
     preview: agent.preview.slice(0, AGENT_RUNTIME_TEXT_LIMIT),
     updatedAt: agent.updatedAt,
+    ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
     avatarSeed: agent.avatarSeed,
     avatarHue: agent.avatarHue,
     avatarUrl: agent.avatarUrl,

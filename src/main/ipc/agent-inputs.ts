@@ -30,6 +30,7 @@ import {
   isAgentModel,
   isAgentProvider,
   isAgentTaskLimit,
+  isAvatarCharacter,
   isAvatarHue,
   isAvatarSeed,
   isBusyMessageMode,
@@ -199,11 +200,14 @@ export function parseSidebarLayoutAction(value: unknown): SidebarLayoutAction {
 export function parseCreateAgent(value: unknown): CreateAgentInput {
   if (!isObject(value)) throw new Error("Invalid agent creation request.");
   const avatarHue = value.avatarHue;
+  if (value.avatarCharacter !== undefined && !isAvatarCharacter(value.avatarCharacter))
+    throw new Error("Invalid avatar character.");
   if (!isAvatarSeed(value.avatarSeed)) throw new Error("Invalid avatar seed.");
   if (avatarHue !== null && !isAvatarHue(avatarHue)) throw new Error("Invalid avatar hue.");
   const result: CreateAgentInput = {
     name: requireString(value.name, "name", INPUT_LIMITS.agentName),
     description: requireString(value.description, "description", INPUT_LIMITS.agentDescription),
+    ...(value.avatarCharacter === undefined ? {} : { avatarCharacter: value.avatarCharacter }),
     avatarSeed: value.avatarSeed,
     avatarHue,
     initialMessage: requireString(value.initialMessage, "initialMessage", INPUT_LIMITS.messageText),
@@ -732,6 +736,10 @@ export function parseUpdateAgent(value: unknown): UpdateAgentInput {
   if (value.leaveUsageLimit !== undefined) {
     if (!isBoolean(value.leaveUsageLimit)) throw new Error("Invalid usage limit switch.");
     result.leaveUsageLimit = value.leaveUsageLimit;
+  }
+  if (value.avatarCharacter !== undefined) {
+    if (!isAvatarCharacter(value.avatarCharacter)) throw new Error("Invalid avatar character.");
+    result.avatarCharacter = value.avatarCharacter;
   }
   if (value.avatarSeed !== undefined) {
     if (!isAvatarSeed(value.avatarSeed)) throw new Error("Invalid avatar seed.");

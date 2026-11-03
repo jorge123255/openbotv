@@ -596,6 +596,7 @@ export function ConversationPanels(panelProps: { onOpenUsage?: ((trigger: HTMLBu
               onWidthChange={setSettingsPanelWidth}
               onUpdateAgent={props.onUpdateAgent}
               onUpdateRuntimeSettings={updateRuntimeSettings}
+              characterSupported={props.server?.kind === "local"}
               onSetAgentAvatar={props.onSetAgentAvatar}
               skillSelectionRequest={skillSettingsRequest()?.agentId === agent().id ? skillSettingsRequest() : null}
               instructionsRequest={

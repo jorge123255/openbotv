@@ -1435,7 +1435,7 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
   });
   async function createCanvasAgent(draft: NewAgentDraft): Promise<{ id: string }> {
     const created = await workspace.runtime.createAgent(
-      newAgentInput(draft, workspace.state.capabilities.includes(TEAM_AGENT_CREATE_MODEL_CAPABILITY)),
+      newAgentInput(draft, workspace.state.capabilities.includes(TEAM_AGENT_CREATE_MODEL_CAPABILITY), false),
     );
     await workspace.refresh();
     return created;
@@ -2669,6 +2669,9 @@ function WebWorkspaceFrame(props: WebWorkspaceProps) {
                   onManageBrowserProfiles={browserProfiles() ? openBrowserProfileSettings : undefined}
                   onOpenNotificationSettings={(serverId) => openNotificationSettings(serverId)}
                   agent={conversationAgent()}
+                  avatarMood={
+                    workspace.state.selectedId ? (sidebarAgentMoods()[workspace.state.selectedId] ?? "idle") : undefined
+                  }
                   agents={workspace.profiles()}
                   modelOptions={models()}
                   threads={threads()}

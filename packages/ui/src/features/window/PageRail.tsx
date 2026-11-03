@@ -1,4 +1,4 @@
-import { AppLogo, type AppLogoVariant, ProviderLogo } from "@openbot/brand";
+import { type AppLogoVariant, BotAiMark, ProviderLogo } from "@openbot/brand";
 import {
   Bot,
   Button,
@@ -25,6 +25,7 @@ function RailButton(props: {
   label: string;
   /** Renders the card while it is open. */
   card?: () => JSX.Element;
+  visualLabel?: string;
   current?: boolean;
   class?: string;
   onClick: (button: HTMLElement) => void;
@@ -40,15 +41,27 @@ function RailButton(props: {
       onClick={(event) => props.onClick(event.currentTarget)}
     >
       {props.children}
+      <Show when={!props.card}>
+        <span class="window-rail-label" aria-hidden="true">
+          {props.visualLabel ?? props.label}
+        </span>
+      </Show>
     </Button>
   );
   return (
-    <Show when={props.card} fallback={<MotionTooltip content={props.label}>{button()}</MotionTooltip>}>
+    <Show
+      when={props.card}
+      fallback={
+        <MotionTooltip content={props.label} placement="bottom">
+          {button()}
+        </MotionTooltip>
+      }
+    >
       {(card) => (
         <MotionTooltip
           content={card()()}
           class="ui-popover-menu-surface account-usage-popover window-rail-usage-card"
-          placement="right-end"
+          placement="bottom-end"
           openDelay={250}
           closeDelay={75}
         >
@@ -228,7 +241,7 @@ export interface PageRailProps {
   /** The Help menu, between Marketplace and Settings. */
   help: JSX.Element;
   /**
-   * The OpenBot logo in the top row, for a window that has no macOS window buttons there. With
+   * The BotAI workspace mark above the navigation. With
    * `href`, the logo is a link to the OpenBot site.
    */
   logo?: { variant: AppLogoVariant; href?: string | undefined } | undefined;
@@ -267,12 +280,12 @@ function RailMoreMenu(props: {
   const currentInMenu = () => props.pages.some((page) => page.id === props.current && !pinned(page.id));
   return (
     <DropdownMenu.Root
-      placement="right-start"
+      placement="bottom-start"
       gutter={10}
       onOpenChange={changeOpen}
       getAnchorRect={(element?: HTMLElement) => anchor ?? element?.getBoundingClientRect()}
     >
-      <MotionTooltip content={t("app.rail.more")} suppressed={open()}>
+      <MotionTooltip content={t("app.rail.more")} placement="bottom" suppressed={open()}>
         <DropdownMenu.Trigger
           ref={(element: HTMLElement) => {
             trigger = element;
@@ -282,6 +295,9 @@ function RailMoreMenu(props: {
           aria-current={currentInMenu() ? "page" : undefined}
         >
           <Ellipsis aria-hidden="true" />
+          <span class="window-rail-label" aria-hidden="true">
+            {t("app.rail.more")}
+          </span>
         </DropdownMenu.Trigger>
       </MotionTooltip>
       <DropdownMenu.Portal>
@@ -317,9 +333,9 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
   const { t } = useText();
   return (
     <div class="window-rail-logo">
-      <Show when={props.href} fallback={<AppLogo variant={props.variant} />}>
+      <Show when={props.href} fallback={<BotAiMark variant={props.variant} class="window-rail-mark" />}>
         {(href) => (
-          <MotionTooltip content={t("app.rail.website")}>
+          <MotionTooltip content={t("app.rail.website")} placement="bottom">
             <a
               class="window-rail-logo-link"
               href={href()}
@@ -327,11 +343,14 @@ function RailLogo(props: { variant: AppLogoVariant; href: string | undefined }) 
               rel="noopener"
               aria-label={t("app.rail.website")}
             >
-              <AppLogo variant={props.variant} />
+              <BotAiMark variant={props.variant} class="window-rail-mark" />
             </a>
           </MotionTooltip>
         )}
       </Show>
+      <span class="window-rail-brand" aria-hidden="true">
+        {t("app.rail.brand")}
+      </span>
     </div>
   );
 }
@@ -391,7 +410,7 @@ export function PageRail(props: PageRailProps) {
   return (
     <nav class="window-rail" aria-label={t("app.rail.label")} hidden={props.hidden}>
       <Show when={props.logo}>{(logo) => <RailLogo variant={logo().variant} href={logo().href} />}</Show>
-      <div class="window-rail-group">
+      <div class="window-rail-group window-rail-primary">
         <RailButton label={t("app.rail.agents")} current={props.current === "agents"} onClick={props.onAgents}>
           <Bot aria-hidden="true" />
         </RailButton>
@@ -404,16 +423,18 @@ export function PageRail(props: PageRailProps) {
         </For>
         <RailMoreMenu pages={pages()} current={props.current} pinned={props.pinned} onPinChange={props.onPinChange} />
       </div>
-      <div class="window-rail-group">
-        {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
-        <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
-          {(ring) => (
-            <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} openUrl={props.openUrl} />
-          )}
-        </For>
-        <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>
-          {(row) => <CustomAgentUsageButton row={row()} onOpen={props.onUsage} />}
-        </For>
+      <div class="window-rail-group window-rail-tools">
+        <div class="window-rail-accounts">
+          {/* A status update builds new rows. The key keeps each ring, and its open hover card, mounted. */}
+          <For each={rings()} keyed={(ring) => accountUsageRowKey(ring.row)}>
+            {(ring) => (
+              <UsageRings row={ring().row} shared={ring().shared} onOpen={props.onUsage} openUrl={props.openUrl} />
+            )}
+          </For>
+          <For each={props.customAgentUsage ?? []} keyed={(row) => row.id}>
+            {(row) => <CustomAgentUsageButton row={row()} onOpen={props.onUsage} />}
+          </For>
+        </div>
         <Show when={props.onMarketplace}>
           {(onMarketplace) => (
             <RailButton
@@ -432,6 +453,7 @@ export function PageRail(props: PageRailProps) {
               ? t("app.rail.settingsNotice", { notice: props.settingsNotice })
               : t("app.rail.settings")
           }
+          visualLabel={t("app.rail.settings")}
           current={props.current === "settings"}
           onClick={props.onSettings}
         >

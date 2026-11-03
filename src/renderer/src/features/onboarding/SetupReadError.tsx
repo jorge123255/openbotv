@@ -4,8 +4,6 @@ import { useText } from "@openbot/ui/text";
 import { usePlatform } from "../../platform";
 import { useSetup } from "./onboarding-context";
 
-const PRODUCT_NAME = "OpenBot";
-
 /**
  * Shown in place of first-run setup when the saved setup could not be read. A configured user
  * retries; "Set up again" opens first-run setup with no saved state. The screen uses the layout of
@@ -21,11 +19,13 @@ export function SetupReadError() {
         <header class="account-login-brand-lockup">
           <AppLogo
             variant={platform.appInfo()?.variant ?? "production"}
+            artwork="botai"
+            label={t("app.logo.animate", { name: t("app.rail.brand") })}
             animation="blink"
             interactive
             class="account-login-logo"
           />
-          <span class="account-login-wordmark">{PRODUCT_NAME}</span>
+          <span class="account-login-wordmark">{t("app.rail.brand")}</span>
         </header>
         <section
           class="account-login"

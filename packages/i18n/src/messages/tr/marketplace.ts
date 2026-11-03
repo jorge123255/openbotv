@@ -24,7 +24,6 @@ export const messages = {
   "marketplace.kinds": "Pazaryeri içerik türleri",
   "marketplace.tab.agents": "Ajanlar",
   "marketplace.tab.skills": "Beceriler",
-  "marketplace.description.apps": "Ajanlarınızın çalıştığı araçları ve hizmetleri bağlayın.",
   "marketplace.description.agents": "Kendi talimatları ve becerileri olan hazır ajanlar.",
   "marketplace.description.skills": "Bir ajana bir görevi veya aracı öğreten talimatlar.",
 

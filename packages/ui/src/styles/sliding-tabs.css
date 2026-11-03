@@ -109,7 +109,8 @@
 @media (prefers-reduced-motion: reduce) {
   .ui-sliding-tabs-pill,
   .ui-sliding-tabs-trigger,
-  .ui-sliding-tabs-content {
+  .ui-sliding-tabs-content,
+  .ui-sliding-tabs-content[data-selected] {
     transition: none;
   }
 }

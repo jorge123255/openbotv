@@ -282,6 +282,7 @@ function toIslandAgent(agent: (typeof STORY_AGENTS)[number]): DynamicIslandAgent
     name: agent.name,
     avatarSeed: agent.avatarSeed,
     avatarHue: agent.avatarHue,
+    ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
     avatarUrl: agent.avatarUrl,
   };
 }
@@ -351,4 +352,44 @@ export const InlineReplyTypedQuestion: Story = {
 
 export const InlineReplyWorking: Story = {
   args: { scenario: "working", defaultState: "expanded", inlineReply: true },
+};
+
+/** GUI brand and opt-in characters in both supported display silhouettes. */
+export const BotAiIdle: Story = { args: { scenario: "idle", defaultState: "compact" } };
+export const BotAiCharacters: Story = {
+  render: () => (
+    <DynamicIslandDisplayComparison
+      defaultState="expanded"
+      renderIsland={(preview) => (
+        <OpenBotDynamicIsland
+          presentation={{
+            serverId: "local",
+            mode: "working",
+            working: [
+              {
+                agent: { ...AGENT_IDENTITIES[0], avatarCharacter: "pebble" },
+                task: "Synthetic offline review",
+                turnId: "fixture-pebble",
+              },
+              {
+                agent: { ...AGENT_IDENTITIES[1], avatarCharacter: "wisp" },
+                task: "Synthetic offline review",
+                turnId: "fixture-wisp",
+              },
+            ],
+          }}
+          state={preview.state()}
+          displayMode={preview.displayMode}
+          suppressInitialHover
+          onStateChange={preview.onStateChange}
+          onAction={fn()}
+        />
+      )}
+    />
+  ),
+};
+
+/** A failed synthetic action must retain the reply and keep the panel open. */
+export const FailedReply: Story = {
+  args: { scenario: "chat", defaultState: "expanded", inlineReply: true, onAction: fn(async () => false) },
 };

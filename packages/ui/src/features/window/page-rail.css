@@ -1,36 +1,46 @@
-/* The page rail at the left of the window, on desktop and on the web. The window styles place it in
- * the window grid. The window buttons of macOS sit at the top of the rail, in the top row. Other
- * windows can show the OpenBot logo there. */
+/* BotAI top navigation on desktop and web. The frame reserves space for native window controls.
+ * Destinations and account limits scroll separately, so the fixed tools remain reachable. */
 .window-rail {
   position: relative;
-  display: flex;
-  width: 52px;
-  min-height: 0;
-  flex-direction: column;
-  justify-content: space-between;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--openbot-workspace-header-height);
   align-items: center;
-  padding: calc(var(--left-header-height, 38px) + var(--openbot-space-1)) 0 var(--openbot-space-3);
+  gap: var(--openbot-space-4);
+  padding: var(--openbot-space-2) var(--openbot-space-4);
+  border-bottom: 1px solid var(--openbot-border);
+  background: var(--openbot-bg-frame);
   -webkit-app-region: drag;
+}
+.window-rail[hidden] {
+  display: none;
 }
 
 /* The logo has the size of a rail icon, in the column of the icons. Its top padding is the same as
  * the top padding of `.sidebar-topbar`, so it is on the center line of the server logo. */
 .window-rail-logo {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
+  grid-column: 1;
   display: flex;
-  height: var(--left-header-height, 38px);
+  min-width: 0;
   align-items: center;
-  justify-content: center;
-  padding-top: 2px;
+  gap: var(--openbot-space-2);
+  padding-inline-end: var(--openbot-space-3);
 }
 
-.window-rail-logo .app-logo {
+.window-rail-logo .window-rail-mark {
   display: block;
-  width: var(--openbot-icon-lg);
-  height: var(--openbot-icon-lg);
+  width: var(--openbot-control-md);
+  height: var(--openbot-control-md);
+  color: var(--openbot-accent-text);
+}
+.window-rail-logo .window-rail-mark[data-variant="dev"] {
+  color: var(--openbot-logo-dev);
+}
+.window-rail-logo .window-rail-mark[data-variant="preview"] {
+  color: var(--openbot-logo-preview);
 }
 
 .window-rail-logo-link {
@@ -46,27 +56,46 @@
 
 .window-rail-group {
   display: flex;
-  flex-direction: column;
+  min-width: 0;
   align-items: center;
-  gap: var(--openbot-space-1-5);
-  /* The window swallows mouse events over a drag area. With the gaps between the buttons in the
-   * drag area, the pointer left the group between two buttons, and the tooltip closed instead of
-   * moving to the next button. */
+  gap: var(--openbot-space-1);
   -webkit-app-region: no-drag;
+}
+.window-rail-primary {
+  grid-column: 2;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.window-rail-tools {
+  grid-column: 3;
+}
+.window-rail-accounts {
+  display: flex;
+  min-width: 0;
+  max-width: 20vw;
+  gap: var(--openbot-space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.window-rail-accounts:empty {
+  display: none;
 }
 
 .window-rail-button {
   position: relative;
   display: flex;
-  width: var(--openbot-control-lg);
-  height: var(--openbot-control-lg);
+  width: auto;
+  flex: none;
+  min-height: var(--openbot-control-xl);
+  height: auto;
+  gap: var(--openbot-space-2);
   align-items: center;
   justify-content: center;
-  border: 0;
-  border-radius: var(--openbot-radius-lg);
+  border: 1px solid transparent;
+  border-radius: var(--openbot-radius-pill);
   background: transparent;
-  padding: 0;
-  color: var(--openbot-text-muted);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  color: var(--openbot-text-secondary);
   font: inherit;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -81,8 +110,9 @@
 
 .window-rail-button[aria-current="page"],
 .window-rail-button[aria-current="page"]:hover:not(:disabled):not([data-disabled]) {
-  background: var(--openbot-bg-control-active);
-  color: var(--openbot-text-primary);
+  border-color: var(--openbot-accent-strong);
+  background: linear-gradient(110deg, var(--openbot-accent-soft), var(--openbot-bg-surface));
+  color: var(--openbot-accent-text);
 }
 
 .window-rail-button:focus-visible {
@@ -242,4 +272,52 @@
   > .agent-context-icon
   > * {
   fill-opacity: 1;
+}
+
+/* Labels share the existing controls and accessible names. */
+.window-rail-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--openbot-text-lg);
+}
+.window-rail-brand {
+  color: var(--openbot-text-primary);
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
+  letter-spacing: var(--openbot-tracking-tight);
+}
+.window-rail-button > svg {
+  flex: none;
+}
+.window-rail-button.window-rail-usage {
+  width: var(--openbot-control-lg);
+  height: var(--openbot-control-lg);
+  min-height: var(--openbot-control-lg);
+  padding: 0;
+  justify-content: center;
+  align-self: flex-start;
+  margin-inline: 0;
+}
+/* The navigation remains one row. Pinned destinations and account rings can scroll by keyboard. */
+@media (max-width: 1439px) {
+  .window-rail-label {
+    display: none;
+  }
+  .window-rail-button {
+    width: var(--openbot-control-xl);
+    padding-inline: 0;
+  }
+}
+@media (max-width: 900px) {
+  .window-rail {
+    gap: var(--openbot-space-2);
+    padding-inline: var(--openbot-space-2);
+  }
+  .window-rail-brand {
+    display: none;
+  }
+  .window-rail-logo {
+    padding-inline-end: 0;
+  }
 }

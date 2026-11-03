@@ -1,5 +1,11 @@
 import { INPUT_LIMITS } from "./input-limits";
-import { type AvatarHue, isAvatarHue, isAvatarSeed } from "./ipc-agent-identity";
+import {
+  type AvatarCharacter,
+  type AvatarHue,
+  isAvatarCharacter,
+  isAvatarHue,
+  isAvatarSeed,
+} from "./ipc-agent-identity";
 import { type AgentSummary, isAgentSummary } from "./ipc-agents";
 import { isBoundedString, isIdentifier } from "./ipc-bounded-values";
 import { isSidebarLayoutSnapshot, type SidebarLayoutSnapshot } from "./ipc-sidebar-layout";
@@ -10,6 +16,8 @@ export interface AgentProfileDraft {
   name: string;
   title: string;
   description: string;
+  /** Local appearance choice; absence keeps the full seed as a shape. Not in frozen Team DTOs. */
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   sectionId: string | null;
@@ -39,6 +47,7 @@ function isBoundedProfileDraft(value: unknown): value is AgentProfileDraft {
     isBoundedString(value.name, INPUT_LIMITS.agentName) &&
     isBoundedString(value.title, INPUT_LIMITS.agentTitle) &&
     isBoundedString(value.description, INPUT_LIMITS.agentDescription) &&
+    (value.avatarCharacter === undefined || isAvatarCharacter(value.avatarCharacter)) &&
     isAvatarSeed(value.avatarSeed) &&
     (value.avatarHue === null || isAvatarHue(value.avatarHue)) &&
     (value.sectionId === null || isIdentifier(value.sectionId))
@@ -92,6 +101,7 @@ export function decodeAgentProfileDraft(value: unknown): AgentProfileDraft {
     name: value.name.trim(),
     title: value.title.trim(),
     description: value.description.trim(),
+    ...(value.avatarCharacter === undefined ? {} : { avatarCharacter: value.avatarCharacter }),
     avatarSeed: value.avatarSeed,
     avatarHue: value.avatarHue,
     sectionId: value.sectionId,

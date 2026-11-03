@@ -28,9 +28,12 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* Both eyes use the longer stroke's length, so they draw at the same time. */
+  /* Both artworks keep the same named intro and exit events. BotAI eyes fade in;
+   * the upstream strokes also draw along their path. */
   .startup-splash-logo .app-logo-eye {
     stroke-dasharray: var(--splash-eye-length) calc(var(--splash-eye-length) + 24px);
+  }
+  .startup-splash-logo :is(.app-logo-eye, .app-logo-botai-eye) {
     animation:
       startup-splash-eye-draw 480ms var(--openbot-ease-in-out) 160ms backwards,
       app-logo-blink 4.8s var(--openbot-ease-in-out) 1s infinite;
@@ -45,9 +48,11 @@
 
 @keyframes startup-splash-eye-draw {
   from {
+    opacity: 0;
     stroke-dashoffset: calc(var(--splash-eye-length) + 12px);
   }
   to {
+    opacity: 1;
     stroke-dashoffset: 0px;
   }
 }

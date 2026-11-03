@@ -29,7 +29,8 @@ import { SERVER_MUTE_CHOICES, serverMuteDescription } from "../servers/ServerAct
 import { ServerMark } from "../servers/ServerRail";
 
 /** One agent of a server: the user's own level, or null when the agent uses the level of its server. */
-export interface NotificationMatrixAgent extends Pick<AgentProfile, "avatarSeed" | "avatarHue" | "avatarUrl"> {
+export interface NotificationMatrixAgent
+  extends Pick<AgentProfile, "avatarSeed" | "avatarHue" | "avatarUrl" | "avatarCharacter"> {
   id: string;
   name: string;
   /** The role or the description of the agent, under its name. */

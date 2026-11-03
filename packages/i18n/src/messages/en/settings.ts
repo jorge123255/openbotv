@@ -3,7 +3,7 @@ import { defineMessages } from "../../message";
 export const messages = defineMessages("settings", {
   // The language setting itself.
   "settings.language.title": "Language",
-  "settings.language.description": "OpenBot shows menus, buttons and messages in this language.",
+  "settings.language.description": "BotAI shows menus, buttons and messages in this language.",
   "settings.language.system": "System default",
   // The logo color setting, General tab.
   "settings.appearance.title": "Appearance",
@@ -16,7 +16,7 @@ export const messages = defineMessages("settings", {
   "settings.appearance.transparentWindow.description":
     "Show the blurred desktop behind the window. Websites and menus then use the app theme.",
   "settings.interfaceSize.title": "Interface size",
-  "settings.interfaceSize.description": "The size of text and controls in OpenBot.",
+  "settings.interfaceSize.description": "The size of text and controls in BotAI.",
   "settings.logoColor.title": "Logo color",
   "settings.logoColor.description": "Shown in the Dock, the taskbar and the Dynamic Island.",
   "settings.logoColor.buildNote": "This build keeps its own logo color. The choice applies to the release app.",
@@ -33,9 +33,9 @@ export const messages = defineMessages("settings", {
   // The Settings window, General tab.
   "settings.appBehavior.title": "App behavior",
   "settings.conversations.title": "Conversations",
-  "settings.launchAtLogin.title": "Launch OpenBot at login",
+  "settings.launchAtLogin.title": "Launch at login",
   "settings.launchAtLogin.description": "Open the app when you sign in to this computer.",
-  "settings.keepRunning.title": "Keep OpenBot running in the background",
+  "settings.keepRunning.title": "Keep running in the background",
   "settings.keepRunning.description": "Keep active tasks running after you close the window.",
   "settings.keepAwake.title": "Keep this computer awake",
   "settings.keepAwake.description":
@@ -168,12 +168,12 @@ export const messages = defineMessages("settings", {
     "On: usage and reliability metadata goes to OpenBot’s self-hosted analytics with your account ID and email. Off: the same metadata goes with a random install ID only. Chats, files and prompts are never sent. This setting applies to this browser.",
   // The Settings window shell: its tab list, headers and save bar.
   "settings.tab.general.title": "General",
-  "settings.tab.general.description": "Control how OpenBot behaves on this computer.",
+  "settings.tab.general.description": "Control how BotAI behaves on this computer.",
   "settings.tab.agents.title": "Agents",
   "settings.tab.agents.description":
     "Choose what the agents on this computer can do when you do not set it for an agent.",
   "settings.tab.notifications.title": "Notifications",
-  "settings.tab.notifications.description": "Choose how OpenBot alerts you.",
+  "settings.tab.notifications.description": "Choose how BotAI alerts you.",
   "settings.tab.voice.title": "Voice",
   "settings.tab.voice.description":
     "Dictation in the message box. Local models run on this computer; ElevenLabs runs in the cloud.",
@@ -181,7 +181,7 @@ export const messages = defineMessages("settings", {
   "settings.tab.computerUse.description":
     "Let agents on this computer's OpenBot see and use its apps. Agents on another server use that server's computer.",
   "settings.tab.profile.title": "Profile",
-  "settings.tab.profile.description": "Manage how you appear in OpenBot.",
+  "settings.tab.profile.description": "Manage how you appear in BotAI.",
   "settings.tab.mobileConnect.title": "Mobile Connect",
   "settings.tab.mobileConnect.description": "Sign in securely on your phone.",
   "settings.tab.dynamicIsland.title": "Dynamic Island",

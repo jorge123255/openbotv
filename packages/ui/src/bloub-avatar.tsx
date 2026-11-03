@@ -1,8 +1,9 @@
 import { BloubBot } from "@norbert_bodziony/bloub";
-import { bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
+import { type AvatarCharacter, bloubAvatarProfile } from "@openbot/brand/bloub-avatar";
 import type { AvatarHue } from "@openbot/contracts/ipc";
 import { render } from "@solidjs/web";
 import { flush } from "solid-js";
+import { CharacterAvatar } from "./features/agents/CharacterAvatar";
 
 /**
  * When an avatar animates, which is a performance decision and not a state one: `hover` and `idle`
@@ -28,7 +29,47 @@ export {
   type ShapeSafeStateId,
 } from "@openbot/brand/bloub-avatar-motion";
 
-export function createStaticAvatarSvg(seed: string, hue: AvatarHue | null): SVGSVGElement {
+export function createStaticAvatarSvg(
+  seed: string,
+  hue: AvatarHue | null,
+  character: AvatarCharacter = "shape",
+): SVGSVGElement {
+  if (character !== "shape") {
+    const host = document.createElement("span");
+    host.style.cssText = "position:fixed;left:-10000px;visibility:hidden";
+    document.body.appendChild(host);
+    const kind = character;
+    const dispose = render(
+      () => <CharacterAvatar kind={kind} seed={seed} hue={hue} mood="idle" motion="idle" followPointer={false} />,
+      host,
+    );
+    try {
+      flush();
+      const source = host.querySelector("svg");
+      if (!source) throw new Error("Character did not render an SVG avatar.");
+      // Mentions and exported cards need a self-contained still image, including semantic colors.
+      for (const node of source.querySelectorAll<SVGElement>("*")) {
+        const computed = getComputedStyle(node);
+        for (const property of [
+          "fill",
+          "stroke",
+          "stroke-width",
+          "opacity",
+          "transform",
+          "stop-color",
+          "stroke-linecap",
+          "stroke-linejoin",
+        ])
+          node.style.setProperty(property, computed.getPropertyValue(property));
+      }
+      const result = source.cloneNode(true);
+      if (!(result instanceof SVGSVGElement)) throw new Error("Character did not clone an SVG avatar.");
+      return result;
+    } finally {
+      dispose();
+      host.remove();
+    }
+  }
   const host = document.createElement("span");
   const dispose = mountStaticAvatar(host, seed, hue);
   const svg = host.querySelector("svg");

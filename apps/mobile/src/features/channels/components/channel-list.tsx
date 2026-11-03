@@ -249,7 +249,7 @@ export const ChannelListRow = memo(function ChannelListRow({
 }) {
   const { t, format } = useText();
   const [background, accent] = useThemeColor(["background", "accent"]);
-  const rowBackground = useChatRowBackground(channel.id);
+  const rowBackground = useChatRowBackground(channel.id, "surface");
   const { toggleChannelPinAnimated } = useAgentPinTransition();
   const isPinned = useMobileWorkspaceSelector(({ pinnedChannelIds }) => pinnedChannelIds.includes(channel.id));
   const pinBlocked = useMobileWorkspaceSelector(
@@ -334,12 +334,12 @@ export const ChannelListRow = memo(function ChannelListRow({
       ) : (
         ({ pressed }) => (
           <View
-            className="min-h-20 w-full flex-row items-center gap-3 py-1"
+            className="min-h-24 flex-row items-center gap-3 rounded-3xl border border-grouped-border p-3 my-1"
             style={{
               backgroundColor: rowBackground,
               opacity: pressed ? 0.58 : 1,
-              paddingLeft: leftInset,
-              paddingRight: rightInset,
+              marginLeft: leftInset,
+              marginRight: rightInset,
             }}
           >
             {avatar}

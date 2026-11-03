@@ -11,6 +11,7 @@ import { INPUT_LIMITS } from "@openbot/contracts/input-limits";
 import {
   isAgentImportKey,
   isAgentTaskLimit,
+  isAvatarCharacter,
   isAvatarHue,
   isBusyMessageMode,
   isMcpServerConfig,
@@ -58,6 +59,7 @@ const Agent = Schema.Struct({
   name: name(INPUT_LIMITS.agentName),
   title: text(INPUT_LIMITS.agentTitle),
   description: text(INPUT_LIMITS.agentDescription),
+  avatarCharacter: Schema.optionalKey(guarded(isAvatarCharacter)),
   avatarSeed: text(128),
   avatarHue: Schema.NullOr(guarded(isAvatarHue)),
   /** An archive path inside `agents/<key>/`, checked below. */

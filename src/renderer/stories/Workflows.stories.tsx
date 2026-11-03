@@ -72,7 +72,21 @@ export const Example: Story = {
   render: () => <WorkflowStory workflows={[competitorWatch()]} features={STORY_ALL_FEATURES} />,
 };
 
-/** The canvas in the desktop window, where the Routines page shows its board today. */
+/** A narrow canvas inside a wide window. Its HUD follows the pane, not the viewport. */
+export const NarrowCanvas: Story = {
+  render: () => (
+    <div style={{ width: "390px", "max-width": "100%" }}>
+      <WorkflowStory workflows={[competitorWatch()]} features={STORY_ALL_FEATURES} />
+    </div>
+  ),
+};
+
+/** Two saved workflows exercise pointer selection and reopening through the real controller. */
+export const MenuInteractions: Story = {
+  render: () => <WorkflowStory workflows={[competitorWatch(), newCompetitorAlert()]} features={STORY_ALL_FEATURES} />,
+};
+
+/** The real app. Open More → Workflows to inspect the editor and its workspace navigation. */
 export const InApp: Story = {
   name: "In app",
   render: () => <WorkflowInAppStory workflows={[competitorWatch(), newCompetitorAlert()]} />,

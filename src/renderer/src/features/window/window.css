@@ -1,6 +1,5 @@
-/* The desktop window: the page rail at the left, and the frame as the card of the page that the rail
- * selects. The rail shares the darker surface of the frame edge, so the rail and the top row show as
- * one L around the card. */
+/* The desktop window places top navigation above the selected workspace. The frame keeps the
+ * existing resizable panes and page mounts. */
 .app-window {
   /* The frame is darker than the card, so the card comes forward. */
   --window-frame: var(--openbot-bg-frame);
@@ -11,7 +10,8 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   background: var(--window-frame);
 }
 
@@ -22,7 +22,8 @@
 }
 
 .app-window > .app-frame {
-  grid-column: -2;
+  grid-column: 1;
+  grid-row: 1;
 }
 
 /* The frame below the edge layout keeps its own shape, so the rail would only take width. */
@@ -75,9 +76,9 @@
   .app-window > .app-frame-edge::before {
     position: absolute;
     z-index: -1;
-    inset: calc(var(--left-header-height) - 1px) var(--window-edge) var(--window-edge) 0;
+    inset: 0 var(--window-edge) var(--window-edge) 0;
     border: 1px solid var(--openbot-border);
-    border-radius: var(--openbot-radius-card);
+    border-radius: 0 0 var(--openbot-radius-card) var(--openbot-radius-card);
     background: var(--openbot-bg-canvas);
     content: "";
     pointer-events: none;
@@ -540,7 +541,7 @@
   /* The Marketplace page: the path of a page goes in the top row, as the usage title does. The side panel and the
    * list are below it. */
   .app-window > .app-frame-edge > .window-page > .skills-marketplace-page {
-    grid-template-rows: var(--left-header-height) minmax(0, 1fr);
+    grid-template-rows: var(--left-header-height) auto minmax(0, 1fr);
   }
 
   .app-window > .app-frame-edge > .window-page .skills-marketplace-topbar {
@@ -577,7 +578,7 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  grid-template-columns: max(var(--left-panel-width, 280px), 220px) minmax(0, 1fr);
+  grid-template-columns: minmax(220px, 248px) minmax(0, 1fr);
 }
 
 .settings-page-nav {
@@ -587,8 +588,11 @@
   flex-direction: column;
   gap: var(--openbot-space-1);
   overflow: hidden;
-  border-right: 1px solid var(--openbot-border);
-  padding: var(--openbot-space-4) var(--openbot-space-3) 0;
+  margin: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-sidebar);
+  padding: var(--openbot-space-6) var(--openbot-space-3) 0;
 }
 
 /* The title and the search stay at the top. The list below them scrolls. */
@@ -604,9 +608,9 @@
   margin: 0 0 var(--openbot-space-3);
   padding: 0 var(--openbot-space-2);
   color: var(--openbot-text-primary);
-  font-size: var(--openbot-text-lg);
+  font-size: var(--openbot-text-3xl);
   font-weight: var(--openbot-weight-semibold);
-  line-height: var(--openbot-leading-lg);
+  line-height: var(--openbot-leading-3xl);
 }
 
 /* The heading takes the focus when the page opens, only so a screen reader reads it. */
@@ -662,8 +666,8 @@
 }
 
 .settings-page-nav-group .settings-modal-nav-item[data-selected] {
-  background: var(--openbot-bg-control-hover);
-  color: var(--openbot-text-primary);
+  background: var(--openbot-accent-soft);
+  color: var(--openbot-accent-text);
   font-weight: var(--openbot-weight-medium);
 }
 
@@ -751,7 +755,7 @@
 
 .settings-page-content > .settings-modal-page :is(.settings-modal-header, .settings-modal-content) {
   width: 100%;
-  max-width: 784px;
+  max-width: 960px;
   margin-inline: auto;
 }
 
@@ -797,4 +801,92 @@
 
 .app-frame-chat-window.app-frame-platform-darwin .conversation-header {
   padding-left: 76px;
+}
+
+/* BotAI workspace: a top navigation strip above independent, inset work surfaces. The frame still
+ * owns the pane widths and all existing resizers, page mounts and visibility rules. */
+@media (min-width: 721px) {
+  .app-window:has(> .window-rail:not([hidden])) {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .app-window > .window-rail {
+    grid-row: 1;
+  }
+  .app-window:has(> .window-rail:not([hidden])) > .app-frame {
+    grid-row: 2;
+  }
+  .app-window:has(> .app-frame-platform-darwin:not(.web-app-frame)) > .window-rail {
+    padding-left: calc(var(--openbot-control-xl) * 2 + var(--openbot-space-4));
+  }
+  .app-window:has(> .window-rail:not([hidden])) > .app-frame-edge {
+    padding: var(--openbot-space-3);
+    background: var(--window-frame);
+  }
+  .app-window:has(> .window-rail:not([hidden])) > .app-frame-edge::before {
+    content: none;
+  }
+  .app-window > .app-frame-edge > .sidebar {
+    margin-right: var(--openbot-space-3);
+    border: 1px solid var(--openbot-border);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-bg-sidebar);
+  }
+  .app-window > .app-frame-edge > .sidebar::before,
+  .app-window > .app-frame-edge > .sidebar .sidebar-topbar::after {
+    content: none;
+  }
+  .app-window > .app-frame-edge .server-connection-content > :is(.conversation-panel, .direct-conversation),
+  .app-window > .app-frame-edge .tasks-page {
+    border: 1px solid var(--openbot-border);
+    border-radius: var(--openbot-radius-card);
+    background: var(--openbot-bg-canvas);
+    overflow: hidden;
+  }
+  .app-window > .app-frame-edge :is(.conversation-header, .tasks-page-header) {
+    min-height: var(--openbot-workspace-header-height);
+    height: auto;
+    border-bottom: 1px solid var(--openbot-border);
+    background: var(--openbot-bg-sidebar);
+  }
+  .app-window
+    > .app-frame-edge
+    > .window-page
+    :is(.agent-usage-header, .routine-planner-title, .skills-marketplace-topbar) {
+    min-height: var(--openbot-workspace-header-height);
+    height: auto;
+    padding-block: var(--openbot-space-3);
+  }
+  .app-window > .app-frame-edge > .window-page :is(.agent-usage-identity, .routine-planner-title) h2,
+  .app-window > .app-frame-edge > .window-page .skills-marketplace-topbar .marketplace-title {
+    font-size: var(--openbot-text-3xl);
+    font-weight: var(--openbot-weight-semibold);
+    line-height: var(--openbot-leading-3xl);
+  }
+  .app-window > .app-frame-edge > .window-page .routine-planner-body {
+    margin: var(--openbot-space-3);
+    border: 1px solid var(--openbot-border);
+    border-radius: var(--openbot-radius-card);
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+  .app-window > .app-frame-edge > .window-page .agent-usage-body {
+    padding: var(--openbot-space-6);
+  }
+  .app-window > .app-frame-edge .tasks-page-column {
+    max-width: 52rem;
+  }
+}
+
+/* Settings use an independent navigation panel and a broad content surface. */
+@media (min-width: 721px) {
+  .settings-page-content {
+    margin: var(--openbot-space-3) var(--openbot-space-3) var(--openbot-space-3) 0;
+    border: 1px solid var(--openbot-border);
+    border-radius: var(--openbot-radius-card);
+    overflow: hidden;
+    background: var(--openbot-bg-canvas);
+  }
+  .settings-page-content .settings-modal-header {
+    padding-block: var(--openbot-space-6);
+  }
 }

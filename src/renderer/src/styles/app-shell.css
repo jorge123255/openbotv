@@ -22,7 +22,7 @@
  */
 
 .app-frame {
-  --left-header-height: 38px;
+  --left-header-height: var(--openbot-workspace-header-height);
   --server-rail-width: 64px;
 
   position: relative;
@@ -2156,9 +2156,10 @@ textarea {
 }
 
 .agent-row-active {
-  --agent-avatar-outline: var(--openbot-bg-surface);
+  --agent-avatar-outline: var(--openbot-transparent);
 
-  background: var(--openbot-bg-surface);
+  background: var(--openbot-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--openbot-accent-strong);
 }
 
 .agent-row-avatar {
@@ -2434,6 +2435,15 @@ textarea {
   vector-effect: non-scaling-stroke;
 }
 
+.agent-avatar-bloub {
+  position: relative;
+}
+
+.agent-avatar-bloub > .agent-avatar-mouth {
+  position: absolute;
+  pointer-events: none;
+}
+
 /* A photo has no silhouette to stroke, so the same ring is an outline on its circle. */
 .agent-avatar-custom {
   overflow: hidden;
@@ -2510,6 +2520,7 @@ textarea {
    past its body: 316 units drawn over the 200 the image fills, so the layer is
    158% of the avatar box and sits (158% - 100%) / 2 outside it on each side. */
 .agent-avatar > .agent-avatar-arcs {
+  pointer-events: none;
   position: absolute;
   inset: -29%;
   width: auto;
@@ -2533,10 +2544,13 @@ textarea {
 .avatar-editor {
   position: relative;
   z-index: var(--openbot-layer-popover);
-  width: min(284px, calc(var(--settings-panel-width, 360px) - 30px));
+  width: min(360px, calc(var(--settings-panel-width, 360px) - 30px));
+  max-height: calc(100dvh - var(--openbot-space-8));
+  overscroll-behavior: contain;
   max-width: calc(100vw - 24px);
   margin: 0;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   border: 1px solid var(--openbot-border);
   border-radius: var(--openbot-radius-lg);
   background: var(--openbot-bg-overlay);

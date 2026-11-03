@@ -8,6 +8,7 @@ import {
   POSES,
   RAYON,
 } from "@norbert_bodziony/bloub";
+import type { AvatarCharacter } from "@openbot/brand/bloub-avatar";
 import {
   type AvatarMood,
   avatarMoodIsBusy,
@@ -21,6 +22,7 @@ import { createEffect, createMemo, createSignal, createUniqueId, For, onSettled,
 import { type AvatarMotion, bloubAvatarProfile, type SupportedAvatarSilhouetteId } from "../../bloub-avatar";
 import type { AgentProfile } from "../../data";
 import { createPointerGaze } from "./avatar-pointer-gaze";
+import { CharacterAvatar } from "./CharacterAvatar";
 
 // Cap avatar animation at 30fps: uncapped bloub clocks measured 30% renderer / 24% GPU
 // for two visible avatars. The shape is 24-40px, so the eye cannot see the difference.
@@ -56,7 +58,8 @@ function slowerBlock(state: ShapeSafeStateId): Block {
 }
 
 interface AgentAvatarProps {
-  agent?: Pick<AgentProfile, "avatarSeed" | "avatarHue" | "avatarUrl"> | undefined;
+  agent?: Pick<AgentProfile, "avatarSeed" | "avatarHue" | "avatarUrl" | "avatarCharacter"> | undefined;
+  character?: AvatarCharacter | undefined;
   seed?: string | undefined;
   hue?: AvatarHue | null;
   url?: string | null | undefined;
@@ -77,6 +80,11 @@ interface AgentAvatarProps {
 
 export function AgentAvatar(props: AgentAvatarProps) {
   const seed = () => props.seed ?? props.agent?.avatarSeed ?? "agent";
+  const character = () => props.character ?? props.agent?.avatarCharacter ?? "shape";
+  const characterKind = () => {
+    const kind = character();
+    return kind === "shape" ? "orb" : kind;
+  };
   const hue = () => (props.hue !== undefined ? props.hue : (props.agent?.avatarHue ?? null));
   const motion = () => props.motion ?? "hover";
   const url = () => (props.url !== undefined ? props.url : (props.agent?.avatarUrl ?? null));
@@ -102,19 +110,35 @@ export function AgentAvatar(props: AgentAvatarProps) {
     <Show
       when={url() && !imageFailed()}
       fallback={
-        <GeneratedAvatar
-          seed={seed()}
-          hue={hue()}
-          motion={motion()}
-          mood={mood()}
-          cycleOffset={props.cycleOffset}
-          animationOffset={props.animationOffset}
-          shape={props.shape}
-          followPointer={props.followPointer === true}
-          breathe={breathe()}
-          class={className()}
-          style={style()}
-        />
+        <Show
+          when={character() === "shape"}
+          fallback={
+            <CharacterAvatar
+              kind={characterKind()}
+              seed={seed()}
+              hue={hue()}
+              motion={motion()}
+              mood={mood()}
+              followPointer={props.followPointer === true}
+              class={className()}
+              style={props.style ?? {}}
+            />
+          }
+        >
+          <GeneratedAvatar
+            seed={seed()}
+            hue={hue()}
+            motion={motion()}
+            mood={mood()}
+            cycleOffset={props.cycleOffset}
+            animationOffset={props.animationOffset}
+            shape={props.shape}
+            followPointer={props.followPointer === true}
+            breathe={breathe()}
+            class={className()}
+            style={style()}
+          />
+        </Show>
       }
     >
       <span
@@ -280,6 +304,8 @@ function GeneratedAvatar(props: {
   style?: Record<string, string>;
 }) {
   let element: HTMLSpanElement | undefined;
+  let mouth: SVGPathElement | undefined;
+  let mouthMask: SVGPathElement | undefined;
   const gaze = createPointerGaze();
   const [interacting, setInteracting] = createSignal(false);
   const [reducedMotion, setReducedMotion] = createSignal(prefersReducedMotion());
@@ -300,6 +326,60 @@ function GeneratedAvatar(props: {
     !reducedMotion() &&
     (props.followPointer || avatarMoodIsBusy(props.mood) || !STATIC_MOTIONS.has(props.motion) || interacting());
   const gazeScript = createMemo(() => (props.followPointer ? gaze.script : null));
+
+  onSettled(() => {
+    if (!element || !mouth || !mouthMask) return;
+    const face = element;
+    const lip = mouth;
+    const mask = mouthMask;
+    // Bloub exposes no face-frame callback. Its mask holds the two projected eye
+    // paths. Read their final transforms so the mouth follows the same gaze,
+    // drift and roll without a second animation clock or a layout measurement.
+    const sync = () => {
+      const body = face.querySelector<SVGPathElement>(".bloub-avatar-svg > g:nth-of-type(2) > path:first-child");
+      const silhouette = body?.getAttribute("d") ?? "";
+      if (mask.getAttribute("d") !== silhouette) mask.setAttribute("d", silhouette);
+      const eyes = face.querySelectorAll<SVGPathElement>(".bloub-avatar-svg mask > path[transform]");
+      const left = eyes[0];
+      const right = eyes[1];
+      if (!left || !right) {
+        lip.setAttribute("opacity", "0");
+        return;
+      }
+      const a = new DOMMatrix(left.getAttribute("transform") ?? undefined);
+      const b = new DOMMatrix(right.getAttribute("transform") ?? undefined);
+      const dx = b.e - a.e;
+      const dy = b.f - a.f;
+      const scale = Math.min(1.15, Math.max(0.25, Math.hypot(dx, dy) / 53));
+      const roll = (Math.atan2(dy, dx) * 180) / Math.PI;
+      lip.setAttribute(
+        "transform",
+        `translate(${(a.e + b.e) / 2} ${(a.f + b.f) / 2}) rotate(${roll}) translate(0 52) scale(${scale} 1) translate(0 -34)`,
+      );
+      lip.setAttribute(
+        "opacity",
+        String(Math.min(Number(left.getAttribute("opacity") ?? 1), Number(right.getAttribute("opacity") ?? 1))),
+      );
+    };
+    const observer = new MutationObserver((records) => {
+      if (
+        records.some(
+          (record) =>
+            record.type === "childList" ||
+            (record.target instanceof Element && record.target.closest(".bloub-avatar-svg")),
+        )
+      )
+        sync();
+    });
+    observer.observe(face, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["d", "transform", "opacity"],
+    });
+    sync();
+    return () => observer.disconnect();
+  });
   const motionCycle = () => {
     if (props.mood !== "idle") return [slowerBlock(presentation().state)];
     return cycle();
@@ -402,7 +482,68 @@ function GeneratedAvatar(props: {
           {avatar()}
         </Show>
       </AvatarRings>
+      <AvatarMouth
+        mood={props.mood}
+        maskRef={(path) => {
+          mouthMask = path;
+        }}
+        pathRef={(path) => {
+          mouth = path;
+        }}
+      />
     </span>
+  );
+}
+
+// Bloub draws eyes but has no mouth API. This custom SVG is part of the face,
+// not an icon. It shares the viewBox and optical offset of the generated avatar.
+// Image avatars keep their original artwork and never receive this layer.
+function AvatarMouth(props: {
+  mood: AvatarMood;
+  pathRef: (path: SVGPathElement) => void;
+  maskRef: (path: SVGPathElement) => void;
+}) {
+  const clipId = createUniqueId();
+  const path = () => {
+    switch (props.mood) {
+      case "failed":
+        return "M -16 41 Q 0 24 16 41";
+      case "working":
+      case "connecting":
+        return "M -12 34 Q 0 39 12 34";
+      case "waiting":
+        return "M -6 34 C -6 24 6 24 6 34 C 6 44 -6 44 -6 34";
+      case "asleep":
+        return "M -10 35 Q 0 38 10 35";
+      case "responded":
+        return "M -21 28 Q 0 58 21 28 Z";
+      default:
+        return "M -18 31 Q 0 51 18 31";
+    }
+  };
+  return (
+    <svg
+      class="agent-avatar-mouth"
+      viewBox={`${-DEMI_VIEWBOX} ${-DEMI_VIEWBOX} ${DEMI_VIEWBOX * 2} ${DEMI_VIEWBOX * 2}`}
+      aria-hidden="true"
+    >
+      <defs>
+        <clipPath id={clipId}>
+          <path ref={props.maskRef} />
+        </clipPath>
+      </defs>
+      <g clip-path={`url(#${clipId})`}>
+        <path
+          ref={props.pathRef}
+          d={path()}
+          fill="none"
+          stroke="var(--openbot-logo-eye)"
+          stroke-width="6"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        />
+      </g>
+    </svg>
   );
 }
 

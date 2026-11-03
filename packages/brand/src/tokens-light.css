@@ -22,24 +22,25 @@
 :root[data-openbot-color-scheme="light"] {
   color-scheme: light;
 
-  --openbot-bg-canvas: #f5f5f6;
+  --openbot-bg-canvas: #f8f3fb;
   --openbot-task-card-bg: #ffffff;
-  --openbot-bg-canvas-clear: rgba(245, 245, 246, 0);
-  --openbot-bg-frame: #e8e8eb;
-  --openbot-bg-sidebar: #f5f5f6;
-  --openbot-bg-native-sidebar: #f5f5f6;
+  --openbot-bg-canvas-clear: rgba(248, 243, 251, 0);
+  --openbot-bg-frame: #ede3f2;
+  --openbot-bg-sidebar: #f2eaf7;
+  --openbot-bg-native-canvas: #f8f3fb;
+  --openbot-bg-native-sidebar: #f2eaf7;
   --openbot-bg-sheet: #ffffff;
   --openbot-bg-sheet-inset: #f0f0f2;
   --openbot-bg-grouped: #ffffff;
-  --openbot-text-grouped-secondary: #6b6b70;
-  --openbot-border-grouped: #e3e3e6;
+  --openbot-text-grouped-secondary: #6f587b;
+  --openbot-border-grouped: #e3d7e9;
   --openbot-marketplace-detail-bg: #ececee;
   --openbot-bg-surface: #ffffff;
   --openbot-bg-surface-raised: #fcfcfc;
   --openbot-bg-control: #ffffff;
-  --openbot-bg-control-hover: #f0f0f2;
+  --openbot-bg-control-hover: #f0e7f6;
   --openbot-bg-control-active: #e8e8eb;
-  --openbot-tabs-bar-bg: #ececee;
+  --openbot-tabs-bar-bg: #ede3f2;
   --openbot-tabs-pill-bg: #ffffff;
   --openbot-bg-overlay: rgba(245, 245, 246, 0.92);
   --openbot-dialog-overlay: rgba(20, 20, 20, 0.12);
@@ -75,12 +76,11 @@
   --openbot-text-dim-on-light: rgba(255, 255, 255, 0.4);
   --openbot-border-on-light: rgba(255, 255, 255, 0.16);
 
-  /* The same hue 210 as the dark accent. The fill keeps its value, so a button looks the same
-     in both themes; text and hover go darker for contrast (accent-text 5.3:1 on the canvas). */
-  --openbot-accent-hover: #006ad4;
-  --openbot-accent-text: #0064c8;
-  --openbot-accent-soft: rgba(0, 124, 247, 0.12);
-  --openbot-accent-strong: rgba(0, 124, 247, 0.26);
+  /* Darker violet text keeps the light theme readable. */
+  --openbot-accent-hover: #6750c4;
+  --openbot-accent-text: #6042ae;
+  --openbot-accent-soft: rgba(119, 98, 217, 0.12);
+  --openbot-accent-strong: rgba(119, 98, 217, 0.26);
 
   /* Chart series: darker steps of the dark-palette hues, so each series reads on white.
      Not yet checked with the dataviz palette validator in light mode. */

@@ -133,7 +133,7 @@ export function AgentCard({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={installed ? t("mobile.marketplace.row.installed", { name: listing.name }) : listing.name}
-      className="w-44 overflow-hidden rounded-grouped bg-grouped"
+      className="w-44 overflow-hidden rounded-3xl border border-grouped-border bg-grouped"
       style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1, borderCurve: "continuous" })}
       onPress={() => {
         void haptics.impact("soft");

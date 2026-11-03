@@ -219,6 +219,7 @@ export class InstanceTransferService {
         id: agent.id,
         name: agent.name,
         title: agent.title,
+        ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
         avatarSeed: agent.avatarSeed,
         avatarHue: agent.avatarHue,
         avatarUrl: agent.avatarUrl,
@@ -324,6 +325,7 @@ export class InstanceTransferService {
         name: agent.name,
         title: agent.title,
         description: agent.description,
+        ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
         avatarSeed: agent.avatarSeed,
         avatarHue: agent.avatarHue,
         avatar,
@@ -849,6 +851,7 @@ export class InstanceTransferService {
           description: source.description,
           avatarSeed: AVATAR_SEED_PATTERN.test(source.avatarSeed) ? source.avatarSeed : `${source.key}-${randomUUID()}`,
           avatarHue: source.avatarHue,
+          ...(source.avatarCharacter === undefined ? {} : { avatarCharacter: source.avatarCharacter }),
           ...(useModel
             ? { provider: source.provider, model: source.model, reasoningEffort: source.reasoningEffort }
             : {}),

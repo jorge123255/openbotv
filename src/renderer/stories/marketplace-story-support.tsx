@@ -242,6 +242,8 @@ export interface StoryProps {
   manyAgents?: boolean;
   /** No agent has a skill yet. */
   noSkills?: boolean;
+  /** A host connection is in flight, before it has a saved row. */
+  pendingPlugin?: string;
   /** The agents dialog of this skill is open over the window. */
   dialogSkill?: string;
   /** Listings that the user already has, and the state of each. By default, the second agent is added. */
@@ -332,7 +334,7 @@ export function MarketplaceStory(props: StoryProps) {
         }),
       ),
     ],
-    busy: {},
+    busy: props.pendingPlugin ? { [props.pendingPlugin]: true } : {},
     notice: "",
   });
   const [error, setError] = createSignal<string | null>(null);

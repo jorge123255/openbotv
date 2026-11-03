@@ -85,7 +85,7 @@ export function WorkflowSwitcher(props: {
         </DropdownMenu.Item>
         <DropdownMenu.Separator />
         <Show when={props.versions.length > 0}>
-          <DropdownMenu.Sub>
+          <DropdownMenu.Sub overlap>
             <DropdownMenu.SubTrigger disabled={props.versionsDisabled}>
               <History class="agent-context-icon" aria-hidden="true" />
               <span>{t("workflow.canvas.switcher.versions")}</span>

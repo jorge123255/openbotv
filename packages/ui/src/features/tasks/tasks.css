@@ -17,9 +17,9 @@
 
 .tasks-page-column {
   display: flex;
-  max-width: 36rem;
+  max-width: 52rem;
   flex-direction: column;
-  gap: var(--openbot-space-1);
+  gap: var(--openbot-space-4);
   margin: 0 auto;
 }
 
@@ -67,7 +67,7 @@
   top: 0;
   margin-bottom: var(--openbot-space-2);
   background: var(--openbot-bg-canvas);
-  padding: var(--openbot-space-1) 0 0;
+  padding: var(--openbot-space-4) 0;
 }
 
 .tasks-page-composer .composer-notice {
@@ -164,7 +164,11 @@
 .tasks-page-section {
   display: flex;
   flex-direction: column;
-  gap: var(--openbot-space-0-5);
+  gap: var(--openbot-space-3);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-sidebar);
+  padding: var(--openbot-space-4);
 }
 
 .tasks-page-section + .tasks-page-section {
@@ -192,7 +196,7 @@
 .tasks-page-list {
   display: flex;
   flex-direction: column;
-  gap: var(--openbot-space-0-5);
+  gap: var(--openbot-space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -201,13 +205,16 @@
 .tasks-page-row.ui-button {
   display: grid;
   width: 100%;
-  height: var(--openbot-control-lg);
+  min-height: var(--openbot-control-xl);
+  height: auto;
   align-items: center;
   justify-content: stretch;
   grid-template-columns: 16px minmax(0, 1fr) auto auto;
   gap: var(--openbot-space-3);
-  border-radius: var(--openbot-radius-md);
-  padding: 0 var(--openbot-space-2);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-lg);
+  background: var(--openbot-bg-surface);
+  padding: var(--openbot-space-3);
   font-size: var(--openbot-text-md);
   font-weight: var(--openbot-weight-regular);
   text-align: left;
@@ -485,5 +492,25 @@ li[data-arrived] > .tasks-page-row {
   .tasks-page-agent-chevron,
   .tasks-page-empty-row {
     transition: none;
+  }
+}
+
+.tasks-page-empty-section.tasks-page-section {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+.tasks-page-empty-row.tasks-page-row {
+  min-height: var(--openbot-control-lg);
+  height: var(--openbot-control-lg);
+  padding-block: 0;
+}
+@media (max-width: 720px) {
+  .tasks-page-scroll {
+    padding-inline: var(--openbot-space-3);
+  }
+  .tasks-page-section {
+    padding: var(--openbot-space-3);
   }
 }

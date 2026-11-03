@@ -292,7 +292,9 @@
   font-weight: var(--openbot-weight-medium);
   line-height: var(--openbot-leading-sm);
   overflow-wrap: anywhere;
-  pointer-events: none;
+  /* Kobalte's layer stack writes inline pointer-events:auto. Plain labels must let clicks
+   * reach the controls below, including while menu-motion moves them. Cards use a separate class. */
+  pointer-events: none !important;
 }
 
 .ui-motion-tooltip-label > span {

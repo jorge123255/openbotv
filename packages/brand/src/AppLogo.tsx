@@ -1,11 +1,19 @@
-import { createEffect, createSignal, flush, onCleanup } from "solid-js";
-import { APP_LOGO_CORNER, APP_LOGO_EYE_POINTS, APP_LOGO_SIZE } from "./app-logo-shape";
+import { createEffect, createSignal, flush, onCleanup, Show } from "solid-js";
+import {
+  APP_LOGO_CORNER,
+  APP_LOGO_EYE_POINTS,
+  APP_LOGO_SIZE,
+  BOTAI_LOGO_EYES,
+  BOTAI_LOGO_PATH,
+} from "./app-logo-shape";
 
 export type AppLogoAnimation = "none" | "blink" | "look-around" | "surprised";
 export type AppLogoVariant = "production" | "dev" | "preview";
 
 export interface AppLogoProps {
   variant: AppLogoVariant;
+  artwork?: "upstream" | "botai";
+  label?: string;
   animation?: AppLogoAnimation;
   interactive?: boolean;
   /**
@@ -135,6 +143,7 @@ export function AppLogo(props: AppLogoProps) {
     <svg
       ref={(element) => (logoElement = element)}
       class={className()}
+      data-artwork={props.artwork}
       data-animation={animation()}
       data-click-reaction={clickReaction() ? "wink" : undefined}
       data-easter-egg={easterEgg() ? "party" : undefined}
@@ -142,7 +151,7 @@ export function AppLogo(props: AppLogoProps) {
       data-variant={props.variant}
       viewBox={`0 0 ${APP_LOGO_SIZE} ${APP_LOGO_SIZE}`}
       aria-hidden={props.interactive ? undefined : "true"}
-      aria-label={props.interactive ? "Animate OpenBot logo" : undefined}
+      aria-label={props.interactive ? (props.label ?? "Animate OpenBot logo") : undefined}
       role={props.interactive ? "button" : undefined}
       tabindex={props.interactive ? 0 : undefined}
       onClick={handleClick}
@@ -150,19 +159,76 @@ export function AppLogo(props: AppLogoProps) {
       onPointerLeave={handlePointerLeave}
       onPointerMove={handlePointerMove}
     >
-      <rect
-        class="app-logo-background"
-        width={APP_LOGO_SIZE}
-        height={APP_LOGO_SIZE}
-        rx={APP_LOGO_CORNER}
-        ry={APP_LOGO_CORNER}
+      <Show
+        when={props.artwork === "botai"}
+        fallback={
+          <>
+            <rect
+              class="app-logo-background"
+              width={APP_LOGO_SIZE}
+              height={APP_LOGO_SIZE}
+              rx={APP_LOGO_CORNER}
+              ry={APP_LOGO_CORNER}
+            />
+            <g class="app-logo-eye-motion">
+              <polyline class="app-logo-eye app-logo-eye-left" points={APP_LOGO_EYE_POINTS.left} />
+            </g>
+            <g class="app-logo-eye-motion">
+              <polyline class="app-logo-eye app-logo-eye-right" points={APP_LOGO_EYE_POINTS.right} />
+            </g>
+          </>
+        }
+      >
+        <BotAiGlyph color="var(--app-logo-background)" />
+      </Show>
+    </svg>
+  );
+}
+
+function BotAiGlyph(props: { color: string }) {
+  return (
+    <>
+      <path
+        d={BOTAI_LOGO_PATH}
+        fill="none"
+        stroke={props.color}
+        stroke-width="30"
+        stroke-linecap="round"
+        stroke-linejoin="round"
       />
       <g class="app-logo-eye-motion">
-        <polyline class="app-logo-eye app-logo-eye-left" points={APP_LOGO_EYE_POINTS.left} />
+        <circle
+          class="app-logo-botai-eye app-logo-eye-left"
+          cx={BOTAI_LOGO_EYES.left.x}
+          cy={BOTAI_LOGO_EYES.left.y}
+          r={BOTAI_LOGO_EYES.left.radius}
+          fill={props.color}
+        />
       </g>
       <g class="app-logo-eye-motion">
-        <polyline class="app-logo-eye app-logo-eye-right" points={APP_LOGO_EYE_POINTS.right} />
+        <circle
+          class="app-logo-botai-eye app-logo-eye-right"
+          cx={BOTAI_LOGO_EYES.right.x}
+          cy={BOTAI_LOGO_EYES.right.y}
+          r={BOTAI_LOGO_EYES.right.radius}
+          fill={props.color}
+        />
       </g>
+    </>
+  );
+}
+
+/** BotAI's linked B is GUI brand artwork. The upstream app icon stays in AppLogo. */
+export function BotAiMark(props: { variant: AppLogoVariant; class?: string }) {
+  return (
+    <svg
+      class={props.class}
+      data-variant={props.variant}
+      viewBox={`0 0 ${APP_LOGO_SIZE} ${APP_LOGO_SIZE}`}
+      fill="none"
+      aria-hidden="true"
+    >
+      <BotAiGlyph color="currentColor" />
     </svg>
   );
 }

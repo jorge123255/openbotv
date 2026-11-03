@@ -153,6 +153,7 @@ import {
   type WorkspaceDirectory,
 } from "@openbot/contracts/ipc";
 import { sourceText } from "@openbot/i18n/source";
+import { avatarImageDataUrl } from "@openbot/ui/avatar-image";
 import {
   AGENT_IMPORT_PREVIEW,
   AGENT_IMPORT_SKILL,
@@ -1039,6 +1040,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
       workspacePath: input.workspacePath ?? `/mock/OpenBot/Agents/${id}`,
       preview: input.preview ?? "No messages yet",
       updatedAt: input.updatedAt ?? null,
+      ...(input.avatarCharacter === undefined ? {} : { avatarCharacter: input.avatarCharacter }),
       avatarSeed: input.avatarSeed ?? id,
       avatarHue: input.avatarHue ?? null,
       avatarUrl: input.avatarUrl ?? null,
@@ -1733,6 +1735,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           name: agent.name,
           title: agent.title,
           description: agent.description,
+          ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
           avatarSeed: agent.avatarSeed,
           avatarHue: agent.avatarHue,
           avatarUrl: agent.avatarUrl,
@@ -2249,6 +2252,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         name: input.draft?.name ?? "Research partner",
         title: input.draft?.title ?? "Research assistant",
         description: input.prompt.slice(0, 2000),
+        ...(input.draft?.avatarCharacter === undefined ? {} : { avatarCharacter: input.draft.avatarCharacter }),
         avatarSeed: input.draft?.avatarSeed ?? "profile:research",
         avatarHue: input.draft?.avatarHue ?? 215,
         sectionId: input.draft?.sectionId ?? null,
@@ -2274,6 +2278,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
           name: input.name,
           title: "",
           description: input.description,
+          ...(input.avatarCharacter === undefined ? {} : { avatarCharacter: input.avatarCharacter }),
           avatarSeed: input.avatarSeed,
           avatarHue: input.avatarHue,
           ...(input.provider === undefined ? {} : { provider: input.provider }),
@@ -2402,7 +2407,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
         if (!current) throw new Error("Agent not found");
         const updated = {
           ...current,
-          avatarUrl: input.image ? `mock-avatar://${input.agentId}` : null,
+          avatarUrl: input.image ? avatarImageDataUrl(input.image) : null,
         };
         agents = agents.map((agent) => (agent.id === updated.id ? updated : agent));
         emitAgentEvent({ type: "agents-changed", agents });
@@ -3325,6 +3330,7 @@ export function createMockOpenBot(options: MockOpenBotOptions = {}): MockOpenBot
             id: agent.id,
             name: agent.name,
             title: agent.title,
+            ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
             avatarSeed: agent.avatarSeed,
             avatarHue: agent.avatarHue,
             avatarUrl: agent.avatarUrl,

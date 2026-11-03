@@ -4,8 +4,10 @@ import { isAgentAdditionalFolders } from "./ipc-agent-folders";
 import {
   type AgentModelId,
   type AgentReasoningEffort,
+  type AvatarCharacter,
   type AvatarHue,
   isAgentModel,
+  isAvatarCharacter,
   isAvatarHue,
   isAvatarSeed,
   isReasoningEffort,
@@ -309,6 +311,8 @@ export interface AgentSummary {
   workspacePath: string;
   preview: string;
   updatedAt: string | null;
+  /** Local appearance choice; absence keeps the full seed as a shape. Not in frozen Team DTOs. */
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   avatarUrl: string | null;
@@ -368,6 +372,7 @@ function hasAgentSummaryFields(value: DynamicRecord): boolean {
     isBoundedString(value.workspacePath, INPUT_LIMITS.path) &&
     isBoundedString(value.preview, INPUT_LIMITS.messageText) &&
     (value.updatedAt === null || isBoundedString(value.updatedAt, 160)) &&
+    (value.avatarCharacter === undefined || isAvatarCharacter(value.avatarCharacter)) &&
     isAvatarSeed(value.avatarSeed) &&
     (value.avatarHue === null || isAvatarHue(value.avatarHue)) &&
     (value.avatarUrl === null || isBoundedString(value.avatarUrl, INPUT_LIMITS.avatarUrl)) &&
@@ -378,6 +383,8 @@ function hasAgentSummaryFields(value: DynamicRecord): boolean {
 export interface CreateAgentInput {
   name: string;
   description: string;
+  /** Local appearance choice; absence keeps the full seed as a shape. Not in frozen Team DTOs. */
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   initialMessage: string;
@@ -423,6 +430,7 @@ export interface UpdateAgentInput {
    * back to its current model when that limit ends. Ignored when no limit holds the agent.
    */
   leaveUsageLimit?: boolean;
+  avatarCharacter?: AvatarCharacter;
   avatarSeed?: string;
   avatarHue?: AvatarHue | null;
 }

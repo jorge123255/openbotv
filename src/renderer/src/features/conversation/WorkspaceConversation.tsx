@@ -33,6 +33,7 @@ import { useAuth } from "../account/account-context";
 import { useAgentTasks } from "../agent-tasks/agent-tasks-context";
 import { useAgentThreads } from "../agent-threads/agent-threads-context";
 import { conversationThreads } from "../agent-threads/conversation-threads";
+import { useAgentAvatarMoods } from "../agents/agent-avatar-moods";
 import { attentionKey } from "../agents/agent-runtime-snapshot";
 import { agentThreadAttention } from "../agents/agent-thread-attention";
 import { useAgents } from "../agents/agents-context";
@@ -72,6 +73,7 @@ import type { ConversationThreads } from "./conversation-types";
 
 export function WorkspaceConversation(props: { account: () => CentralAuthUser }) {
   const scopeIsCurrent = createScopeGuard();
+  const agentMoods = useAgentAvatarMoods();
   const serverScope = useServerScope();
   const platform = usePlatform();
   const connectors = useConnectors();
@@ -308,10 +310,14 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
   };
 
   /** Access of a joined server's agent goes to its host; every other field keeps the Team API route. */
-  async function updateConversationAgent(agentId: string, updates: Omit<UpdateAgentInput, "agentId">): Promise<void> {
-    if (activeServer()?.kind === "local") return updateAgent(agentId, updates);
+  async function updateConversationAgent(
+    agentId: string,
+    updates: Omit<UpdateAgentInput, "agentId">,
+    shouldReportError?: () => boolean,
+  ): Promise<void> {
+    if (activeServer()?.kind === "local") return updateAgent(agentId, updates, shouldReportError);
     await updateRemoteAgent(remoteAgentAdmin, { agentId, ...updates }, ({ agentId: id, ...rest }) =>
-      updateAgent(id, rest),
+      updateAgent(id, rest, shouldReportError),
     );
   }
 
@@ -519,6 +525,7 @@ export function WorkspaceConversation(props: { account: () => CentralAuthUser })
         onManageBrowserProfiles={manageBrowserProfiles() ? openBrowserProfileSettings : undefined}
         onOpenNotificationSettings={openNotificationLevels}
         agent={conversationAgent()}
+        avatarMood={activeAgent() ? (agentMoods()[activeAgent()?.id ?? ""] ?? "idle") : undefined}
         agents={agentList()}
         mentionAgents={agentList().filter((agent) => !userHiddenAgentIds().has(agent.id))}
         availableRoutineIds={activeRoutineIds()}

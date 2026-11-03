@@ -33,6 +33,7 @@
 @import "@openbot/ui/styles/provider-code-login.css";
 @import "@openbot/ui/features/conversation/conversation.css";
 @import "@openbot/ui/features/channels/channel-avatar.css";
+@import "@openbot/ui/features/agents/character-avatar.css";
 @import "./features/channels/channels.css";
 @import "@openbot/ui/features/channels/channel-activity.css";
 @import "@openbot/ui/features/diagrams/diagrams.css";

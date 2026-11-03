@@ -102,6 +102,7 @@ export function landingRuntimeSnapshot(
       notifications: agent.notifications,
       preview: agent.preview,
       updatedAt: agent.updatedAt,
+      ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
       avatarSeed: agent.avatarSeed,
       avatarHue: agent.avatarHue ?? null,
       avatarUrl: agent.avatarUrl ?? null,

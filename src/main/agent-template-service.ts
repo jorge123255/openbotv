@@ -105,6 +105,7 @@ interface AgentTemplateAgents {
     name: string;
     title?: string;
     description: string;
+    avatarCharacter?: AgentTemplateSnapshot["avatarCharacter"];
     avatarSeed: string;
     avatarHue: AgentTemplateSnapshot["avatarHue"];
   }): Effect.Effect<AgentSummary, AgentLifecycleFailed>;
@@ -288,6 +289,7 @@ export class AgentTemplateService {
           name: detail.name,
           ...(detail.title ? { title: detail.title } : {}),
           description: detail.description,
+          ...(detail.avatarCharacter === undefined ? {} : { avatarCharacter: detail.avatarCharacter }),
           avatarSeed: detail.avatarSeed,
           avatarHue: detail.avatarHue,
         })
@@ -369,6 +371,7 @@ export class AgentTemplateService {
       name: agent.name,
       title: agent.title,
       description: agent.description,
+      ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
       avatarSeed: agent.avatarSeed,
       avatarHue: agent.avatarHue,
       skills,

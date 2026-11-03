@@ -75,6 +75,7 @@ export function AgentTemplateInstallDialog(props: AgentTemplateInstallDialogProp
                     <header class="agent-template-identity">
                       <AgentAvatar
                         seed={detail().avatarSeed}
+                        character={detail().avatarCharacter}
                         hue={detail().avatarHue}
                         url={detail().avatarUrl}
                         motion="idle"

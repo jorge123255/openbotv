@@ -162,8 +162,8 @@ for each device or pose: a folded iPhone Duo is a compact window, and an open on
 
 ## Sheets
 
-The sheet style is a neutral iOS-style grouped surface: a white/light-gray sheet in light mode,
-charcoal in dark mode, gently contrasting groups, muted descriptions, inset separators and soft
+The sheet uses the BotAI palette: a pale lilac canvas with white groups in light mode,
+and a plum canvas with aubergine groups in dark mode. Keep clear group borders and muted descriptions, inset separators and soft
 16 pt group corners. Keep this visual language consistent across settings, add/edit forms and
 other sheets. The system owns the outer sheet shape and presentation. On Android, the system sheet
 has square corners, so the parent stack sets `sheetCornerRadius: 28` there.

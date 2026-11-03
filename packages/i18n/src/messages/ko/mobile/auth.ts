@@ -2,7 +2,6 @@ import type { PartialTranslation } from "../../../message";
 import type { messages as source } from "../../en/mobile/auth";
 
 export const messages = {
-  "mobile.auth.logo.animate": "OpenBot 로고 애니메이션",
   "mobile.auth.logo.animateHint": "로고가 윙크해요",
   "mobile.auth.scanQrCode": "QR 코드 스캔",
   "mobile.auth.closeScanner": "스캐너 닫기",

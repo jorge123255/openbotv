@@ -57,6 +57,7 @@ export interface DynamicIslandPresentationInput {
 export interface DynamicIslandAgentSource {
   id: string;
   name: string;
+  avatarCharacter?: DynamicIslandAgentIdentity["avatarCharacter"];
   avatarSeed: string;
   avatarHue: DynamicIslandAgentIdentity["avatarHue"];
   avatarUrl: string | null;
@@ -350,6 +351,7 @@ function agentIdentity(agent: DynamicIslandAgentSource): DynamicIslandAgentIdent
   return {
     id: agent.id,
     name: agent.name,
+    ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
     avatarSeed: agent.avatarSeed,
     avatarHue: agent.avatarHue,
     avatarUrl: agent.avatarUrl,

@@ -41,6 +41,30 @@ const at = (start: (nav: MarketplaceNavigation) => void, props: Omit<StoryProps,
 
 export const Apps: Story = {};
 
+export const PluginsManage = at((nav) =>
+  nav.set((draft) => {
+    draft.pluginMode = "manage";
+  }),
+);
+
+export const PluginsCreate = at((nav) =>
+  nav.set((draft) => {
+    draft.pluginMode = "create";
+  }),
+);
+
+export const PluginsReconnect = at(
+  (nav) =>
+    nav.set((draft) => {
+      draft.pluginMode = "manage";
+    }),
+  {
+    held: { notion: "signInNeeded" },
+  },
+);
+
+export const PluginsPendingConnection: Story = { render: () => <MarketplaceStory held={{}} pendingPlugin="notion" /> };
+
 export const Narrow: Story = { parameters: { viewport: { defaultViewport: "marketplaceNarrow" } } };
 
 export const Agents = at(tab("agents"));

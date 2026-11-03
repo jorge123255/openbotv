@@ -767,7 +767,12 @@ function CompactLeading(props: {
       <Switch
         fallback={
           <span class="dynamic-island-surface-leading-anchor" data-island-spatial-anchor="center">
-            <AppLogo variant={props.variant ?? "production"} animation="blink" class="dynamic-island-surface-logo" />
+            <AppLogo
+              variant={props.variant ?? "production"}
+              artwork="botai"
+              animation="blink"
+              class="dynamic-island-surface-logo"
+            />
           </span>
         }
       >

@@ -1,5 +1,6 @@
 import type { BrowserTakeoverRequest, QueueDelivery } from "@openbot/contracts/ipc";
 import { BrowserDock } from "@openbot/ui/features/browser/BrowserDock";
+import { createSignal } from "solid-js";
 import { fn } from "storybook/test";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { requireFixture, STORY_AGENTS } from "./fixtures";
@@ -105,5 +106,36 @@ export const Reply: Story = {
       id: "reply-1",
       body: "The Team plan is the cheapest with SSO: 12 € per seat each month, billed yearly.",
     },
+  },
+};
+
+/** An explicit style changes fixture artwork only; its seed and agent identity stay literal. */
+export const BotAiCharacter: Story = {
+  args: {
+    agent: { ...chief, avatarCharacter: "comet" },
+    agents: [{ ...chief, avatarCharacter: "comet" }, ...STORY_AGENTS.slice(1)],
+  },
+};
+
+/** Real dock editing and submission over synthetic callbacks only. */
+export const InteractiveBotAi: Story = {
+  render: (args) => {
+    const [value, setValue] = createSignal("");
+    const [sent, setSent] = createSignal("");
+    return (
+      <>
+        <output aria-label="Sent fixture message">{sent()}</output>
+        <BrowserDock
+          {...args}
+          agent={{ ...chief, avatarCharacter: "comet" }}
+          value={value()}
+          onValueChange={setValue}
+          onSend={() => {
+            setSent(value());
+            setValue("");
+          }}
+        />
+      </>
+    );
   },
 };

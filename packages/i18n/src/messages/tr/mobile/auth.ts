@@ -2,7 +2,6 @@ import type { PartialTranslation } from "../../../message";
 import type { messages as source } from "../../en/mobile/auth";
 
 export const messages = {
-  "mobile.auth.logo.animate": "OpenBot logosunu hareketlendir",
   "mobile.auth.logo.animateHint": "Logonun göz kırpmasını sağlar",
   "mobile.auth.scanQrCode": "QR kodunu tara",
   "mobile.auth.closeScanner": "Tarayıcıyı kapat",

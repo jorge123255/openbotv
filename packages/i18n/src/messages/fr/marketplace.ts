@@ -22,7 +22,6 @@ export const messages = {
   "marketplace.kinds": "Types de contenu de la Marketplace",
   "marketplace.tab.agents": "Agents",
   "marketplace.tab.skills": "Compétences",
-  "marketplace.description.apps": "Connectez les outils et les services avec lesquels vos agents travaillent.",
   "marketplace.description.agents": "Des agents prêts à l’emploi, avec leurs propres instructions et compétences.",
   "marketplace.description.skills": "Des instructions qui apprennent une tâche ou un outil à un agent.",
 

@@ -35,6 +35,7 @@ interface Report {
   sourceLock?: Array<{ slug: string; folders: number }>;
   importedLock?: Array<{ slug: string; folders: number }>;
   skillFiles?: { source: number; imported: number };
+  characterPreserved?: boolean;
   reason?: string;
 }
 const report: Report = { status: "running" };
@@ -140,12 +141,17 @@ async function lockedFolders(workspace: string): Promise<Array<{ slug: string; f
 
 try {
   const source = agentSummary("agent-source", "Source");
+  source.avatarSeed = "character:pebble:chief";
+  source.avatarCharacter = "wisp";
   const agents: AgentSummary[] = [source];
   await mkdir(source.workspacePath, { recursive: true });
   const library = new LocalSkillLibrary(join(root, "local-skills"), () => agents);
   const skills = new SkillMarketplaceService(
     new CatalogAuth({
       apiUrl: "https://example.invalid",
+      fetch: async () => {
+        throw new Error("Network is disabled in this synthetic transfer fixture.");
+      },
       storagePath: join(root, "auth.json"),
       canPersist: () => false,
       encrypt: (value) => Buffer.from(value),
@@ -171,6 +177,9 @@ try {
     createAgentProfile: (input) =>
       Effect.promise(async () => {
         const created = agentSummary(`agent-imported-${agents.length}`, input.name);
+        created.avatarSeed = input.avatarSeed;
+        created.avatarHue = input.avatarHue;
+        if (input.avatarCharacter !== undefined) created.avatarCharacter = input.avatarCharacter;
         await mkdir(created.workspacePath, { recursive: true });
         agents.push(created);
         return created;
@@ -233,6 +242,9 @@ try {
   report.importWarnings = imported.warnings;
   const copy = agents.find((agent) => agent.id === imported.agents[0]?.id);
   assert.ok(copy, "The import creates the agent.");
+  assert.equal(copy.avatarSeed, source.avatarSeed, "The archive keeps the complete opaque seed.");
+  assert.equal(copy.avatarCharacter, "wisp", "The archive carries the explicit character choice.");
+  report.characterPreserved = true;
 
   report.sourceLock = await lockedFolders(source.workspacePath);
   report.importedLock = await lockedFolders(copy.workspacePath);

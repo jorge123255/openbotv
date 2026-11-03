@@ -174,6 +174,7 @@ export function WebAgentSettings(props: {
   }
   return (
     <FirstAgentSetup
+      characterSupported={false}
       value={state.draft}
       suggestions={FIRST_AGENT_SUGGESTIONS}
       mode={props.first ? "first" : "additional"}

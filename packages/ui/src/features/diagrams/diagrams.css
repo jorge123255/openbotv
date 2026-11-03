@@ -28,12 +28,14 @@
 /* The same height, avatar and name as the agent chat header, so switching views keeps the bar. */
 .diagram-view-header {
   display: flex;
-  height: 38px;
+  min-height: var(--openbot-workspace-header-height);
+  height: auto;
   flex: none;
   align-items: center;
   gap: var(--openbot-space-1-5);
   border-bottom: 1px solid var(--openbot-border);
-  padding: 0 var(--openbot-space-3);
+  padding: var(--openbot-space-2) var(--openbot-space-3);
+  background: var(--openbot-bg-sidebar);
 }
 
 /* The chevron that closes routine details has no open fill: it is a close action, not a lit toggle. */
@@ -132,7 +134,7 @@
   inset: 0;
   overflow: hidden;
   outline: 0;
-  background-color: var(--openbot-bg-canvas);
+  background-color: var(--openbot-bg-sidebar);
   background-image: radial-gradient(circle at 1px 1px, var(--openbot-border-strong) 1px, transparent 0);
   background-position: var(--diagram-grid-x) var(--diagram-grid-y);
   background-size: var(--diagram-grid-size) var(--diagram-grid-size);
@@ -472,6 +474,8 @@
   align-items: center;
   gap: var(--openbot-space-1);
   border-bottom: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card) var(--openbot-radius-card) 0 0;
+  background: linear-gradient(110deg, var(--openbot-accent-soft), var(--openbot-bg-sidebar));
   padding: 0 var(--openbot-space-2) 0 var(--openbot-space-1);
 }
 

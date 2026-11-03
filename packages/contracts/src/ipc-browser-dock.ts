@@ -3,7 +3,7 @@
 // publishes what the dock shows and does the actions that the overlay sends back.
 
 import { INPUT_LIMITS } from "./input-limits";
-import { type AvatarHue, isAvatarHue } from "./ipc-agent-identity";
+import { type AvatarCharacter, type AvatarHue, isAvatarCharacter, isAvatarHue } from "./ipc-agent-identity";
 import {
   type AgentApproval,
   type BrowserTakeoverRequest,
@@ -46,6 +46,7 @@ export interface BrowserDockAgent {
   name: string;
   title: string;
   description: string;
+  avatarCharacter?: AvatarCharacter;
   avatarSeed: string;
   avatarHue: AvatarHue | null;
   avatarUrl: string | null;
@@ -278,6 +279,7 @@ function isBrowserDockAgent(value: unknown): value is BrowserDockAgent {
     isBoundedString(value.name, INPUT_LIMITS.agentName) &&
     isBoundedString(value.title, INPUT_LIMITS.agentTitle) &&
     isBoundedString(value.description, INPUT_LIMITS.agentDescription) &&
+    (value.avatarCharacter === undefined || isAvatarCharacter(value.avatarCharacter)) &&
     isBoundedString(value.avatarSeed, INPUT_LIMITS.identifier) &&
     (value.avatarHue === null || isAvatarHue(value.avatarHue)) &&
     isNullableBoundedString(value.avatarUrl, INPUT_LIMITS.avatarUrl)

@@ -451,6 +451,7 @@ function dockAgent(agent: ComposerAgent): BrowserDockAgent {
     name: agent.name,
     title: agent.title,
     description: agent.description,
+    ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
     avatarSeed: agent.avatarSeed,
     avatarHue: agent.avatarHue,
     avatarUrl: agent.avatarUrl,

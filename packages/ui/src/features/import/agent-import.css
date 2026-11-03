@@ -131,10 +131,10 @@
   width: 100%;
   align-items: center;
   gap: var(--openbot-space-3);
-  padding: var(--openbot-space-2) var(--openbot-space-2) var(--openbot-space-2) var(--openbot-space-3);
-  border: 1px solid var(--openbot-border-grouped);
-  border-radius: var(--openbot-radius-md);
-  background: var(--openbot-bg-grouped);
+  padding: var(--openbot-space-4);
+  border: 1px solid var(--openbot-border);
+  border-radius: var(--openbot-radius-card);
+  background: var(--openbot-bg-surface);
 }
 
 .agent-import-card-icon {

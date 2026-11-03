@@ -1,8 +1,9 @@
 .conversation-title {
   display: flex;
-  height: var(--openbot-control-sm);
+  height: auto;
+  min-width: 0;
   align-items: center;
-  gap: 6px;
+  gap: var(--openbot-space-3);
   border-radius: var(--openbot-radius-sm);
   border: 0;
   background: transparent;
@@ -20,9 +21,9 @@
 .conversation-title h1 {
   margin: 0;
   color: var(--openbot-text-primary);
-  font-size: var(--openbot-text-md);
-  font-weight: 400;
-  line-height: 18px;
+  font-size: var(--openbot-text-2xl);
+  font-weight: var(--openbot-weight-semibold);
+  line-height: var(--openbot-leading-lg);
   letter-spacing: 0;
 }
 
@@ -39,6 +40,7 @@
 
 .conversation-header-actions {
   display: flex;
+  margin-inline-start: auto;
   min-width: 0;
   align-items: center;
   gap: 6px;
@@ -908,4 +910,62 @@
 .browser-toolbar-button:active:not(:disabled) {
   transform: scale(0.92);
   transition-duration: var(--openbot-duration-fast);
+}
+
+.conversation-title > .agent-avatar {
+  width: var(--openbot-control-xl);
+  height: var(--openbot-control-xl);
+  flex: none;
+}
+.conversation-title-copy {
+  display: grid;
+  min-width: 0;
+  gap: var(--openbot-space-1);
+}
+.conversation-title-copy > span {
+  max-width: 36ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--openbot-text-muted);
+  font-size: var(--openbot-text-sm);
+}
+@media (max-width: 1100px) {
+  .conversation-title-copy > span {
+    display: none;
+  }
+}
+
+/* Fit the chat beside an open pane, even when the window itself is wide. */
+@container conversation-header (max-width: 560px) {
+  .conversation-title-copy > span {
+    display: none;
+  }
+  .conversation-title h1,
+  .conversation-title.ui-button[data-tab] h1 {
+    font-size: var(--openbot-text-lg);
+  }
+  .conversation-title > .agent-avatar {
+    width: var(--openbot-control-lg);
+    height: var(--openbot-control-lg);
+  }
+  .conversation-title,
+  .conversation-title.ui-button[data-tab] {
+    gap: var(--openbot-space-1-5);
+  }
+  .conversation-header-actions {
+    gap: var(--openbot-space-1);
+  }
+  .provider-model-trigger-effort {
+    width: 0;
+    margin-left: calc(var(--openbot-space-1-5) * -1);
+    opacity: 0;
+  }
+}
+@container conversation-header (max-width: 480px) {
+  .provider-model-trigger-name {
+    width: 0;
+    margin-left: calc(var(--openbot-space-1-5) * -1);
+    opacity: 0;
+  }
 }

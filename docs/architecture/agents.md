@@ -520,6 +520,31 @@ These are manual model evaluations, separate from the fake-provider lifecycle re
 | Make a teammate whose description owns Notion, then ask a general agent about a Notion page. | The general agent delegates to the Notion teammate. Its answer starts with the teammate's name. |
 | Ask the same question with no Notion plugin installed. | The Notion teammate opens Notion in the browser and requests a takeover for sign-in. When sign-in fails, the answer says what was tried and to install the Notion plugin. |
 
+## Character appearance
+
+`avatarSeed` is an opaque identity input. All valid stored seeds keep their full text, including
+strings such as `character:robot:chief`. No prefix selects a character or changes the input to the
+shape renderer.
+
+The optional `avatarCharacter` field stores an explicit user choice. It is a separate enum in local
+IPC and the existing agent JSON. No database schema or migration changes. Missing metadata uses
+Shapes. Selecting Shapes removes the choice and leaves the seed unchanged. A new-agent draft holds
+the choice until Create; Cancel writes no agent or appearance. Settings choices use the existing
+immediate-save behavior. A failed metadata save keeps the uploaded image.
+
+Local desktop avatars, mentions, share-card SVGs, the browser dock and the Dynamic Island receive
+this field explicitly. Native mobile continues to draw the full seed as a shape. Released Team
+codecs and capabilities stay unchanged: they omit the local metadata. Character controls are
+hidden for remote and web editing, and remote create/update/profile requests reject the field
+before any write. Existing remote shape and image controls keep working.
+
+Local backups, template snapshots and instance-transfer manifests carry this optional field.
+Updated readers preserve it; older readers can omit it. An older account service can strip the
+field from a published template, so that template installs with its original shape. An older app
+can also drop the choice when it rewrites a stored profile. In either case the seed and its
+original shape input stay intact. No old record is converted by guessing whether its seed was an
+experimental character wrapper.
+
 ## Prompt-driven agent profiles
 
 Users create and edit agent profiles by asking an agent in the normal desktop or mobile

@@ -7,23 +7,22 @@
  */
 
 :where(.wfn-stage, .wfn-menu, .wfn-popover) {
-  --wfn-card: var(--openbot-bg-canvas);
-  --wfn-field: var(--openbot-bg-surface-raised);
-  --wfn-ring: color-mix(in srgb, var(--openbot-text-primary) 6%, transparent);
-  --wfn-ring-strong: color-mix(in srgb, var(--openbot-text-primary) 10%, transparent);
+  --wfn-card: var(--openbot-bg-sidebar);
+  --wfn-field: var(--openbot-bg-surface);
+  --wfn-ring: var(--openbot-border-strong);
+  --wfn-ring-strong: var(--openbot-accent-strong);
   --wfn-hover: color-mix(in srgb, var(--openbot-text-primary) 6%, transparent);
   --wfn-port: color-mix(in srgb, var(--openbot-text-primary) 10%, var(--openbot-bg-canvas));
   --wfn-glass: color-mix(in srgb, var(--openbot-bg-surface-raised) 75%, transparent);
   --wfn-glass-blur: blur(40px) saturate(1.4);
-  --wfn-radius-card: calc(var(--openbot-radius-lg) + var(--openbot-space-1));
+  --wfn-radius-card: var(--openbot-radius-card);
   --wfn-small: calc(var(--openbot-text-sm) - 1px);
   /* Ten pixels: one step over the control radius, so a row sits concentric in its menu. */
   --wfn-radius-row: calc(var(--openbot-radius-sm) + var(--openbot-space-1));
   --wfn-radius-run: calc(var(--openbot-radius-md) + 2px);
   /* The Title size: 40px, one step over the display size. */
   --wfn-text-title: calc(var(--openbot-text-display) * 1.25);
-  /* Focus is a neutral 1px ring, not the accent halo of the shared token. */
-  --openbot-focus-ring: 0 0 0 1px var(--openbot-text-muted);
+  /* Use the shared focus treatment for keyboard navigation. */
 }
 
 /*
@@ -3088,4 +3087,19 @@ svg.wfn-shape-surface {
   .wfn-branch {
     transition: none;
   }
+}
+
+/* The label is a type header; the node keeps its measured ports and dimensions. */
+.wfn-label {
+  width: fit-content;
+  max-width: 100%;
+  border-radius: var(--openbot-radius-pill);
+  background: var(--openbot-accent-soft);
+  padding: var(--openbot-space-1) var(--openbot-space-2);
+  color: var(--openbot-accent-text);
+}
+.wfn-node[data-selected] > .wfn-card-frame > .wfn-card {
+  box-shadow:
+    0 0 0 2px var(--openbot-accent-strong),
+    var(--openbot-shadow-raised);
 }

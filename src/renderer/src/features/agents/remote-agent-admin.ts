@@ -336,6 +336,7 @@ export async function updateRemoteAgent(
   input: UpdateAgentInput,
   updateProfile: (input: UpdateAgentInput) => Promise<void>,
 ): Promise<void> {
+  if (input.avatarCharacter !== undefined) throw new Error(currentText().t("error.agent.settingsLocalOnly"));
   const {
     access,
     allowAutomation,

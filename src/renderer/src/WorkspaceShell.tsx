@@ -220,7 +220,7 @@ export function WorkspaceShell(props: { account: () => CentralAuthUser }) {
   return (
     // The overlays and the chat cards show the same connectors.
     <ConnectorsProvider>
-      {/* The page rail sits at the left of the frame. The frame is the card of the page that the rail selects. */}
+      {/* The navigation sits above the workspace. The frame keeps the active page and resizable panes. */}
       <div class="app-window">
         <WorkspacePageRail hidden={chatWindow || remoteDesktopWorkspaceVisible()} />
         <WorkspaceFrame

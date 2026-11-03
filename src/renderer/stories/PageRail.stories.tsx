@@ -57,14 +57,15 @@ function RailPreview(props: {
   logo?: PageRailProps["logo"];
   customAgentUsage?: readonly CustomAgentUsageRailRow[];
   usageRows?: PageRailProps["usageRows"];
+  initialPinned?: readonly PageRailPinnablePage[];
 }) {
   const { t } = useText();
   const [current, setCurrent] = createSignal<PageRailPage | null>("agents");
-  const [pinned, setPinned] = createSignal<readonly PageRailPinnablePage[]>(["usage"]);
+  const [pinned, setPinned] = createSignal<readonly PageRailPinnablePage[]>(props.initialPinned ?? ["usage"]);
   return (
     // The extra box keeps the rail out of the rule that hides it in a narrow window.
     <div class="app-window" style={{ height: "100vh" }}>
-      <div style={{ display: "flex" }}>
+      <div style={{ display: "flex", "align-items": "flex-start" }}>
         <PageRail
           hidden={false}
           current={current()}
@@ -76,6 +77,8 @@ function RailPreview(props: {
           customAgentUsage={props.customAgentUsage}
           onAgents={() => setCurrent("agents")}
           onRoutines={() => setCurrent("routines")}
+          onWorkflows={() => setCurrent("workflows")}
+          onTasks={() => setCurrent("tasks")}
           onSchedule={() => setCurrent("schedule")}
           onUsage={() => setCurrent("usage")}
           onMarketplace={fn()}
@@ -86,6 +89,7 @@ function RailPreview(props: {
             <HelpMenu
               news={[]}
               triggerClass="window-rail-button"
+              placement="bottom-end"
               onOpenWhatsNew={fn()}
               onOpenChangelog={fn()}
               onOpenGuides={fn()}
@@ -133,4 +137,17 @@ export const WebLogo: Story = {
 /** Windows and Linux: the logo is in the top row, with no link. */
 export const DesktopLogo: Story = {
   args: { logo: { variant: "production" } },
+};
+
+/** Many real controls exercise independent destination/account overflow in the top bar. */
+export const AllDestinations: Story = {
+  args: {
+    logo: { variant: "production" },
+    initialPinned: ["routines", "workflows", "tasks", "schedule", "usage"],
+    customAgentUsage: Array.from({ length: 12 }, (_, index) => ({
+      id: `fixture-account-${index}`,
+      name: `Fixture account ${index + 1}`,
+      text: "Synthetic offline quota fixture.",
+    })),
+  },
 };

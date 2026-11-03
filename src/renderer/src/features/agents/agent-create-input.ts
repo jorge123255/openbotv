@@ -3,7 +3,7 @@ import type { FirstAgentDraft } from "@openbot/ui/features/agents/FirstAgentSetu
 import { createAgentInitialMessage } from "./agent-initial-message";
 
 /** A new agent asked for from a short draft, such as the routine canvas's card. */
-export type NewAgentDraft = Pick<FirstAgentDraft, "name" | "purpose" | "avatarSeed" | "avatarHue"> &
+export type NewAgentDraft = Pick<FirstAgentDraft, "name" | "purpose" | "avatarSeed" | "avatarHue" | "avatarCharacter"> &
   Partial<Pick<FirstAgentDraft, "provider" | "model" | "reasoningEffort">>;
 
 /**
@@ -13,10 +13,15 @@ export type NewAgentDraft = Pick<FirstAgentDraft, "name" | "purpose" | "avatarSe
  * remote host without `agent-create-model` drops the pair and starts its own default. The reasoning
  * level travels only with the pair; without one, the backend starts the model's default level.
  */
-export function newAgentInput(draft: NewAgentDraft, createModelSupported: boolean): CreateAgentInput {
+export function newAgentInput(
+  draft: NewAgentDraft,
+  createModelSupported: boolean,
+  characterSupported = true,
+): CreateAgentInput {
   return {
     name: draft.name.trim(),
     description: draft.purpose.trim() || "General-purpose assistant",
+    ...(characterSupported && draft.avatarCharacter !== undefined ? { avatarCharacter: draft.avatarCharacter } : {}),
     avatarSeed: draft.avatarSeed,
     avatarHue: draft.avatarHue,
     ...(createModelSupported && draft.provider && draft.model

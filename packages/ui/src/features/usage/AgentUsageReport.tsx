@@ -121,11 +121,46 @@ export function AgentUsageReport(props: {
       : format.percent(total ? amount / total : 0, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   };
   let dailyTable: HTMLTableElement | undefined;
+  let dailyPanel: HTMLDivElement | undefined;
+  let dailyFocusRequested = false;
+  let dailyFocusFrame: number | undefined;
+  let dailyFocusAttempts = 0;
+  function scheduleDailyFocus(): void {
+    if (!dailyFocusRequested || dailyFocusFrame !== undefined) return;
+    dailyFocusFrame = window.requestAnimationFrame(() => {
+      dailyFocusFrame = undefined;
+      if (!dailyFocusRequested || !dailyTable?.isConnected || !dailyPanel?.hasAttribute("data-selected")) return;
+      if (dailyTable.closest("[inert], [hidden], [aria-hidden=true]")) return;
+      // Native focus checks CSS visibility. A separate style/geometry gate can return before
+      // paint settles, with no further attribute mutation to schedule another attempt.
+      dailyFocusAttempts++;
+      dailyTable.focus();
+      if (document.activeElement === dailyTable || dailyFocusAttempts === 2) dailyFocusRequested = false;
+      else scheduleDailyFocus();
+    });
+  }
+  onSettled(() => {
+    if (!dailyPanel) return;
+    // The force-mounted tab can settle after its parent. Observe its actual focusability changes.
+    const observer = new MutationObserver(scheduleDailyFocus);
+    observer.observe(dailyPanel, {
+      attributes: true,
+      attributeFilter: ["inert", "hidden", "aria-hidden", "data-selected"],
+    });
+    scheduleDailyFocus();
+    return () => {
+      dailyFocusRequested = false;
+      observer.disconnect();
+      if (dailyFocusFrame !== undefined) window.cancelAnimationFrame(dailyFocusFrame);
+    };
+  });
   function showDailyData() {
+    dailyFocusRequested = true;
+    dailyFocusAttempts = 0;
     setState((draft) => {
       draft.breakdown = "day";
     });
-    queueMicrotask(() => dailyTable?.focus());
+    scheduleDailyFocus();
   }
   return (
     <>
@@ -202,7 +237,7 @@ export function AgentUsageReport(props: {
           <UsageChart result={props.result} metric={props.metric} />
         </section>
       </div>
-      <section aria-label={t("usage.totals.title")}>
+      <section class="agent-usage-total-panel" aria-label={t("usage.totals.title")}>
         <h3>{t("usage.totals.title")}</h3>
         <dl class="agent-usage-totals">
           <div>
@@ -224,12 +259,14 @@ export function AgentUsageReport(props: {
         </dl>
       </section>
       <SlidingTabs.Root
+        class="agent-usage-breakdown"
         value={state.breakdown}
-        onChange={(value) =>
+        onChange={(value) => {
+          if (value !== "day") dailyFocusRequested = false;
           setState((draft) => {
             draft.breakdown = value;
-          })
-        }
+          });
+        }}
       >
         <div class="agent-usage-section-header">
           <h3>{t("usage.breakdown.title")}</h3>
@@ -297,7 +334,7 @@ export function AgentUsageReport(props: {
               </table>
             </div>
           </SlidingTabs.Content>
-          <SlidingTabs.Content value="day">
+          <SlidingTabs.Content value="day" ref={dailyPanel}>
             <div class="agent-usage-table">
               <table ref={dailyTable} tabindex={-1}>
                 <caption class="sr-only">{t("usage.breakdown.byDay")}</caption>

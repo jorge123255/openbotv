@@ -15,6 +15,8 @@ export interface HelpMenuProps {
   news: readonly HelpMenuNews[];
   /** The class of the button that opens the menu, so it matches the buttons around it. */
   triggerClass?: string;
+  showTriggerLabel?: boolean;
+  placement?: "right-end" | "bottom-end";
   /** Called when the menu opens, so the caller can load the news. */
   onOpen?: () => void;
   onOpenWhatsNew: () => void;
@@ -36,16 +38,21 @@ export function HelpMenu(props: HelpMenuProps) {
   const [open, setOpen] = createSignal(false);
   return (
     <DropdownMenu.Root
-      placement="right-end"
+      placement={props.placement ?? "right-end"}
       gutter={10}
       onOpenChange={(next) => {
         setOpen(next);
         if (next) props.onOpen?.();
       }}
     >
-      <MotionTooltip content={t("app.help.label")} suppressed={open()}>
+      <MotionTooltip content={t("app.help.label")} placement={props.placement ?? "right"} suppressed={open()}>
         <DropdownMenu.Trigger class={props.triggerClass} aria-label={t("app.help.label")}>
           <CircleQuestionMark aria-hidden="true" />
+          <Show when={props.showTriggerLabel}>
+            <span class="window-rail-label" aria-hidden="true">
+              {t("app.help.label")}
+            </span>
+          </Show>
         </DropdownMenu.Trigger>
       </MotionTooltip>
       <DropdownMenu.Portal>

@@ -115,6 +115,7 @@ export function createNotificationLevelsStore(options: {
         name: agent.name,
         // Only the short title: a long description would change the height of the row.
         detail: agent.title,
+        ...(agent.avatarCharacter === undefined ? {} : { avatarCharacter: agent.avatarCharacter }),
         avatarSeed: agent.avatarSeed,
         avatarHue: agent.avatarHue,
         avatarUrl: agent.avatarUrl,
