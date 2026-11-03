@@ -1606,17 +1606,35 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
               configOptions = response.configOptions ?? [];
               currentModelId = currentModelFromSessionSetup(response);
             } else {
+              const openSession = Effect.tryPromise({
+                try: (signal) =>
+                  connection().request<NewSessionResponse>(
+                    "session/new",
+                    { cwd, ...directories, mcpServers, ...meta } satisfies NewSessionRequest,
+                    { cancellationSignal: signal },
+                  ),
+                catch: providerFailure,
+              });
+              // A refused Gemini token prints the sign-in link and never answers session/new.
+              // The stop ends that process. Race the end so the chat fails with the sign-in
+              // message, and the setup deadline does not replace it.
+              const sessionEnded = sessionTransport?.ended;
               const response = providerResult(
                 yield* Effect.result(
-                  Effect.tryPromise({
-                    try: (signal) =>
-                      connection().request<NewSessionResponse>(
-                        "session/new",
-                        { cwd, ...directories, mcpServers, ...meta } satisfies NewSessionRequest,
-                        { cancellationSignal: signal },
-                      ),
-                    catch: providerFailure,
-                  }),
+                  sessionEnded
+                    ? Effect.raceFirst(
+                        openSession,
+                        Deferred.await(sessionEnded).pipe(
+                          Effect.flatMap(() =>
+                            Effect.fail(
+                              providerFailure(
+                                new Error(this.#signedIn ? "ACP session process ended." : this.options.signInMessage),
+                              ),
+                            ),
+                          ),
+                        ),
+                      )
+                    : openSession,
                 ),
               );
               id = response.sessionId;
