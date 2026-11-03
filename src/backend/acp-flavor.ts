@@ -141,7 +141,7 @@ export interface AcpFlavor {
  *
  * Grok uses this flavor. A custom agent built on the same server, such as Devin ACP, uses it too.
  */
-export function chiselSessionNotFound(error: RequestError, sessionId: string): boolean | null {
+function chiselSessionNotFound(error: RequestError, sessionId: string): boolean | null {
   if (error.code !== -32016) return null;
   if (isRecord(error.data)) {
     const named = error.data.sessionId ?? error.data.uri;
