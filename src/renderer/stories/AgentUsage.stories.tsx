@@ -1,8 +1,10 @@
-import { emptyAnalyticsTotals, type HostAnalytics } from "@openbot/contracts/ipc";
+import { type AppInfo, emptyAnalyticsTotals, type HostAnalytics, type MachineMetrics } from "@openbot/contracts/ipc";
+import { UsageMachineMeter } from "@openbot/ui/features/usage/UsageMachineMeter";
 import { onCleanup } from "solid-js";
 import { fn } from "storybook/test";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { AgentUsagePanel } from "../src/features/usage/AgentUsagePanel";
+import { PlatformProvider } from "../src/platform";
 import { mockHostAnalytics } from "../src/preview/mock-agent-analytics";
 import { createMockOpenBot } from "./mock-openbot";
 
@@ -20,6 +22,8 @@ function UsageStory(props: {
     | "daily-only";
   narrow?: boolean;
   agentId?: string;
+  /** The machine use in the header, as an owner or admin sees it. */
+  machine?: "normal" | "high";
 }) {
   const previous = window.openbot;
   const mock = createMockOpenBot();
@@ -59,25 +63,57 @@ function UsageStory(props: {
     if (props.state === "daily-only") return { ...data, providerDaily: [] };
     return data;
   };
+  // The page header reads the platform. This story has no window rail, so app info stays unknown
+  // and the header keeps the host name the fixture reads.
+  mock.api.getAppInfo = () => new Promise<AppInfo>(() => {});
   onCleanup(() => {
     mock.dispose();
     // Storybook can mount the next render before it disposes this one. Restore only our own mock,
     // or the next render loses its bridge.
     if (window.openbot === mock.api) window.openbot = previous;
   });
+  // A named function, not a ternary in the prop: Solid reads the prop in a tracked scope.
+  const machine = () => {
+    const load = props.machine;
+    return load && <UsageMachineMeter metrics={machineMetrics(load)} onOpenStorage={fn()} />;
+  };
   return (
-    <main
-      style={{
-        width: props.narrow ? "390px" : "100%",
-        height: "900px",
-        overflow: "hidden",
-        background: "var(--openbot-bg-canvas)",
-      }}
-    >
-      <AgentUsagePanel hostName="Local host" serverId="local" agentId={props.agentId} onBack={fn()} />
-    </main>
+    <PlatformProvider>
+      <main
+        style={{
+          width: props.narrow ? "390px" : "100%",
+          height: "900px",
+          overflow: "hidden",
+          background: "var(--openbot-bg-canvas)",
+        }}
+      >
+        <AgentUsagePanel
+          hostName="Local host"
+          serverId="local"
+          agentId={props.agentId}
+          onBack={fn()}
+          machine={machine()}
+        />
+      </main>
+    </PlatformProvider>
   );
 }
+const GB = 1024 ** 3;
+
+/** A 4 vCPU, 8 GB server. When it is busy, memory is almost full. */
+function machineMetrics(load: "normal" | "high"): MachineMetrics {
+  return {
+    diskUsedBytes: 31 * GB,
+    diskFreeBytes: 45 * GB,
+    diskTotalBytes: 76 * GB,
+    memoryAvailableBytes: Math.round((load === "high" ? 0.3 : 2.5) * GB),
+    memoryTotalBytes: Math.round(7.6 * GB),
+    cpuPercent: load === "high" ? 94 : 37,
+    cpuMillicores: 4000,
+    checkedAt: "2026-11-04T12:00:00.000Z",
+  };
+}
+
 const meta = {
   title: "Agents/Usage",
   component: UsageStory,
@@ -98,4 +134,9 @@ export const SmallCosts: Story = { args: { state: "small" } };
 export const LongModelNames: Story = { args: { state: "long", narrow: true } };
 
 export const SingleAgent: Story = { args: { agentId: "chief" } };
+
+/** CPU and memory before the filters. A click shows the details; the disk row opens Storage. */
+export const Machine: Story = { args: { machine: "normal" } };
+export const MachineHigh: Story = { args: { machine: "high" } };
+export const MachineNarrow: Story = { args: { machine: "normal", narrow: true } };
 export const DailyTotalsOnly: Story = { args: { state: "daily-only" } };

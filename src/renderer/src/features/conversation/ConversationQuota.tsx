@@ -126,7 +126,8 @@ function LocalQuota(input: { connection: CustomProviderSummary }) {
           available.state !== "ready"
         )
           return false;
-        return selectAndConfirmModel(choice.model, choice.provider, choice.providerAccountId ?? null);
+        await selectAndConfirmModel(choice.model, choice.provider, choice.providerAccountId ?? null);
+        return true;
       },
     };
   };

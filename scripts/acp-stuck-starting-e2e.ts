@@ -60,6 +60,9 @@ const browser: AgentBrowserHost = {
   endControl: () => {},
   close: () => Effect.void,
   clearAgentSession: () => Effect.void,
+  shareTab: () => {},
+  unshareThread: () => {},
+  agentTab: () => null,
 };
 
 const database = new OpenBotDatabase(profile);

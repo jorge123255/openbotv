@@ -40,7 +40,7 @@ const declared = (
   platform: "darwin",
   architecture: "arm64",
   appVersion: "1.2.3",
-  schemaVersion: 49,
+  schemaVersion: 61,
   executor: "process",
   dataRoot: "owned",
   persistence: "persistent",

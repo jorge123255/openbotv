@@ -5,6 +5,7 @@ import type {
   RoutineLimitPolicy,
   RoutineMissedPolicy,
   RoutineRunFields,
+  RoutineRunPlace,
   RoutineRunSource,
   RoutineRunStatus,
   RoutineSchedule,
@@ -14,6 +15,7 @@ import {
   ROUTINE_LIMIT_POLICIES,
   ROUTINE_MISSED_COUNT_LIMIT,
   ROUTINE_MISSED_POLICIES,
+  ROUTINE_RUN_PLACES,
   ROUTINE_RUN_SOURCES,
 } from "@openbot/contracts/ipc";
 import type { EventFilter, EventJsonValue, EventRoutineOwner } from "@openbot/contracts/ipc-events";
@@ -62,6 +64,8 @@ export interface RoutineTables {
   eventPrefix: string;
   limit: number;
   limitMessage: string;
+  /** Only agent routines have the `run_in` column. A channel routine runs in its channel. */
+  runInColumn: boolean;
 }
 
 /** A routine read back with the owner column it was stored under. */
@@ -71,6 +75,24 @@ export interface OwnedRoutine extends RoutineFields {
 
 /** What starts a run: its trigger, or the source of a manual run. */
 export type RoutineRunStart = "scheduled" | RoutineRunSource;
+
+/**
+ * A finished run that a server transfer brought, with the times of the other server. It has no
+ * trigger and no handle here: both belonged to the other server.
+ */
+export interface ImportedRoutineRun {
+  kind: "scheduled" | "manual";
+  source?: RoutineRunSource;
+  scheduledFor: string;
+  routineName: string;
+  instruction: string;
+  /** A finished status: the caller maps an open run to one, so nothing starts it again. */
+  status: RoutineRunStatus;
+  error: string | null;
+  missed?: { count: number; until: string | null };
+  createdAt: string;
+  updatedAt: string;
+}
 
 /** A run read back with its owner and the handle that names the work it started. */
 export interface OwnedRoutineRun extends RoutineRunFields {
@@ -93,6 +115,7 @@ export interface RoutineInputFields {
   schedule: RoutineSchedule;
   limitPolicy?: RoutineLimitPolicy;
   missedPolicy?: RoutineMissedPolicy;
+  runIn?: RoutineRunPlace;
 }
 
 export interface RoutineUpdateFields {
@@ -103,6 +126,7 @@ export interface RoutineUpdateFields {
   schedule?: RoutineSchedule;
   limitPolicy?: RoutineLimitPolicy;
   missedPolicy?: RoutineMissedPolicy;
+  runIn?: RoutineRunPlace;
 }
 
 interface RoutineWebhookFields {
@@ -133,6 +157,8 @@ export interface RoutineRecordInput {
   timezone: string;
   limitPolicy?: RoutineLimitPolicy;
   missedPolicy?: RoutineMissedPolicy;
+  /** Left out, a save keeps the saved place, and a new routine runs in the chat. */
+  runIn?: RoutineRunPlace;
   trigger:
     | { kind: "schedule"; schedule: RoutineSchedule }
     /** A null secret keeps the stored one. */
@@ -173,7 +199,7 @@ export class RoutineStore {
 
   protected get routineColumns(): string {
     return `routine_id, ${this.tables.ownerColumn}, name, instruction, active, timezone, limit_policy, missed_policy,
-            created_at, updated_at`;
+            ${this.tables.runInColumn ? "run_in, " : ""}created_at, updated_at`;
   }
 
   protected get runColumns(): string {
@@ -271,6 +297,7 @@ export class RoutineStore {
           createdAt,
           sequence,
         );
+        this.#writeRunIn(db, routineId, input.runIn ?? "chat");
         this.#insertTrigger(db, routineId, input.timezone, schedule, createdAt, sequence, now);
         return this.#require(routineId, ownerId);
       },
@@ -319,6 +346,7 @@ export class RoutineStore {
           input.routineId,
           ownerId,
         );
+        if (input.runIn) this.#writeRunIn(db, input.routineId, input.runIn);
         if (input.schedule) {
           db.prepare(`DELETE FROM ${triggerTable} WHERE routine_id = ?`).run(input.routineId);
           this.#insertTrigger(db, input.routineId, current.timezone, schedule, updatedAt, sequence, now);
@@ -369,6 +397,7 @@ export class RoutineStore {
       : (input.limitPolicy ?? current?.limitPolicy ?? "wait");
     const missedPolicy =
       input.missedPolicy ?? current?.missedPolicy ?? (schedule ? defaultMissedPolicy(schedule) : "skip");
+    const runIn = this.tables.runInColumn ? (input.runIn ?? current?.runIn ?? "chat") : undefined;
     const timestamp = now.toISOString();
     // A routine that runs already keeps its schedule; a new run time must still be ahead.
     const running =
@@ -398,6 +427,7 @@ export class RoutineStore {
             timezone: input.timezone,
             limitPolicy,
             missedPolicy,
+            ...(runIn ? { runIn } : {}),
             trigger: eventTrigger,
           },
         },
@@ -427,6 +457,7 @@ export class RoutineStore {
           timestamp,
           sequence,
         );
+        if (runIn) this.#writeRunIn(db, id, runIn);
         if (schedule) {
           if (current?.trigger.kind === "webhook") {
             revokeRoutineWebhooks(db, this.tables.ownerKind, [id], { forget: false }, now);
@@ -670,7 +701,8 @@ export class RoutineStore {
         .prepare(
           `SELECT trigger.trigger_id, trigger.next_run_at, trigger.schedule_json, routine.routine_id,
                   routine.${ownerColumn}, routine.name, routine.instruction, routine.active, routine.timezone,
-                  routine.limit_policy, routine.missed_policy, routine.created_at, routine.updated_at
+                  routine.limit_policy, routine.missed_policy, ${this.tables.runInColumn ? "routine.run_in, " : ""}
+                  routine.created_at, routine.updated_at
            FROM ${triggerTable} trigger
            JOIN ${routineTable} routine ON routine.routine_id = trigger.routine_id
            WHERE routine.active = 1 AND trigger.next_run_at <= ?
@@ -732,32 +764,8 @@ export class RoutineStore {
    * routines stays due as well, so it runs once now.
    */
   skipMissed(now = new Date(), held?: RoutineHoldWindow): void {
-    this.#skipMissedIn(this.#allActive(), now, held, false);
-  }
-
-  /**
-   * `skipMissed` for the routines of one owner, when the user restores a hidden agent. The hide was a
-   * pause that the user chose, so every missed occurrence is skipped, also for a routine set to run
-   * once, as a paused routine does when it is resumed.
-   */
-  skipMissedFor(ownerId: string, now = new Date()): void {
-    this.#skipMissedIn(
-      this.#allActive().filter((routine) => routine.ownerId === ownerId),
-      now,
-      undefined,
-      true,
-    );
-  }
-
-  #skipMissedIn(
-    routines: readonly OwnedRoutine[],
-    now: Date,
-    held: RoutineHoldWindow | undefined,
-    skipAll: boolean,
-  ): void {
-    for (const routine of routines) {
-      const missedPolicy = skipAll ? "skip" : routine.missedPolicy;
-      const { trigger } = routine;
+    for (const routine of this.#allActive()) {
+      const { missedPolicy, trigger } = routine;
       const due = Date.parse(trigger.nextRunAt);
       if (held && due >= held.since.getTime() && due <= held.until.getTime()) continue;
       if (trigger.schedule.kind === "once") {
@@ -927,6 +935,53 @@ export class RoutineStore {
     );
   }
 
+  /**
+   * Writes the finished runs of one routine that a server transfer brought, in one transaction.
+   * The run history shows them; the scheduler never reads a finished run. Returns the new run ids,
+   * in the order of `runs`.
+   */
+  protected importRunRows(routineId: string, ownerId: string, runs: readonly ImportedRoutineRun[]): string[] {
+    if (runs.length === 0) return [];
+    const { commandPrefix, eventPrefix, runAggregate, runTable, ownerColumn } = this.tables;
+    const runIds = runs.map(() => randomUUID());
+    return this.database.dispatch(
+      `${commandPrefix}-run:import:${routineId}:${randomUUID()}`,
+      runs.map((run, index) => ({
+        aggregateType: runAggregate,
+        aggregateId: routineId,
+        eventType: `${eventPrefix}.run-imported`,
+        payload: { runId: runIds[index], status: run.status, scheduledFor: run.scheduledFor },
+      })),
+      (db, sequences) => {
+        const insert = db.prepare(
+          `INSERT INTO ${runTable} (
+             run_id, routine_id, ${ownerColumn}, trigger_id, run_kind, run_source, scheduled_for, routine_name,
+             instruction, status, error, missed_count, missed_until, created_at, updated_at, last_event_sequence
+           ) VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        );
+        for (const [index, run] of runs.entries())
+          insert.run(
+            runIds[index] ?? randomUUID(),
+            routineId,
+            ownerId,
+            run.kind,
+            run.source ?? null,
+            run.scheduledFor,
+            run.routineName,
+            run.instruction,
+            run.status,
+            run.error,
+            run.missed?.count ?? null,
+            run.missed?.until ?? null,
+            run.createdAt,
+            run.updatedAt,
+            sequences[index] ?? 0,
+          );
+        return runIds;
+      },
+    );
+  }
+
   protected createRunRow(
     routine: RunSource,
     triggerId: string | null,
@@ -1070,9 +1125,23 @@ export class RoutineStore {
       timezone: requiredStringColumn(row, "timezone"),
       limitPolicy,
       missedPolicy,
+      ...this.#runIn(row),
       createdAt: requiredStringColumn(row, "created_at"),
       updatedAt: requiredStringColumn(row, "updated_at"),
     };
+  }
+
+  #runIn(row: DynamicRecord): { runIn?: RoutineRunPlace } {
+    if (!this.tables.runInColumn) return {};
+    const runIn = requiredStringColumn(row, "run_in");
+    if (!isOneOf(ROUTINE_RUN_PLACES, runIn)) throw new Error("The stored routine run place is invalid.");
+    return { runIn };
+  }
+
+  /** The column exists only on the agent table, so it is written apart from the shared insert. */
+  #writeRunIn(db: OpenBotDatabase["connection"], routineId: string, runIn: RoutineRunPlace): void {
+    if (!this.tables.runInColumn) return;
+    db.prepare(`UPDATE ${this.tables.routineTable} SET run_in = ? WHERE routine_id = ?`).run(runIn, routineId);
   }
 
   #scheduleTrigger(routineId: string): OwnedRoutine["trigger"] {

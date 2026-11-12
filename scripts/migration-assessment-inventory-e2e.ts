@@ -151,13 +151,13 @@ try {
     effort: "medium",
   });
 
-  await check("latest generated schema has one static owner for each of79tables", async () => {
+  await check("latest generated schema has one static owner for each of86tables", async () => {
     const names = db()
       .connection.prepare("SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name")
       .all()
       .map((row) => row.name);
     const registered = Object.values(MIGRATION_ASSESSMENT_TABLES).flat().sort();
-    assert.equal(new Set(registered).size, 79);
+    assert.equal(new Set(registered).size, 86);
     assert.deepEqual(registered, names);
     assert.equal(
       db().connection.prepare("SELECT max(version) AS v FROM schema_migrations").get()?.v,
@@ -318,12 +318,17 @@ try {
     db().replaceAgents("assessment-reset-paths", [sourceAgent], "agents.updated");
   });
   await check("future schema versions and oversized unknown names leave categories unverified", async () => {
-    db().connection.exec("UPDATE schema_migrations SET version=50 WHERE version=49");
+    const futureVersion = MIGRATION_ASSESSMENT_EXPECTED_SCHEMA + 1;
+    db().connection.exec(
+      `UPDATE schema_migrations SET version=${futureVersion} WHERE version=${MIGRATION_ASSESSMENT_EXPECTED_SCHEMA}`,
+    );
     const future = await read();
     assert.equal(future.schema.recognized, false);
-    assert.equal(future.schema.observedVersion, 50);
+    assert.equal(future.schema.observedVersion, futureVersion);
     assert.ok(future.categories.every((row) => row.rowCount === null));
-    db().connection.exec("UPDATE schema_migrations SET version=49 WHERE version=50");
+    db().connection.exec(
+      `UPDATE schema_migrations SET version=${MIGRATION_ASSESSMENT_EXPECTED_SCHEMA} WHERE version=${futureVersion}`,
+    );
     const longName = `PRIVATE_FIXTURE_${"x".repeat(130)}`;
     db().connection.exec(`CREATE TABLE ${longName}(value TEXT)`);
     const long = await read();

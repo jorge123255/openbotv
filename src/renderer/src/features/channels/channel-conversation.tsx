@@ -5,7 +5,12 @@
  */
 
 import { leadingAddress } from "@openbot/contracts/chat-tag-references";
-import type { AgentApproval, AgentEvent, BrowserTakeoverRequest } from "@openbot/contracts/ipc";
+import {
+  type AgentApproval,
+  type AgentEvent,
+  type BrowserTakeoverRequest,
+  channelBrowserAgent,
+} from "@openbot/contracts/ipc";
 import type { AgentMessage } from "@openbot/ui/data";
 import { unloadedHistory } from "@openbot/ui/features/conversation/ChatScrollRail";
 import { useText } from "@openbot/ui/text";
@@ -18,6 +23,7 @@ import type {
   PromptAnswerOptions,
   SendMessageResult,
 } from "../conversation/conversation-types";
+import { readerCanDeleteMessage } from "../conversation/message-delete-access";
 import {
   ChannelAboveComposer,
   ChannelEmptyState,
@@ -51,14 +57,16 @@ export interface ChannelConversationEnvironment {
   approvals: () => readonly AgentApproval[];
   /** Every browser takeover that waits on the host. */
   takeovers: () => readonly BrowserTakeoverRequest[];
-  /** The agents that a user hid on the host. */
+  /** The hidden agents that the host stops. A host with `agent-hidden-work` stops none. */
+  pausedAgentIds: () => ReadonlySet<string>;
+  /** Agents the reader hid. Their stopped tasks stay out of the composer. */
   hiddenAgentIds: () => ReadonlySet<string>;
 }
 
 /** Must run inside the view that shows the channel: it reads the channel store and the interface text. */
 export function createChannelConversation(env: ChannelConversationEnvironment) {
   const channels = useChannels();
-  const { t, errorMessage } = useText();
+  const { t, errorDetails } = useText();
   const channelId = env.channelId;
   const page = () => {
     const current = channels.state.page;
@@ -67,6 +75,20 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
   const summary = () => channels.state.channels.find((channel) => channel.id === channelId);
   const threads = () => summary()?.threads;
   const readOnly = () => page()?.channel.archived === true;
+  const memberThreadIds = createMemo(() => new Set(threads()?.map((thread) => thread.threadId)));
+  /** An agent that the host stops gets no tab here, as it gets no work. A member with no thread here cannot use a tab yet. */
+  const browserOwner = createMemo(() => {
+    const channel = page()?.channel;
+    const allowed = channel ? channelBrowserAgent(channel) : false;
+    if (!channel || allowed === false) return null;
+    const paused = env.pausedAgentIds();
+    const owners = channel.members.flatMap((member) => {
+      const threadId = threads()?.find((thread) => thread.agentId === member.agentId)?.threadId;
+      return threadId && !paused.has(member.agentId) ? [{ agentId: member.agentId, threadId }] : [];
+    });
+    if (typeof allowed === "string") return owners.find((owner) => owner.agentId === allowed) ?? null;
+    return owners.find((owner) => owner.agentId === channel.leadAgentId) ?? owners[0] ?? null;
+  });
   const agentName = (agentId: string | null | undefined) => {
     const agent = channels.agents().find((candidate) => candidate.id === agentId);
     const authored = page()?.messages.find((entry) => entry.author.id === agentId);
@@ -78,8 +100,16 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
   /*
    * A row keeps its object while it does not change, so a streamed chunk draws one row again and not
    * the whole transcript.
+   *
+   * A row that comes after the rows this view already drew arrives live, so it enters as a new bubble
+   * of an agent chat does. Before, a channel message showed in one frame. The rows of the first page
+   * and of an older page do not enter. The reader's own message does not enter again: the row that
+   * the send drew at once entered already.
    */
   let rowsById = new Map<string, AgentMessage>();
+  let drawn = false;
+  const ownRow = (row: AgentMessage) =>
+    row.author === "you" && row.senderMember !== undefined && env.isOwnSender(row.senderMember.id);
   const messages = createMemo((): AgentMessage[] => {
     const current = page();
     if (!current) return [];
@@ -88,13 +118,18 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
       unassigned: t("sidebar.section.unassigned"),
       unavailable: t("chat.marker.unavailableAgent"),
     });
-    const rows = channelConversationRows(entries(), tasks).map((mapped) => {
+    const mappedRows = channelConversationRows(entries(), tasks);
+    const lastKnown = mappedRows.findLastIndex((mapped) => rowsById.has(mapped.id));
+    const rows = mappedRows.map((mapped, index) => {
       const known = rowsById.get(mapped.id);
-      const row = known && agentMessagesEqual(known, mapped) ? known : mapped;
+      const live = known ? known.animate === true : drawn && index > lastKnown && !ownRow(mapped);
+      const fresh = live ? { ...mapped, animate: true } : mapped;
+      const row = known && agentMessagesEqual(known, fresh) ? known : fresh;
       next.set(row.id, row);
       return row;
     });
     rowsById = next;
+    drawn = true;
     return rows;
   });
   const unreadCount = () => summary()?.unreadCount ?? 0;
@@ -189,7 +224,9 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
       sendBoundaries.delete(operationId);
       return { messageId };
     } catch (error) {
-      return { error: errorMessage(error, t("channel.error.action")) };
+      // The reason alone can be the generic text, so the reference says which failure it was.
+      const details = errorDetails(error, t("channel.error.action"));
+      return { error: details.message, reference: details.reference };
     }
   }
 
@@ -213,6 +250,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
    * One stop at a time, and none after the first that fails: the controller keeps one failed command
    * for its retry, and a later stop that succeeds would clear the error of the one that failed.
    */
+  let rowStopping = false;
   async function stopWork() {
     if (!env.connectionReady()) return;
     for (const taskId of activeRuns()) {
@@ -231,6 +269,7 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     id: channelId,
     name: () => page()?.channel.name ?? summary()?.name ?? "",
     readOnly,
+    ownMessage: ownRow,
     author: (message) => {
       const id = message.senderAgentId ?? "";
       return {
@@ -243,9 +282,11 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     workers: () => {
       const current = page();
       return current
-        ? channelWorkers(current, channels.agents(), t("chat.activity.agentFallback"), env.hiddenAgentIds())
+        ? channelWorkers(current, channels.agents(), t("chat.activity.agentFallback"), env.pausedAgentIds())
         : [];
     },
+    memberThreadIds,
+    browserOwner,
     workingTurns,
     interactionAgentName: () => {
       const agentId = approval()?.agentId ?? browserTakeover()?.agentId ?? prompt()?.agentId;
@@ -260,6 +301,19 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
         name: (id) => (id ? agentName(id) : t("sidebar.section.unassigned")),
       });
     },
+    // The existing Stop of a task. The stopped-task card above the composer then offers Continue,
+    // Reassign and Cancel for it.
+    // One stop at a time, as in stopWork: a second click while a stop runs does nothing, so that a
+    // stop that succeeds does not clear the error of one that failed.
+    stopAwaitingReply: (taskId) => {
+      if (rowStopping || !env.connectionReady() || readOnly()) return;
+      rowStopping = true;
+      void channels
+        .command({ type: "stop", operationId: crypto.randomUUID(), channelId, taskId, recipientAgentId: null })
+        .finally(() => {
+          rowStopping = false;
+        });
+    },
     HeaderTitle: (props) => <ChannelHeaderTitle channelId={channelId} onOpenSettings={props.onOpenSettings} />,
     SettingsPane: (props) => (
       <ChannelSettingsPane
@@ -273,6 +327,12 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
     AboveComposer: () => <ChannelAboveComposer channelId={channelId} hiddenAgentIds={env.hiddenAgentIds()} />,
     EmptyState: () => <ChannelEmptyState channelId={channelId} />,
   };
+
+  const deleteMessage = (messageId: string) => channels.deleteMessage(channelId, messageId);
+  /** Whether the reader may delete `message`: their own, or any message for this computer or an admin. */
+  const canDeleteMessage = (message: AgentMessage) =>
+    !readOnly() &&
+    readerCanDeleteMessage(message, { deleteAny: channels.deletesAnyMessage(), isOwnSender: env.isOwnSender });
 
   return {
     source,
@@ -322,5 +382,8 @@ export function createChannelConversation(env: ChannelConversationEnvironment) {
       return respond(() => channels.port().agent.respondToBrowserTakeover({ requestId, decision }));
     },
     onStop: () => void stopWork(),
+    /** The Delete action of the channel. A host without `message-delete-v1` has none. */
+    deleteMessageAction: () => (channels.messageDeletionSupported() ? deleteMessage : undefined),
+    canDeleteMessage,
   };
 }

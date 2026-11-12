@@ -35,6 +35,7 @@ import { matchingSourceKeys, sourceText } from "@openbot/i18n/source";
 import { teamChannelsApi } from "@openbot/team-client/team-api-requests";
 import { Effect } from "effect";
 import { channelFailure } from "../src/backend/channel-effects";
+import { ChannelImages } from "../src/backend/channel-images";
 import { ChannelRoutineScheduler } from "../src/backend/channel-routine-scheduler";
 import { type ChannelHooks, ChannelService } from "../src/backend/channel-service";
 import type { ChannelAssignment } from "../src/backend/channel-store";
@@ -89,7 +90,7 @@ const hooks: ChannelHooks = {
   changed: (channelId) => scheduler?.reconcile(channelId),
   error: (error) => errors.push(error),
 };
-let channels = new ChannelService(database, mailbox, hooks);
+let channels = new ChannelService(database, mailbox, new ChannelImages(root), hooks);
 const report: { passed: boolean; cases: string[]; interruptions: string[]; providerGenerations: number } = {
   passed: false,
   cases: [],
@@ -248,7 +249,7 @@ try {
   assert.equal(after.messages.length, before.messages.length + 1);
   assert.equal(
     after.messages.at(-1)?.message.text,
-    sourceText("status.agent.channelTaskCancelled", { person: actor.name, task: original.id }),
+    sourceText("status.agent.channelTaskCancelled", { agent: actor.name, person: actor.name, task: original.id }),
   );
   const cancellationNote = after.messages.at(-1);
   assert.ok(cancellationNote && isChannelChangeMarker(cancellationNote.message));
@@ -613,7 +614,7 @@ try {
     sourceText("error.backend.channelTaskDependencyCancelled"),
     sourceText("error.backend.channelTaskCancelUnsupported"),
     sourceText("error.backend.channelTaskActionsUnsupported"),
-    sourceText("status.agent.channelTaskCancelled", { person: actor.name, task: original.id }),
+    sourceText("status.agent.channelTaskCancelled", { agent: actor.name, person: actor.name, task: original.id }),
   ])
     assert.equal(matchingSourceKeys(text).length, 1);
 
@@ -621,7 +622,7 @@ try {
   await runCauseEffect(channels.stop());
   database.close();
   await Effect.runPromise(database.initialize());
-  channels = new ChannelService(database, mailbox, hooks);
+  channels = new ChannelService(database, mailbox, new ChannelImages(root), hooks);
   await runCauseEffect(channels.cancelTask(cancel, actor));
   assert.deepEqual(channels.store.page(first.channelId), after);
   await runCauseEffect(channels.recover());

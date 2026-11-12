@@ -178,7 +178,7 @@ try {
     assert.equal(cancelled.tasks.find((task) => task.id === "other-task")?.state, "paused");
     assert.equal((await actions()).length, 1);
     assert.ok(beforeCancel.messages.every((before) => cancelled.messages.some((after) => after.id === before.id)));
-    assert.equal(cancelled.messages.filter((entry) => entry.message.text.includes("cancelled task")).length, 1);
+    assert.equal(cancelled.messages.filter((entry) => entry.message.text.includes("cancelled the task")).length, 1);
     report.cases.push(
       "Pending confirmation blocks a second click; one cancel preserves history and stops only the selected branch.",
     );

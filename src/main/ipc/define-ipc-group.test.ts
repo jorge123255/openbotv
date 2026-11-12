@@ -11,11 +11,15 @@ import {
 } from "@openbot/contracts/ipc";
 import type { IpcMainInvokeEvent } from "electron";
 import { describe, expect, it, vi } from "vitest";
+import { agentRequest } from "./agent-inputs";
 import { eventPayloadHandler, handler, payloadHandler, registerIpcGroup } from "./define-ipc-group";
 import {
+  parseSpeechApiKey,
   parseSpeechInput,
   parseSpeechSettings,
   parseVoiceApiKey,
+  parseVoiceLiveStart,
+  parseVoiceLiveStop,
   parseVoiceModelRequest,
   parseVoiceServerConnection,
   parseVoiceServerSave,
@@ -89,6 +93,7 @@ function registerVoice(
     setSpeechSettings: payloadHandler(parseSpeechSettings, (settings) => settings),
     listElevenLabsVoices: handler(() => []),
     getSpeechModelStatus: handler(() => SPEECH_READY),
+    setSpeechApiKey: payloadHandler(parseSpeechApiKey, () => SPEECH_READY),
     downloadSpeechModel: handler(() => SPEECH_READY),
     cancelSpeechModelDownload: handler(() => SPEECH_READY),
     removeSpeechModel: handler(() => SPEECH_READY),
@@ -98,6 +103,8 @@ function registerVoice(
     getServer: handler(() => null),
     probeServer: payloadHandler(parseVoiceServerConnection, () => ({ ok: false, field: "address", message: "" })),
     setServer: payloadHandler(parseVoiceServerSave, () => null),
+    startLive: payloadHandler(agentRequest(parseVoiceLiveStart), () => ({ sessionId: "live-1", sdp: "answer" })),
+    stopLive: payloadHandler(parseVoiceLiveStop, () => undefined),
   });
 }
 

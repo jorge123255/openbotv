@@ -6,8 +6,8 @@
 
 import {
   ELEVENLABS_SPEECH_LIMITS,
-  type ElevenLabsSpeechVoice,
-  isElevenLabsSpeechVoice,
+  type ElevenLabsAccountVoice,
+  isElevenLabsAccountVoice,
   type SpeechAudio,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord, isString } from "@openbot/contracts/runtime-values";
@@ -62,8 +62,8 @@ export class VoiceElevenLabsSpeech {
   /** The voices of the account. A key that lists none is still valid. */
   readonly listVoices = Effect.fn("VoiceElevenLabs.listVoices")(function* (this: VoiceElevenLabsSpeech) {
     const key = this.#apiKeys.get();
-    if (!key) return yield* fail(sourceText("error.voice.cloud.keyRequired"));
-    const voices: ElevenLabsSpeechVoice[] = [];
+    if (!key) return yield* fail(sourceText("error.voice.cloud.keyRequired", { provider: "ElevenLabs" }));
+    const voices: ElevenLabsAccountVoice[] = [];
     const seen = new Set<string>();
     let pageToken: string | null = null;
     for (let page = 0; page < MAX_PAGES && voices.length < ELEVENLABS_SPEECH_LIMITS.voices; page += 1) {
@@ -87,11 +87,11 @@ export class VoiceElevenLabsSpeech {
   readonly speak = Effect.fn("VoiceElevenLabs.speak")(function* (this: VoiceElevenLabsSpeech, text: string) {
     const key = this.#apiKeys.get();
     const voice = this.#preferences.get().elevenLabsVoice;
-    if (!key) return yield* fail(sourceText("error.voice.cloud.keyRequired"));
+    if (!key) return yield* fail(sourceText("error.voice.cloud.keyRequired", { provider: "ElevenLabs" }));
     if (!voice) return yield* fail(sourceText("error.voice.cloud.voiceRequired"));
     const startedAt = Date.now();
     const pcm = yield* this.#pcm(
-      `/v1/text-to-speech/${encodeURIComponent(voice.id)}?output_format=pcm_${SAMPLE_RATE}`,
+      `/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=pcm_${SAMPLE_RATE}`,
       key,
       JSON.stringify({ text, model_id: SPEECH_MODEL }),
     ).pipe(
@@ -219,23 +219,23 @@ function refusalMessage(status: number, body: string, permission: ElevenLabsPerm
           ? "error.voice.cloud.missingVoicesPermission"
           : "error.voice.cloud.missingSpeechPermission",
       );
-    return sourceText("error.voice.cloud.keyRejected");
+    return sourceText("error.voice.cloud.keyRejected", { provider: "ElevenLabs" });
   }
   if (status === 429 || body.includes("rate_limited") || body.includes("resource_exhausted"))
-    return sourceText("error.voice.cloud.rateLimited");
-  if (body.includes("quota_exceeded")) return sourceText("error.voice.cloud.quotaExceeded");
+    return sourceText("error.voice.cloud.rateLimited", { provider: "ElevenLabs" });
+  if (body.includes("quota_exceeded")) return sourceText("error.voice.cloud.quotaExceeded", { provider: "ElevenLabs" });
   if (body.includes("unaccepted_terms")) return sourceText("error.voice.cloud.termsRequired");
   return sourceText(permission === "voices_read" ? "error.voice.cloud.voicesFailed" : "error.voice.speech.failed");
 }
 
 /** One page of `/v2/voices`. Null when the body is not that page. */
-function voicePage(body: unknown): { voices: ElevenLabsSpeechVoice[]; nextPageToken: string | null } | null {
+function voicePage(body: unknown): { voices: ElevenLabsAccountVoice[]; nextPageToken: string | null } | null {
   if (!isDynamicRecord(body) || !Array.isArray(body.voices)) return null;
-  const voices: ElevenLabsSpeechVoice[] = [];
+  const voices: ElevenLabsAccountVoice[] = [];
   for (const entry of body.voices) {
     if (!isDynamicRecord(entry) || !isString(entry.voice_id) || !isString(entry.name)) continue;
     const voice = { id: entry.voice_id, name: entry.name };
-    if (isElevenLabsSpeechVoice(voice)) voices.push(voice);
+    if (isElevenLabsAccountVoice(voice)) voices.push(voice);
   }
   const token = body.next_page_token;
   const nextPageToken =

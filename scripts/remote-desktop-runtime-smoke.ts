@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -13,6 +14,32 @@ const logger = createOpenBotLogger("remote-desktop-runtime-smoke");
 // Linux runs under a virtual X11 display, such as `xvfb-run`.
 if (process.platform !== "darwin" && process.platform !== "linux") {
   throw new Error("The local runtime smoke test supports macOS and Linux only.");
+}
+
+// A cache hit skips the compile packages. Sunshine still needs these libraries, including libva.so.2.
+if (process.platform === "linux" && process.env.GITHUB_ACTIONS === "true") {
+  const runtimeLibraries = [
+    "libcap2",
+    "libcurl4t64",
+    "libevdev2",
+    "libglib2.0-0t64",
+    "libnuma1",
+    "libpulse0",
+    "libssl3t64",
+    "libva2",
+    "libx11-6",
+    "libxcb-shm0",
+    "libxcb-xfixes0",
+    "libxcb1",
+    "libxfixes3",
+    "libxrandr2",
+    "libxtst6",
+    "xvfb",
+  ];
+  execFileSync("sudo", ["apt-get", "update"], { stdio: "inherit" });
+  execFileSync("sudo", ["apt-get", "install", "-y", "--no-install-recommends", ...runtimeLibraries], {
+    stdio: "inherit",
+  });
 }
 
 const paths = await Effect.runPromise(

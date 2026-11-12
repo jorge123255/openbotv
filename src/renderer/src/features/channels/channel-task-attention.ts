@@ -36,6 +36,7 @@ export function channelTaskAttention(page: ChannelPage): ChannelStoppedTaskView[
     return {
       id: task.id,
       ownerAgentId: task.ownerAgentId,
+      runAgentIds: task.runAgentIds,
       instruction: task.instruction,
       error: task.error,
       revision: task.revision,
