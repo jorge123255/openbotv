@@ -12,6 +12,7 @@ import { join, resolve } from "node:path";
 import type { AgentSummary, ChannelTask } from "@openbot/contracts/ipc";
 import { Effect } from "effect";
 import { ChannelHistory } from "../src/backend/channel-history";
+import { ChannelImages } from "../src/backend/channel-images";
 import {
   bridgeReplySpecified,
   CHANNEL_ASSIGNMENT_BRIDGE_RULE,
@@ -55,7 +56,7 @@ const lead = agent("lead", "Codex Engineering");
 const worker = agent("worker", "Research");
 const prompts: string[] = [];
 
-const channels = new ChannelService(database, mailbox, {
+const channels = new ChannelService(database, mailbox, new ChannelImages(root), {
   agents: () => [lead, worker],
   // One answer per send, in order: the bridge question, the plain question, then a member choice.
   generate: (_agent, prompt) => {

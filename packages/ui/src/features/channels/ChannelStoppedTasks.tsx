@@ -1,4 +1,4 @@
-import type { ChannelMember } from "@openbot/contracts/ipc";
+import { CHANNEL_ASSIGNMENT_LIMIT_ERROR, type ChannelMember } from "@openbot/contracts/ipc";
 import type { AppTextKey } from "@openbot/i18n";
 import { Button, buttonVariants, CircleX, ConfirmDialog, DropdownMenu } from "@openbot/ui";
 import { createStore, For, Show } from "solid-js";
@@ -18,6 +18,8 @@ export interface ChannelStoppedTaskView {
   unfinishedSubtasks: number;
   historyComplete: boolean;
   history: { id: string; author: string; text: string; at: string; details: string }[];
+  /** The owners of the tasks of the run, which the assignment limit names. */
+  runAgentIds?: readonly string[];
 }
 
 const REASONS = {
@@ -50,6 +52,15 @@ export function ChannelStoppedTasks(props: {
   onLoadOlder?: (() => Promise<void>) | undefined;
 }) {
   const { t, format } = useText();
+  const reasonText = (task: ChannelStoppedTaskView) => {
+    if (task.error === CHANNEL_ASSIGNMENT_LIMIT_ERROR) {
+      const names = (task.runAgentIds ?? []).map((agentId) => props.name(agentId));
+      return names.length > 1
+        ? t("channel.stoppedTask.assignmentLoop", { names: format.list(names) })
+        : t("channel.stoppedTask.assignmentLoopMembers");
+    }
+    return t(REASONS[task.reason]);
+  };
   const [state, setState] = createStore<{
     reviewed: Record<string, string>;
     dialog: { kind: "review" | "cancel"; task: ChannelStoppedTaskView } | null;
@@ -149,7 +160,7 @@ export function ChannelStoppedTasks(props: {
                     </span>
                   </summary>
                   <div class="channel-paused-task-body">
-                    <p class="channel-paused-task-reason">{t(REASONS[task().reason])}</p>
+                    <p class="channel-paused-task-reason">{reasonText(task())}</p>
                     <Show when={task().unfinishedSubtasks > 0}>
                       <p>{t("channel.stoppedTask.subtasks", { count: task().unfinishedSubtasks })}</p>
                     </Show>

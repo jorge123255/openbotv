@@ -1,8 +1,12 @@
 import {
   DEFAULT_SPEECH_SETTINGS,
+  isCodexLiveVoice,
   isElevenLabsSpeechVoice,
   isSpeechEngine,
+  isSpeechModelId,
+  isSpeechSpeed,
   isSpeechVoice,
+  isXaiSpeechVoice,
   type SpeechSettings,
 } from "@openbot/contracts/ipc";
 import { isDynamicRecord } from "@openbot/contracts/runtime-values";
@@ -15,9 +19,13 @@ import { type PreferenceFileFailure, readPreferenceFile, writePreferenceFile } f
  * rather than a field of `voice-preference.json`, so an earlier version that rewrites that file keeps
  * this one.
  *
- * A file that is missing, unreadable as JSON or names an unknown Supertonic voice reads as the default:
- * replies are not read aloud. A file from before the engine field reads as Supertonic 3 and keeps its
- * voice. The ElevenLabs voice is kept beside it, so a switch back does not ask the user to choose again.
+ * A file that is missing, unreadable as JSON or names an unknown voice reads as the default: replies
+ * are not read aloud. A file from before the engine field reads as Supertonic 3 and keeps its voice.
+ * A file with no known speed, such as one from an earlier version, reads at normal speed. The speed
+ * is an extra field of version 1, so an earlier version still reads the file. Codex live voice is one
+ * more extra field, and a file without it reads as off. The model and the cloud voices are extra
+ * fields too: a file without a known model reads as Supertonic 3. The ElevenLabs voice is kept beside
+ * the engine, so a switch back does not ask the user to choose again.
  */
 export class SpeechPreferenceStore {
   readonly #path: string;
@@ -31,7 +39,27 @@ export class SpeechPreferenceStore {
   load(): Effect.Effect<void, PreferenceFileFailure> {
     return Effect.gen({ self: this }, function* () {
       const loaded = yield* Effect.result(
-        readPreferenceFile(this.#path, (parsed): SpeechSettings | null => decodeSpeechPreference(parsed)),
+        readPreferenceFile(this.#path, (parsed): SpeechSettings | null =>
+          isDynamicRecord(parsed) &&
+          parsed.version === 1 &&
+          typeof parsed.readReplies === "boolean" &&
+          isSpeechVoice(parsed.voice)
+            ? {
+                readReplies: parsed.readReplies,
+                modelId: isSpeechModelId(parsed.modelId) ? parsed.modelId : DEFAULT_SPEECH_SETTINGS.modelId,
+                voice: parsed.voice,
+                elevenLabsVoice:
+                  parsed.elevenLabsVoice === null || isElevenLabsSpeechVoice(parsed.elevenLabsVoice)
+                    ? parsed.elevenLabsVoice
+                    : DEFAULT_SPEECH_SETTINGS.elevenLabsVoice,
+                xaiVoice: isXaiSpeechVoice(parsed.xaiVoice) ? parsed.xaiVoice : DEFAULT_SPEECH_SETTINGS.xaiVoice,
+                speed: isSpeechSpeed(parsed.speed) ? parsed.speed : DEFAULT_SPEECH_SETTINGS.speed,
+                codexLive: parsed.codexLive === true,
+                codexLiveVoice: isCodexLiveVoice(parsed.codexLiveVoice) ? parsed.codexLiveVoice : null,
+                engine: isSpeechEngine(parsed.engine) ? parsed.engine : "supertonic",
+              }
+            : null,
+        ),
       );
       if (Result.isSuccess(loaded)) {
         if (loaded.success) this.#settings = loaded.success;
@@ -41,25 +69,27 @@ export class SpeechPreferenceStore {
   }
 
   get(): SpeechSettings {
-    const settings = this.#settings;
-    return {
-      readReplies: settings.readReplies,
-      voice: settings.voice,
-      engine: settings.engine,
-      elevenLabsVoice: settings.elevenLabsVoice
-        ? { id: settings.elevenLabsVoice.id, name: settings.elevenLabsVoice.name }
-        : null,
-    };
+    return { ...this.#settings };
   }
 
-  readonly set = Effect.fn("SpeechPreference.set")(function* (this: SpeechPreferenceStore, settings: SpeechSettings) {
-    const saved = speechPreferenceRecord(settings);
+  readonly set = Effect.fn("SpeechPreference.set")(function* (this: SpeechPreferenceStore, input: SpeechSettings) {
+    const settings: SpeechSettings = {
+      readReplies: input.readReplies,
+      modelId: input.modelId,
+      voice: input.voice,
+      elevenLabsVoice: input.elevenLabsVoice,
+      xaiVoice: input.xaiVoice,
+      speed: input.speed,
+      codexLive: input.codexLive,
+      codexLiveVoice: input.codexLiveVoice,
+      engine: input.engine,
+    };
     yield* this.#writes.withPermit(
       Effect.uninterruptible(
-        writePreferenceFile(this.#path, saved).pipe(
+        writePreferenceFile(this.#path, { version: 1, ...settings }).pipe(
           Effect.tap(() =>
             Effect.sync(() => {
-              this.#settings = speechSettingsFromRecord(saved);
+              this.#settings = settings;
             }),
           ),
         ),
@@ -67,45 +97,4 @@ export class SpeechPreferenceStore {
     );
     return this.get();
   });
-}
-
-/** Version 1, plus the engine fields. An older reader keeps `readReplies` and `voice` and drops the rest. */
-function speechPreferenceRecord(settings: SpeechSettings) {
-  return {
-    version: 1 as const,
-    readReplies: settings.readReplies,
-    voice: settings.voice,
-    engine: settings.engine,
-    elevenLabsVoice: settings.elevenLabsVoice
-      ? { id: settings.elevenLabsVoice.id, name: settings.elevenLabsVoice.name }
-      : null,
-  };
-}
-
-function speechSettingsFromRecord(record: ReturnType<typeof speechPreferenceRecord>): SpeechSettings {
-  return {
-    readReplies: record.readReplies,
-    voice: record.voice,
-    engine: record.engine,
-    elevenLabsVoice: record.elevenLabsVoice,
-  };
-}
-
-/** A version-1 file. Unknown engine or voice fields fall back; a bad Supertonic voice rejects the file. */
-function decodeSpeechPreference(parsed: unknown): SpeechSettings | null {
-  if (
-    !isDynamicRecord(parsed) ||
-    parsed.version !== 1 ||
-    typeof parsed.readReplies !== "boolean" ||
-    !isSpeechVoice(parsed.voice)
-  )
-    return null;
-  return {
-    readReplies: parsed.readReplies,
-    voice: parsed.voice,
-    engine: isSpeechEngine(parsed.engine) ? parsed.engine : "supertonic",
-    elevenLabsVoice: isElevenLabsSpeechVoice(parsed.elevenLabsVoice)
-      ? { id: parsed.elevenLabsVoice.id, name: parsed.elevenLabsVoice.name }
-      : null,
-  };
 }

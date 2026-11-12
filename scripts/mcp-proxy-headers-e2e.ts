@@ -48,6 +48,7 @@ const server = createServer(async (request, response) => {
 let base = "";
 const proxy = new McpOAuthProxy({
   settings: null,
+  signInEnded: () => false,
   target: (route) =>
     Effect.succeed({
       url: `${base}/${route === routes.redirect ? "redirect" : route === routes.refresh ? "refresh" : "mcp"}`,

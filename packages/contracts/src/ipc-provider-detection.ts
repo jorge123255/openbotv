@@ -11,7 +11,12 @@ import { isBoundedString } from "./ipc-bounded-values";
 import {
   CUSTOM_PROVIDER_LIMITS,
   type CustomProviderHeader,
+  type CustomProviderInputKind,
+  type CustomProviderReasoningEffort,
   isCustomProviderContextWindow,
+  isCustomProviderInputs,
+  isCustomProviderMaxOutput,
+  isCustomProviderReasoningEfforts,
   isNewCustomProviderId,
 } from "./ipc-custom-providers";
 import { isBoolean, isDynamicRecord } from "./runtime-values";
@@ -52,10 +57,20 @@ export const DEFAULT_PROVIDER_DETECTION_SETTINGS: ProviderDetectionSettings = {
   hiddenIds: [],
 };
 
+/**
+ * One model that a server lists. The other fields are what the list says about the model, so the
+ * form can fill them in (#3946). Each is absent when the list does not say it.
+ */
 export interface DetectedModel {
   id: string;
+  /** What the model reads beside text. Empty: text only. */
+  inputs?: CustomProviderInputKind[];
   /** The loaded context window, when the server reports one within the saved-model bounds. */
   contextWindow?: number;
+  /** Only with `contextWindow`, as the form takes it. */
+  maxOutput?: number;
+  /** The efforts that the list gives for the model, in `CUSTOM_PROVIDER_REASONING_EFFORTS` order. Never empty. */
+  reasoningEfforts?: CustomProviderReasoningEffort[];
 }
 
 /** One server that answered `GET {baseUrl}/models` with no key. */
@@ -90,7 +105,11 @@ function isDetectedModel(value: unknown): value is DetectedModel {
     isDynamicRecord(value) &&
     isBoundedString(value.id, INPUT_LIMITS.identifier) &&
     value.id.length > 0 &&
-    (value.contextWindow === undefined || isCustomProviderContextWindow(value.contextWindow))
+    (value.inputs === undefined || isCustomProviderInputs(value.inputs)) &&
+    (value.contextWindow === undefined || isCustomProviderContextWindow(value.contextWindow)) &&
+    (value.maxOutput === undefined ||
+      (value.contextWindow !== undefined && isCustomProviderMaxOutput(value.maxOutput))) &&
+    (value.reasoningEfforts === undefined || isCustomProviderReasoningEfforts(value.reasoningEfforts))
   );
 }
 

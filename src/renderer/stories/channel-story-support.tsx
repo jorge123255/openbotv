@@ -95,7 +95,7 @@ export interface ChannelStoryProps {
   messages?: AgentMessage[];
   workers?: ChannelWorker[];
   awaiting?: AwaitingReplyItem[];
-  stopped?: Pick<ChannelTask, "id" | "ownerAgentId" | "instruction" | "error">[];
+  stopped?: (Pick<ChannelTask, "id" | "ownerAgentId" | "instruction" | "error"> & { runAgentIds?: string[] })[];
   archived?: boolean;
   activeTurnId?: string | null;
   unreadCount?: number;
@@ -114,7 +114,10 @@ export function StoryChannelConversation(props: ChannelStoryProps) {
       const agent = STORY_AGENTS.find((candidate) => candidate.id === message.senderAgentId);
       return { kind: "agent", name: agent?.name ?? "Former member", agent, avatarSeed: message.senderAgentId };
     },
+    ownMessage: (message) => message.author === "you",
     workers: () => props.workers ?? [],
+    memberThreadIds: () => new Set(),
+    browserOwner: () => null,
     workingTurns: () => [],
     interactionAgentName: () => undefined,
     awaitingReplies: () => props.awaiting ?? [],

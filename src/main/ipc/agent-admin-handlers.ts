@@ -7,13 +7,17 @@ import type { RemoteWorkflowError } from "../remote-service-effects";
 import {
   type AddedAgent,
   type AgentAdminSettings,
+  type BrowserComputerSharing,
   decodeAgentAdminSettings,
   decodeAgentBackupModelSettings,
   decodeAgentBrowserProfile,
   decodeAgentPlanCardSettings,
   decodeAgentTaskLimitSettings,
+  decodeBrowserComputerSharing,
   decodeBrowserProfileList,
   decodeBrowserProfileSummary,
+  decodeBrowserProxyList,
+  decodeBrowserProxySummary,
   decodeHostAddedAgent,
   decodeHostAgentTemplatePreview,
   decodeHostAgentTemplatePublication,
@@ -23,6 +27,9 @@ import {
   parseBrowserProfileId,
   parseBrowserProfileName,
   parseClearBrowserDataInput,
+  parseDeleteBrowserProxyInput,
+  parseSaveBrowserProxyInput,
+  parseSetBrowserProfileProxyInput,
   parseUpdateAgentAdminSettingsInput,
   parseUpdateAgentBackupModelsInput,
   parseUpdateAgentBrowserProfileInput,
@@ -66,7 +73,12 @@ import {
   BROWSER_PROFILES_CAPABILITY,
   BROWSER_PROFILES_ROUTES,
 } from "@openbot/contracts/team-protocol/browser-profiles-v1";
+import {
+  BROWSER_PROXIES_CAPABILITY,
+  BROWSER_PROXIES_ROUTES,
+} from "@openbot/contracts/team-protocol/browser-proxies-v1";
 import type { TeamCurrentCapability } from "@openbot/contracts/team-protocol/current";
+import { GITHUB_SKILLS_CAPABILITY, GITHUB_SKILLS_ROUTES } from "@openbot/contracts/team-protocol/github-skills-v1";
 import { SKILLS_ADMIN_CAPABILITY, SKILLS_ADMIN_ROUTES } from "@openbot/contracts/team-protocol/skills-admin-v1";
 import { sourceText } from "@openbot/i18n/source";
 import { runCauseEffect } from "../../backend/effect-boundary";
@@ -77,6 +89,7 @@ import type { AgentTemplateService } from "../agent-template-service";
 import type { BrowserProfileService } from "../browser-profile-service";
 import {
   decodeAgentHostSettingsFromHost,
+  decodeGithubSkillSourceFromHost,
   decodeRemoteAgentFastModeSettings,
   decodeRemoteAgentNewChatSettings,
 } from "../remote-agent-decoding";
@@ -96,6 +109,8 @@ import { requireString } from "./validation";
 
 interface AgentAdminRemoteServers {
   supportsCapability(serverId: string, capability: TeamCurrentCapability): boolean;
+  browserComputerSharing(serverId: string): BrowserComputerSharing | null;
+  setBrowserComputerSharing(serverId: string, sharing: boolean): Effect.Effect<void, RemoteWorkflowError>;
   request<T>(
     serverId: string,
     path: string,
@@ -108,7 +123,7 @@ interface AgentAdminIpcDependencies {
   settings: AgentAdminSettingsService;
   hostSettings: AgentHostSettingsService;
   browserProfiles: BrowserProfileService;
-  skills: Pick<SkillMarketplaceService, "listInstalled" | "install" | "uninstall" | "setEnabled">;
+  skills: Pick<SkillMarketplaceService, "listInstalled" | "install" | "uninstall" | "setEnabled" | "readGithub">;
   marketplaceAgents: Pick<AgentMarketplaceService, "install">;
   agentTemplates: Pick<AgentTemplateService, "install" | "preview" | "publish" | "unpublish">;
   remoteServers: AgentAdminRemoteServers;
@@ -242,6 +257,38 @@ export function agentAdminIpcHandlers({
         remote: (input, serverId) =>
           remoteBrowserProfiles(serverId, BROWSER_PROFILES_ROUTES.updateAgent, input, decodeAgentBrowserProfile),
       }),
+      listBrowserProxies: scopedQueryHandler({
+        local: () => browserProfiles.listProxies(),
+        // Null: the host has no proxy routes, so the settings show no proxy choice.
+        remote: (serverId) =>
+          remoteServers.supportsCapability(serverId, BROWSER_PROXIES_CAPABILITY)
+            ? remoteBrowserProxies(serverId, BROWSER_PROXIES_ROUTES.list, {}, decodeBrowserProxyList)
+            : null,
+      }),
+      saveBrowserProxy: scopedHandler(parseSaveBrowserProxyInput, {
+        local: (input) => runCauseEffect(browserProfiles.saveProxy(input)),
+        remote: (input, serverId) =>
+          remoteBrowserProxies(serverId, BROWSER_PROXIES_ROUTES.save, input, decodeBrowserProxySummary),
+      }),
+      deleteBrowserProxy: scopedHandler(parseDeleteBrowserProxyInput, {
+        local: (input) => runCauseEffect(browserProfiles.deleteProxy(input)),
+        remote: (input, serverId) => remoteBrowserProxies(serverId, BROWSER_PROXIES_ROUTES.delete, input, acceptEmpty),
+      }),
+      setBrowserProfileProxy: scopedHandler(parseSetBrowserProfileProxyInput, {
+        local: (input) => runCauseEffect(browserProfiles.setProfileProxy(input)),
+        remote: (input, serverId) => remoteBrowserProxies(serverId, BROWSER_PROXIES_ROUTES.profile, input, acceptEmpty),
+      }),
+      // This computer's own server has no computer proxy of this computer: its pages already use it.
+      getBrowserComputerSharing: scopedQueryHandler({
+        local: () => null,
+        remote: (serverId) => remoteServers.browserComputerSharing(serverId),
+      }),
+      setBrowserComputerSharing: scopedHandler(decodeBrowserComputerSharing, {
+        local: () => {
+          throw new Error(sourceText("error.team.agentSettingsUnsupported"));
+        },
+        remote: ({ sharing }, serverId) => runCauseEffect(remoteServers.setBrowserComputerSharing(serverId, sharing)),
+      }),
       listBrowserTabProfiles: scopedQueryHandler({
         local: () => browserProfiles.tabProfiles(),
         // A host without the capability shows no label: its tabs are all in its one shared session.
@@ -276,6 +323,19 @@ export function agentAdminIpcHandlers({
         local: (input) => runCauseEffect(skills.setEnabled(input)),
         remote: (input, serverId) =>
           remoteSkills(serverId, SKILLS_ADMIN_ROUTES.setEnabled, input, decodeRemoteInstalledSkill),
+      }),
+      readGithubSkills: scopedHandler((value) => requireString(value, "link", 2048), {
+        local: (link) => runCauseEffect(skills.readGithub(link)),
+        remote: (link, serverId) => {
+          if (!remoteServers.supportsCapability(serverId, GITHUB_SKILLS_CAPABILITY))
+            throw new Error(sourceText("error.skill.githubHostTooOld"));
+          return runCauseEffect(
+            remoteServers.request(serverId, GITHUB_SKILLS_ROUTES.read, decodeGithubSkillSourceFromHost, {
+              method: "POST",
+              body: { link },
+            }),
+          );
+        },
       }),
       addMarketplaceAgent: scopedHandler(parseInstallMarketplaceAgent, {
         local: async (input) => addedAgent(await runCauseEffect(marketplaceAgents.install(input))),
@@ -343,6 +403,12 @@ export function agentAdminIpcHandlers({
   // A joined server has no browser profile routes yet.
   function remoteBrowserProfiles<A>(serverId: string, path: string, body: unknown, decode: ResponseDecoder<A>) {
     if (!remoteServers.supportsCapability(serverId, BROWSER_PROFILES_CAPABILITY))
+      throw new Error(sourceText("error.team.agentSettingsUnsupported"));
+    return runCauseEffect(remoteServers.request(serverId, path, decode, { method: "POST", body }));
+  }
+
+  function remoteBrowserProxies<A>(serverId: string, path: string, body: unknown, decode: ResponseDecoder<A>) {
+    if (!remoteServers.supportsCapability(serverId, BROWSER_PROXIES_CAPABILITY))
       throw new Error(sourceText("error.team.agentSettingsUnsupported"));
     return runCauseEffect(remoteServers.request(serverId, path, decode, { method: "POST", body }));
   }

@@ -39,8 +39,9 @@ function channelConversationMessage(entry: ChannelMessage, task?: ChannelAssignm
       id: entry.id,
       kind: "action-marker",
       actionMarker: {
-        ...routing,
         kind: "channel-routing",
+        action: routing.action,
+        agentIds: [routing.agentId],
         timestamp: entry.message.createdAt,
         ...(task ? { task } : {}),
       },
@@ -57,7 +58,9 @@ function foldedEntry(entry: ChannelMessage): boolean {
 
 /**
  * The rows of a channel page. The thinking and narration of a member's turn fold into one thinking
- * row, as in an agent chat, and show as the steps above the member's answer. Before, each part showed
+ * row, as in an agent chat, and show as the steps above the member's answer. With the Natural style
+ * the narration also shows as the member's progress updates (`narrationRows`) until the answer
+ * comes (`scroll-store`). Before, each part showed
  * as a message, and a model that streams its whole reasoning (DeepSeek through OpenCode) showed a
  * very long one.
  */
@@ -65,7 +68,7 @@ export function channelConversationRows(
   entries: readonly ChannelMessage[],
   tasks?: ReadonlyMap<string, ChannelAssignmentTask>,
 ): AgentMessage[] {
-  return toAgentMessages(
+  const rows = toAgentMessages(
     entries.map((entry) => ({ ...entry.message, id: entry.id })),
     undefined,
     (message, index) => {
@@ -75,6 +78,47 @@ export function channelConversationRows(
         : toAgentMessage(message);
     },
   );
+  // A thinking row names the member of its turn, so its progress updates show as that member's.
+  const turnAuthors = new Map<string, string>();
+  for (const entry of entries)
+    if (entry.message.turnId && foldedEntry(entry) && entry.author.kind !== "member")
+      turnAuthors.set(entry.message.turnId, entry.author.id);
+  return joinRoutingRows(
+    rows.map((row) => {
+      const author = row.kind === "thinking" && row.turnId ? turnAuthors.get(row.turnId) : undefined;
+      return author ? { ...row, senderAgentId: author } : row;
+    }),
+  );
+}
+
+/**
+ * Consecutive routing receipts of one action as one row. The lead often gives the parts of one request
+ * to several members at once, and a row for each read as a list of separate events. The row keeps the
+ * id of its first receipt, so a member that joins later adds a name to the row the reader sees.
+ */
+function joinRoutingRows(rows: AgentMessage[]): AgentMessage[] {
+  const joined: AgentMessage[] = [];
+  for (const row of rows) {
+    const marker = row.actionMarker?.kind === "channel-routing" ? row.actionMarker : undefined;
+    const previous = joined.at(-1);
+    const open = previous?.actionMarker?.kind === "channel-routing" ? previous.actionMarker : undefined;
+    if (!marker || !previous || !open || open.action !== marker.action) {
+      joined.push(row);
+      continue;
+    }
+    const agentIds = [...open.agentIds, ...marker.agentIds.filter((id) => !open.agentIds.includes(id))];
+    const { task: joinedTask, ...openWithoutTask } = open;
+    joined[joined.length - 1] = {
+      ...previous,
+      actionMarker: {
+        ...(agentIds.length === 1 ? open : openWithoutTask),
+        agentIds,
+        timestamp: marker.timestamp,
+        ...(agentIds.length === 1 && joinedTask ? { task: joinedTask } : {}),
+      },
+    };
+  }
+  return joined;
 }
 
 /**
@@ -129,30 +173,43 @@ export function firstUnreadChannelMessageId(
 }
 
 /**
- * Everyone the channel waits on: the owner of a running task, the author of a message that is still
- * arriving, and the lead while it chooses an owner. They read as one row under the transcript,
+ * Everyone the channel waits on: the owner of a running task, the author of a message of an active
+ * task that is still arriving, and the lead while it chooses an owner. They read as one row under the transcript,
  * because a channel runs several agents at once and a row for each would push the messages away.
  *
  * The lead's routing turn moves no task out of `queued` and writes no message of its own. Without
  * it the transcript stands still while the coordinator thinks, which reads as a dropped request.
  * Only `queued` and `waiting`: routing that ends without an owner leaves the task `paused` with the
- * coordinator's reason above the composer, and that notice is the indicator from then on. A lead that
- * the user hid routes nothing until the restore, so it is not shown as working.
+ * coordinator's reason above the composer, and that notice is the indicator from then on. A hidden
+ * lead on a host without `agent-hidden-work` routes nothing until the restore, so it is not shown as
+ * working.
  */
 export function channelWorkers(
   page: ChannelPage,
   agents: readonly AgentProfile[],
   fallbackName: string,
-  hiddenAgentIds: ReadonlySet<string>,
+  pausedAgentIds: ReadonlySet<string>,
 ): ChannelWorker[] {
   const ids = new Set<string>();
-  for (const task of page.tasks) if (task.state === "running" && task.ownerAgentId) ids.add(task.ownerAgentId);
+  const active = new Set<string>();
+  for (const task of page.tasks) {
+    if (task.state === "running" && task.ownerAgentId) ids.add(task.ownerAgentId);
+    if (task.state === "queued" || task.state === "running" || task.state === "waiting") active.add(task.id);
+  }
+  // A refresh reads only the newest messages, so an older one keeps the copy the view loaded. A
+  // copy loaded while it streamed showed its author as working after the task ended (#4846). A
+  // follow-up queues the task while its turn still writes, so a queued task keeps its writer.
   for (const entry of page.messages)
-    if (entry.message.status === "streaming" && entry.author.kind !== "member") ids.add(entry.author.id);
+    if (
+      entry.message.status === "streaming" &&
+      entry.author.kind !== "member" &&
+      (entry.taskId === null || active.has(entry.taskId))
+    )
+      ids.add(entry.author.id);
   const lead = page.channel.leadAgentId;
   if (
     lead &&
-    !hiddenAgentIds.has(lead) &&
+    !pausedAgentIds.has(lead) &&
     page.tasks.some((task) => !task.ownerAgentId && (task.state === "queued" || task.state === "waiting"))
   )
     ids.add(lead);
@@ -164,15 +221,33 @@ export function channelWorkers(
 }
 
 /**
- * The work that waits for the reader: each stopped task stays independently selectable.
+ * The work that waits for the reader: one entry for each stopped run, not for each stopped task.
  *
  * A task the service stopped carries the reason, and an archived channel stops every task without
  * one, so the reason tells the two apart. A failed task belongs here too: its parent waits for it,
- * and only the reader starts it again. A root action also affects its unfinished descendants.
+ * and only the reader starts it again. The assignment limit stops a whole tree at once, and `resume`
+ * starts a task with everything under it, so the entry is the root. `runAgentIds` are the owners of
+ * the tasks of the run, so the assignment limit can name the members that passed the work around.
+ * A root action also affects its unfinished descendants.
  */
-export function stoppedChannelTasks(page: ChannelPage): ChannelTask[] {
+export function stoppedChannelTasks(page: ChannelPage): (ChannelTask & { runAgentIds: string[] })[] {
   if (page.channel.archived) return [];
-  return page.tasks.filter((task) => (task.state === "paused" || task.state === "failed") && task.error);
+  const roots = new Map<string, ChannelTask>();
+  for (const task of page.tasks) {
+    if (!((task.state === "paused" || task.state === "failed") && task.error)) continue;
+    const known = roots.get(task.rootTaskId);
+    if (!known || task.id === task.rootTaskId) roots.set(task.rootTaskId, task);
+  }
+  return [...roots.values()].map((root) => ({
+    ...root,
+    runAgentIds: [
+      ...new Set(
+        page.tasks.flatMap((task) =>
+          task.rootTaskId === root.rootTaskId && task.ownerAgentId ? [task.ownerAgentId] : [],
+        ),
+      ),
+    ],
+  }));
 }
 
 /**

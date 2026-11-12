@@ -183,13 +183,32 @@ it("keeps the privileged diagnostic absent by default and never starts it while 
   const interfaceSize = { step: unrelated };
   let called = 0;
   const quit = () => undefined;
-  configureApplicationMenu(service, updater, interfaceSize, translate, () => null, quit);
+  configureApplicationMenu(
+    service,
+    updater,
+    interfaceSize,
+    translate,
+    () => null,
+    () => [],
+    () => "working",
+    quit,
+  );
   const defaultView = menus.at(-1)?.find((item) => item.role === "viewMenu");
   expect(Array.isArray(defaultView?.submenu) && defaultView.submenu.some((item) => item.label === label)).toBe(false);
   const run = () => {
     called += 1;
   };
-  configureApplicationMenu(service, updater, interfaceSize, translate, () => null, quit, run);
+  configureApplicationMenu(
+    service,
+    updater,
+    interfaceSize,
+    translate,
+    () => null,
+    () => [],
+    () => "working",
+    quit,
+    run,
+  );
   expect(called).toBe(0);
   const view = menus.at(-1)?.find((item) => item.role === "viewMenu");
   const action = Array.isArray(view?.submenu) ? view.submenu.find((item) => item.label === label) : undefined;

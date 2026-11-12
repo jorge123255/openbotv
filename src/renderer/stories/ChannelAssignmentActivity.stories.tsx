@@ -196,7 +196,7 @@ export const Contrast: Story = {
           marker={{
             kind: "channel-routing",
             action: "assigned",
-            agentId: "chief",
+            agentIds: ["chief"],
             timestamp: "2026-10-31T12:04:00.000Z",
             task: requireFixture(views.get("working-task"), "The working assignment task"),
           }}

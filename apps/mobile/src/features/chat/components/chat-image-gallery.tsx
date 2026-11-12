@@ -20,7 +20,9 @@ import Animated, {
 import { scheduleOnRN, scheduleOnUI } from "react-native-worklets";
 import { haptics } from "@/shared/lib/haptics";
 import { useReducedMotion } from "@/shared/lib/motion";
+import { longPressDelay } from "@/shared/lib/platform";
 import { useText } from "@/shared/lib/text";
+import { END_X } from "@/shared/lib/text-direction";
 import { FILL, FRAME_RADIUS, MAX_FRAME_WIDTH } from "../model/attachment-frame";
 import { sameShape } from "../model/image-dimensions";
 import type { GalleryTile } from "../model/image-gallery-layout";
@@ -37,7 +39,8 @@ import {
 } from "../model/image-stack-motion";
 import { rubberBandClamp } from "../model/image-viewer-geometry";
 import { rememberImageDimensions, useAttachmentFile } from "./attachment-preview";
-import { useChatImageSource } from "./chat-image-viewer";
+import { isViewableImage, useChatImageSource } from "./chat-image-viewer";
+import { UPLOAD_BLUR_RADIUS, useUploadReveal } from "./upload-progress";
 
 const TILE_RADIUS = 10;
 const CARD_WIDTH = 196;
@@ -63,10 +66,13 @@ interface StackMotion {
  */
 export function ChatImageGallery({
   attachments,
+  uploads,
   serverId,
   alignment,
 }: {
   attachments: readonly AttachmentSummary[];
+  /** The sent fraction of each image, from 0 to 1, while the message that carries them is sending. */
+  uploads?: readonly (number | undefined)[];
   serverId: string;
   /** The side of the chat the message is on. The count sits on that side, as the actions do. */
   alignment: "left" | "right";
@@ -78,9 +84,10 @@ export function ChatImageGallery({
   const cardWidth = Math.min(CARD_WIDTH, Math.min(MAX_FRAME_WIDTH, width - 80) - SPREAD * 2);
   const count = attachments.length;
   const keys = attachments.map((attachment) => attachment.id);
-  // A stack on the right fans out as the mirror image of one on the left, and a card that a screen
-  // reader moves swings toward the open side of the chat.
-  const mirror = alignment === "right" ? -1 : 1;
+  // A stack at the end fans out as the mirror image of one at the start, and a card that a screen
+  // reader moves swings toward the open side of the chat. The alignment is the side in the layout, so
+  // a right-to-left layout puts it on the other side of the screen.
+  const mirror = (alignment === "right" ? -1 : 1) * END_X;
   const viewer = useChatImageSource(null, 0);
   const hiddenSource = viewer.hiddenSource;
   const position = useSharedValue(0);
@@ -92,10 +99,12 @@ export function ChatImageGallery({
   // React hears the front card only to name it to a screen reader and to open it.
   const [front, setFront] = useState(0);
   const retries = useRef(new Map<number, () => boolean>());
+  // Images the phone is still sending are only on the phone, so the viewer and the gallery screen wait for the host.
+  const sent = attachments.every(isViewableImage);
 
   function openSlot(slot: number) {
     const attachment = attachments[slot];
-    if (!attachment || retries.current.get(slot)?.()) return;
+    if (!attachment || !isViewableImage(attachment) || retries.current.get(slot)?.()) return;
     viewer.open?.(attachment);
   }
 
@@ -200,6 +209,7 @@ export function ChatImageGallery({
           collapsable={false}
           accessible
           accessibilityRole="adjustable"
+          accessibilityState={{ busy: uploads !== undefined }}
           accessibilityLabel={t("mobile.chat.attachment.preview", { name: frontAttachment?.name ?? "" })}
           accessibilityValue={{ text: t("mobile.chat.imageViewer.position", { current: front + 1, total: count }) }}
           accessibilityActions={[{ name: "activate" }, { name: "increment" }, { name: "decrement" }]}
@@ -217,6 +227,7 @@ export function ChatImageGallery({
               attachment={attachment}
               serverId={serverId}
               slot={slot}
+              upload={uploads?.[slot]}
               count={count}
               width={cardWidth}
               reduced={reduced}
@@ -229,6 +240,8 @@ export function ChatImageGallery({
       </GestureDetector>
       <Pressable
         accessibilityRole="button"
+        accessibilityState={{ disabled: !sent }}
+        disabled={!sent}
         hitSlop={8}
         className={`flex-row items-center gap-1 ${alignment === "right" ? "self-end" : "self-start"}`}
         // The count keeps the inset of an 18-point action icon centred in its 40-point button, on
@@ -258,6 +271,7 @@ function StackCard({
   attachment,
   serverId,
   slot,
+  upload,
   count,
   width,
   reduced,
@@ -268,6 +282,7 @@ function StackCard({
   attachment: AttachmentSummary;
   serverId: string;
   slot: number;
+  upload?: number;
   count: number;
   width: number;
   reduced: boolean;
@@ -280,8 +295,10 @@ function StackCard({
   const { localUri, uri, dimensions, query } = useAttachmentFile(serverId, attachment, true);
   const [loaded, setLoaded] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
-  const source = useChatImageSource(attachment.id, FRAME_RADIUS);
+  const source = useChatImageSource(isViewableImage(attachment) ? attachment.id : null, FRAME_RADIUS);
   const failed = Boolean(query.error) || imageFailed;
+  // As on a single image: the card is blurred while it uploads and comes into focus as it leaves the phone.
+  const { shownUpload, revealStyle } = useUploadReveal(upload);
   // A tap on a card that failed loads it again instead of opening the viewer.
   useEffect(() => {
     retries.set(slot, () => {
@@ -344,21 +361,33 @@ function StackCard({
         ) : (
           <>
             <Skeleton isLoading={!loaded} className="rounded-none" style={FILL} />
-            <Image
-              source={uri}
-              transition={localUri ? 0 : 220}
-              contentFit="cover"
-              accessible={false}
-              style={FILL}
-              onLoad={({ source: decoded }) => {
-                setLoaded(true);
-                if (decoded.width <= 0 || decoded.height <= 0) return;
-                const size = { width: decoded.width, height: decoded.height };
-                if (dimensions && sameShape(dimensions, size)) return;
-                rememberImageDimensions(attachment.id, size);
-              }}
-              onError={() => setImageFailed(true)}
-            />
+            {shownUpload !== undefined && uri ? (
+              <Image
+                source={uri}
+                blurRadius={UPLOAD_BLUR_RADIUS}
+                transition={0}
+                contentFit="cover"
+                accessible={false}
+                style={FILL}
+              />
+            ) : null}
+            <Animated.View style={[FILL, revealStyle]}>
+              <Image
+                source={uri}
+                transition={localUri ? 0 : 220}
+                contentFit="cover"
+                accessible={false}
+                style={FILL}
+                onLoad={({ source: decoded }) => {
+                  setLoaded(true);
+                  if (decoded.width <= 0 || decoded.height <= 0) return;
+                  const size = { width: decoded.width, height: decoded.height };
+                  if (dimensions && sameShape(dimensions, size)) return;
+                  rememberImageDimensions(attachment.id, size);
+                }}
+                onError={() => setImageFailed(true)}
+              />
+            </Animated.View>
           </>
         )}
       </Animated.View>
@@ -374,10 +403,13 @@ export function ChatGalleryTile({
   attachment,
   serverId,
   tile,
+  onLongPress,
 }: {
   attachment: AttachmentSummary;
   serverId: string;
   tile: GalleryTile;
+  /** Opens the menu of the tile. The native context menu does not cancel the tap without it. */
+  onLongPress?: () => void;
 }) {
   const { t } = useText();
   const muted = useThemeColor("muted");
@@ -414,8 +446,10 @@ export function ChatGalleryTile({
             : t("mobile.chat.attachment.preview", { name: attachment.name })
         }
         accessibilityState={{ disabled: pending || (!uri && !failed), busy: !failed && !loaded }}
-        disabled={pending || (!uri && !failed)}
+        // A tile with a menu keeps its long press while the image loads; only the tap waits for it.
+        disabled={!onLongPress && (pending || (!uri && !failed))}
         onPress={() => {
+          if (pending || (!uri && !failed)) return;
           if (!failed) {
             source.open?.(attachment);
             return;
@@ -423,6 +457,8 @@ export function ChatGalleryTile({
           setImageFailed(false);
           void query.refetch();
         }}
+        delayLongPress={longPressDelay}
+        onLongPress={onLongPress}
         style={FILL}
       >
         {failed ? (
