@@ -836,16 +836,27 @@ export function createConversationViewScope(props: ConversationProps) {
   // that key after the send settles, so it stays mounted while the host's message replaces it.
   // A key goes to one message only: when a channel guess took the wrong message and the send's own
   // id comes later, the second message gets its own row and two rows never share a key.
+  // A send that fails after the host stored the message drops that key. The stored row and the
+  // Retry row must stay separate, or the reader sees the same failed bubble twice.
   const handedOverRowKeys = createMemo<ReadonlyMap<string, string>>((previous = new Map()) => {
-    const usedKeys = new Set(previous.values());
+    const failedKeys = new Set(
+      currentPendingSends()
+        .filter((send) => send.state === "failed")
+        .map((send) => `${PENDING_SEND_ID_PREFIX}${send.clientMessageId}`),
+    );
+    const kept = [...previous].filter(([, rowKey]) => !failedKeys.has(rowKey));
+    const usedKeys = new Set(kept.map(([, rowKey]) => rowKey));
+    const keptIds = new Set(kept.map(([messageId]) => messageId));
     const sent = currentPendingSends().flatMap((send) => {
       const messageId = sentMessageId(send);
       const rowKey = `${PENDING_SEND_ID_PREFIX}${send.clientMessageId}`;
-      if (!messageId || previous.has(messageId) || usedKeys.has(rowKey)) return [];
+      if (!messageId || send.state === "failed" || keptIds.has(messageId) || usedKeys.has(rowKey)) return [];
       usedKeys.add(rowKey);
       return [[messageId, rowKey] as const];
     });
-    return sent.length ? new Map([...previous, ...sent]) : previous;
+    const next = [...kept, ...sent];
+    if (next.length === previous.size && sent.length === 0 && kept.length === previous.size) return previous;
+    return new Map(next);
   });
   createEffect(
     () => ({

@@ -1,4 +1,4 @@
-/** All tables of source schema 47, including SQLite and FTS metadata. Each table has one owner.
+/** All tables of source schema 61, including SQLite and FTS metadata. Each table has one owner.
  * These are row-count groups. They do not count distinct people, messages or files.
  */
 export const MIGRATION_ASSESSMENT_TABLES = {
@@ -20,6 +20,8 @@ export const MIGRATION_ASSESSMENT_TABLES = {
     "projection_thread_read_baselines",
     "projection_thread_activities",
     "projection_thread_summaries",
+    "projection_deleted_thread_messages",
+    "projection_pinned_thread_messages",
   ],
   "agent-memories": ["projection_agent_memories", "agent_memory_selections"],
   "mailbox-queues": [
@@ -65,6 +67,8 @@ export const MIGRATION_ASSESSMENT_TABLES = {
     "projection_messaging_threads",
     "projection_messaging_memories",
     "projection_messaging_allowed_roles",
+    "projection_messaging_allowed_senders",
+    "projection_messaging_pings",
   ],
   "provider-sessions-history": [
     "projection_provider_sessions",
@@ -72,9 +76,9 @@ export const MIGRATION_ASSESSMENT_TABLES = {
     "provider_history_turns",
     "provider_history_staging",
   ],
-  usage: ["agent_usage_records", "agent_usage_checkpoints", "agent_usage_activity"],
+  usage: ["agent_usage_records", "agent_usage_checkpoints", "agent_usage_activity", "agent_usage_skill_loads"],
   "mcp-config": ["projection_mcp_servers"],
-  "browser-profile-identities": ["browser_profiles"],
+  "browser-profile-identities": ["browser_profiles", "browser_profile_proxies", "browser_proxies"],
   workflows: [
     "workflows",
     "workflow_nodes",
@@ -93,4 +97,4 @@ export const MIGRATION_ASSESSMENT_TABLES = {
   "events-receipts": ["orchestration_events", "orchestration_command_receipts"],
 } as const;
 
-export const MIGRATION_ASSESSMENT_EXPECTED_SCHEMA = 49;
+export const MIGRATION_ASSESSMENT_EXPECTED_SCHEMA = 61;
