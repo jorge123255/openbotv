@@ -260,7 +260,7 @@ export const messages = {
   "server.settings.generalDescription": "Zarządzaj nazwą, logo i ustawieniami serwera.",
   "server.settings.vaultTitle": "Sejf",
   "server.settings.vaultDescription":
-    "Zapisuj loginy, karty i dane kontaktowe, które każdy agent na tym serwerze może wpisywać na stronach.",
+    "Zapisuj loginy, karty, dane kontaktowe i klucze API dla agentów na tym serwerze.",
   "server.settings.membersTitle": "Członkowie",
   "server.settings.membersDescription": "Opublikuj serwer, zapraszaj osoby i zarządzaj dostępem.",
   "server.settings.desktopTitle": "Zdalny pulpit",
@@ -333,6 +333,8 @@ export const messages = {
   "server.settings.later": "Później",
   "server.settings.setUp": "Skonfiguruj",
   "server.settings.agents": "Agenci",
+  "server.settings.agentsDescription":
+    "Wybierz, co mogą robić agenci na tym serwerze, gdy nie ustawisz tego dla agenta.",
   "server.settings.timezone": "Strefa czasowa",
   "server.settings.timezoneDescription":
     "Nowe rutyny używają tej strefy czasowej, gdy wiadomość nie podaje strefy czasowej nadawcy.",

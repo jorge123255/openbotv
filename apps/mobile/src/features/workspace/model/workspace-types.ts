@@ -10,8 +10,8 @@ import type {
   AgentAnalyticsInput,
   AgentBackupModelSettings,
   AgentBrowserProfile,
+  AgentDefaultsOverview,
   AgentExclusionChange,
-  AgentFastModeSettings,
   AgentFolderBrowse,
   AgentFolderChange,
   AgentFolderInput,
@@ -29,6 +29,7 @@ import type {
   AgentProviderId,
   AgentReasoningEffort,
   AgentSessionSettings,
+  AgentSpeedSettings,
   AgentTask,
   AgentTaskInput,
   AgentTaskLimitSettings,
@@ -42,6 +43,7 @@ import type {
   AvatarColor,
   AvatarHue,
   AvatarImageInput,
+  BackgroundProcess,
   BitwardenConnectorStatus,
   BitwardenHostConnectInput,
   BranchAgentTaskInput,
@@ -122,6 +124,7 @@ import type {
   SaveWorkflowGraphInput,
   ServerAuditLog,
   ServerNotificationLevel,
+  SetAgentDefaultChoiceInput,
   SetAgentMemoryInclusionInput,
   SetAgentNotificationLevelInput,
   SetAgentProviderAccountInput,
@@ -145,11 +148,12 @@ import type {
   UpdateAgentAdminSettingsInput,
   UpdateAgentBackupModelsInput,
   UpdateAgentBrowserProfileInput,
-  UpdateAgentFastModeInput,
+  UpdateAgentDefaultsInput,
   UpdateAgentHostSettingsInput,
   UpdateAgentInput,
   UpdateAgentNewChatInput,
   UpdateAgentPlanCardInput,
+  UpdateAgentSpeedInput,
   UpdateAgentTaskLimitInput,
   UpdateBrowserProfileInput,
   UpdateRestartMode,
@@ -157,6 +161,7 @@ import type {
   VaultHostImportResult,
   VaultSaveInput,
   VaultState,
+  VaultTwoStepCodes,
   WhatsAppGroupList,
   WhatsAppLinkState,
   WhatsAppOverview,
@@ -491,6 +496,13 @@ export interface MobileWorkspaceContextValue {
   localServerKind: (serverId: string) => "computer" | "onComputer" | null;
   /** Deletes a server on a computer through the computer's own server, which must be online. */
   deleteLocalServer: (serverId: string) => Promise<void>;
+  /**
+   * An owner or admin of an online self-hosted server that serves `host-restart-v1`. A hosted server
+   * restarts through the account service instead. The host checks the role again.
+   */
+  canRestartServerItself: (serverId: string) => boolean;
+  /** Asks a self-hosted server to restart now. Its service manager starts it again. */
+  restartServerItself: (serverId: string) => Promise<void>;
   /** An owner or admin of an online host that serves `host-timezone-v1`. The host checks the role again. */
   canManageServerTimezone: (serverId: string) => boolean;
   /** The zone of a routine that an agent creates with no zone. Owners and admins only. */
@@ -569,6 +581,8 @@ export interface MobileWorkspaceContextValue {
   canTransferServer: (serverId: string) => boolean;
   /** The same for API keys in the Vault (`vault-v2`). */
   canManageVaultApiKeys: (serverId: string) => boolean;
+  /** The same for two-step keys of Vault logins and their live codes (`vault-v3`). */
+  canManageVaultTwoStep: (serverId: string) => boolean;
   /**
    * True for an owner or admin of a host that serves its named browser profiles and the profile of
    * each agent (`browser-profiles-v1`). The host checks the role again.
@@ -608,6 +622,8 @@ export interface MobileWorkspaceContextValue {
   disconnectPasswordManager: (manager: PasswordManagerId, serverId: string) => Promise<PasswordManagerStatus>;
   /** The host's Vault. No answer carries a password, a card number or a security code. */
   loadVault: (serverId: string) => Promise<VaultState>;
+  /** The current two-step code of each login with a key. The key stays on the host. */
+  loadVaultCodes: (serverId: string) => Promise<VaultTwoStepCodes>;
   /** A new secret goes to the host once; a null secret keeps the saved one. */
   saveVaultItem: (input: VaultSaveInput, serverId: string) => Promise<VaultState>;
   deleteVaultItem: (id: string, serverId: string) => Promise<VaultState>;
@@ -910,13 +926,37 @@ export interface MobileWorkspaceContextValue {
   loadAgentPlanCard: (agentId: string, serverId: string) => Promise<AgentPlanCardSettings | null>;
   /** Owners and admins only; the host refuses a member. Resolves with the setting the host saved. */
   updateAgentPlanCard: (input: UpdateAgentPlanCardInput, serverId: string) => Promise<AgentPlanCardSettings>;
+  /** An owner or admin of an online host that serves `agent-defaults-v1`. The host checks the role again. */
+  canManageAgentDefaults: (serverId: string) => boolean;
   /**
-   * Null when the host does not advertise `agent-fast-mode-v1`. A member with view access reads the
-   * setting, and with manage access changes it, as the model. The host checks the access.
+   * Settings > Agents of the host: its agent defaults and the own value of each agent that this member
+   * sees. Null when the host does not advertise `agent-defaults-v1`. Owners and admins only.
    */
-  loadAgentFastMode: (agentId: string, serverId: string) => Promise<AgentFastModeSettings | null>;
-  /** Resolves with the setting the host saved. It applies from the next turn. */
-  updateAgentFastMode: (input: UpdateAgentFastModeInput, serverId: string) => Promise<AgentFastModeSettings>;
+  loadAgentDefaults: (serverId: string) => Promise<AgentDefaultsOverview | null>;
+  /** Changes the given defaults. Owners and admins only. Resolves with the overview the host saved. */
+  updateAgentDefaults: (input: UpdateAgentDefaultsInput, serverId: string) => Promise<AgentDefaultsOverview>;
+  /** Gives one choice for one setting to each named agent. Owners and admins only. */
+  setAgentDefaultChoice: (input: SetAgentDefaultChoiceInput, serverId: string) => Promise<AgentDefaultsOverview>;
+  /** An owner or admin of an online host that serves `background-processes-v1`. The host checks the role again. */
+  canManageBackgroundProcesses: (serverId: string) => boolean;
+  /**
+   * The programs that the host's agents left running, such as a dev server. Null when the host cannot
+   * find them, as on Windows. Owners and admins only.
+   */
+  loadBackgroundProcesses: (serverId: string) => Promise<BackgroundProcess[] | null>;
+  /** Stops one of these programs with its children. A program that ended is not an error. Owners and admins only. */
+  stopBackgroundProcess: (id: string, serverId: string) => Promise<void>;
+  /**
+   * The speed of an agent, from `agent-speed-v1`, or from `agent-fast-mode-v1` on an older host. Null
+   * when the host advertises neither. A member with view access reads the setting, and with manage
+   * access changes it, as the model. The host checks the access.
+   */
+  loadAgentSpeed: (agentId: string, serverId: string) => Promise<AgentSpeedSettings | null>;
+  /**
+   * Resolves with the setting the host saved. It applies from the next turn. "ultrafast" needs
+   * `agent-speed-v1`; an older host has no Ultrafast tier in its model list, so no screen offers it.
+   */
+  updateAgentSpeed: (input: UpdateAgentSpeedInput, serverId: string) => Promise<AgentSpeedSettings>;
   /** An owner or admin of an online host that serves `agent-instructions-v1`. The host checks the role again. */
   canManageAgentInstructions: (serverId: string) => boolean;
   /** The instruction file at the root of the agent's workspace on the host. Owners and admins only. */
@@ -1210,6 +1250,7 @@ type ServerCheckKey =
   | "canEditServerIdentity"
   | "canRotateServerKey"
   | "canCreateLocalServers"
+  | "canRestartServerItself"
   | "canManageServerTimezone"
   | "canReadMachineMetrics"
   | "canManageAgentMemoryLimit"
@@ -1231,6 +1272,7 @@ type ServerCheckKey =
   | "canImportAgents"
   | "canTransferServer"
   | "canManageVaultApiKeys"
+  | "canManageVaultTwoStep"
   | "canManageBrowserProfiles"
   | "canManageBrowserProxies"
   | "serverUpdateAccess"
@@ -1256,6 +1298,8 @@ type ServerCheckKey =
   | "canManageAgentTaskLimit"
   | "canManageAgentNewChat"
   | "canManageAgentPlanCard"
+  | "canManageAgentDefaults"
+  | "canManageBackgroundProcesses"
   | "canManageAgentInstructions"
   | "canPublishAgent"
   | "canManageProviderAccounts";

@@ -7,6 +7,7 @@ import {
   decodeAgentAdminSettings,
   decodeAgentBackupModelSettings,
   decodeAgentBrowserProfile,
+  decodeAgentDefaultsOverview,
   decodeAgentExclusionChangeFromMain,
   decodeAgentFastModeSettings,
   decodeAgentFolderBrowse,
@@ -225,6 +226,7 @@ import {
   decodeVoiceStreamTranscript,
   decodeVoiceTranscriptionResult,
   decodeVoid,
+  decodeWorkflowNotificationOpenedEvent,
 } from "./app-decoding";
 import { decodeBackgroundProcesses } from "./background-process-decoding";
 import {
@@ -373,6 +375,7 @@ import {
   decodeWorkflowGitHubHistory,
   decodeWorkflowGitHubOptions,
   decodeWorkflowGraph,
+  decodeWorkflowPictureId,
   decodeWorkflowRunDetail,
   decodeWorkflowRunPage,
   decodeWorkflowSaveResult,
@@ -826,6 +829,7 @@ const openbotApi: OpenBotDesktopApi = {
     setProviderOn: decodeAgentStatusFromMain,
     restartProvider: decodeAgentStatusFromMain,
     cancelProviderRestart: decodeAgentStatusFromMain,
+    chooseInstalledCli: decodeAgentStatusFromMain,
     updateProviderCli: decodeAgentStatusFromMain,
     setProviderApiKey: decodeAgentStatusFromMain,
     clearProviderApiKey: decodeAgentStatusFromMain,
@@ -936,6 +940,7 @@ const openbotApi: OpenBotDesktopApi = {
     githubOptions: decodeWorkflowGitHubOptions,
     githubHistory: decodeWorkflowGitHubHistory,
     githubRunLastEvent: decodeWorkflowRunDetail,
+    keepPicture: decodeWorkflowPictureId,
   }),
   routineResults: bridgeGroup(IPC_ENDPOINTS.routineResults, {
     options: decodeRoutineResultOptions,
@@ -1293,6 +1298,7 @@ const openbotApi: OpenBotDesktopApi = {
   hostAdmin: bridgeGroup(IPC_ENDPOINTS.hostAdmin, {
     updateIdentity: decodeServer,
     rotateHostKey: decodeVoid,
+    restartHost: decodeVoid,
     getUpdateStatus: decodeHostUpdateStatus,
     getReleaseStatus: (value) => (value === null ? null : decodeHostReleaseStatusFromMain(value)),
     checkRelease: decodeHostReleaseStatusFromMain,
@@ -1471,6 +1477,9 @@ const openbotApi: OpenBotDesktopApi = {
       deleteBrowserProfile: decodeVoid,
       getAgentBrowserProfile: decodeAgentBrowserProfile,
       updateAgentBrowserProfile: decodeAgentBrowserProfile,
+      getAgentDefaultsOverview: decodeAgentDefaultsOverview,
+      updateAgentDefaultsOverview: decodeAgentDefaultsOverview,
+      setAgentDefaultChoice: decodeAgentDefaultsOverview,
       listBrowserProxies: decodeOptionalBrowserProxyList,
       saveBrowserProxy: decodeBrowserProxySummary,
       deleteBrowserProxy: decodeVoid,
@@ -1589,6 +1598,7 @@ const openbotApi: OpenBotDesktopApi = {
     test: decodeVoid,
     openSettings: decodeVoid,
     opened: decodeNotificationOpenedEvent,
+    workflowOpened: decodeWorkflowNotificationOpenedEvent,
   }),
   maintenance: bridgeGroup(IPC_ENDPOINTS.maintenance, {
     exportData: decodeExportResult,

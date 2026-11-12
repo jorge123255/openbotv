@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { webContents } from "electron";
+import { z } from "zod";
 import type { BrowserHost } from "../src/backend/browser-host";
 import { runCauseEffect } from "../src/backend/effect-boundary";
 import type { DynamicToolCallParams } from "../src/backend/protocol";
@@ -14,12 +15,36 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
   const protocol = seedContents.session.protocol;
   /** While true, the sign-in page of the takeover view case does not load. */
   let stuckPageFails = false;
+  let mirroredPageLoads = 0;
   await protocol.handle("https", (request) => {
     const url = new URL(request.url);
     if (url.hostname !== "authentication.openbot.test") return new Response("Not found", { status: 404 });
     if (url.pathname === "/stuck" && stuckPageFails) return Response.error();
     if (url.pathname === "/bitwarden-password") return bitwardenLoginFixture("password");
     if (url.pathname === "/bitwarden-authenticator") return bitwardenLoginFixture("authenticator");
+    if (url.pathname === "/signup")
+      // A sign-up form: it sends only when the password and its confirmation match (#6333).
+      return new Response(
+        `<!doctype html><body>
+        <label>Name<input id="name" type="text"></label>
+        <label>Password<input id="password" type="password"></label>
+        <label>Confirm password<input id="confirm" type="password"></label>
+        <button id="submit" onclick="const password = document.querySelector('#password').value; if (password && password === document.querySelector('#confirm').value) location.href = '/complete'">Register</button>
+        </body>`,
+        { headers: { "Content-Type": "text/html" } },
+      );
+    if (url.pathname === "/mirrored") {
+      mirroredPageLoads += 1;
+      // A single-page sign-in as React renders it: the field's value is copied to its value attribute,
+      // and the answer shows in the same document.
+      return new Response(
+        `<!doctype html><body>
+        <label>Password<input id="password" type="password" oninput="this.setAttribute('value', this.value)"></label>
+        <button id="submit" onclick="document.querySelector('#answer').textContent = 'Wrong password'">Sign in</button>
+        <p id="answer"></p></body>`,
+        { headers: { "Content-Type": "text/html" } },
+      );
+    }
     const html =
       url.pathname === "/complete"
         ? "<h1>Signed in</h1>"
@@ -290,6 +315,122 @@ export async function runSecretHandoffScenario(browser: BrowserHost, localOrigin
       } finally {
         await runCauseEffect(browser.close(wrongTab.id));
       }
+    }
+    // One saved password fills a sign-up form's password and its confirmation, and the form sends. A
+    // text field cannot take the second copy (#6333).
+    let vaultFillable = false;
+    const signup: Array<{ confirm: string; result: string; path: string }> = [];
+    for (const [confirm, expected] of [
+      ["#confirm", "submitted"],
+      ["#name", "must both be password fields"],
+    ] as const) {
+      const signupTab = await runCauseEffect(
+        browser.open("https://authentication.openbot.test/signup", "secret-thread", "secret-agent"),
+      );
+      try {
+        const signupContents = webContents.getAllWebContents().find((item) => item.getURL() === signupTab.url);
+        if (!signupContents) throw new Error("Missing sign-up fixture.");
+        await waitForPresentedFrame(signupContents);
+        const result = await runCauseEffect(
+          browser.prepareSecret({
+            namespace: "openbot_browser",
+            tool: "submit_secret",
+            threadId: "secret-thread",
+            ownerAgentId: "secret-agent",
+            turnId: "secret-turn",
+            callId: `signup-${confirm}`,
+            arguments: {
+              tabId: signupTab.id,
+              method: "password",
+              targets: [
+                { kind: "css", selector: "#password" },
+                { kind: "css", selector: confirm },
+              ],
+              submission: "click",
+              submitTarget: { kind: "css", selector: "#submit" },
+            },
+          }),
+        ).then(
+          async (handoff) => {
+            vaultFillable ||= handoff.vaultFillable;
+            return runCauseEffect(handoff.submit(vaultPassword, true));
+          },
+          (error: unknown) => (error instanceof Error ? error.message : String(error)),
+        );
+        const snapshot = await runCauseEffect(browser.snapshot(signupTab.id));
+        signup.push({ confirm, result, path: new URL(snapshot.url).pathname });
+        if (!result.includes(expected) || (expected === "submitted") !== snapshot.url.endsWith("/complete"))
+          throw new Error(`A sign-up fill with ${confirm} gave ${result} at ${snapshot.url}.`);
+        if (JSON.stringify(snapshot).includes(vaultPassword)) throw new Error("A sign-up password reached a snapshot.");
+      } finally {
+        await runCauseEffect(browser.close(signupTab.id));
+      }
+    }
+    if (!vaultFillable) throw new Error("A sign-up password and confirmation were not vault-fillable.");
+    await mkdir(".openbot-build", { recursive: true });
+    await writeFile(
+      ".openbot-build/browser-secret-confirm-password.json",
+      JSON.stringify({ status: "passed", vaultFillable, signup }, null, 2),
+    );
+    // A sign-in that answers in the same document keeps its answer: OpenBot empties the field and its
+    // value attribute, and does not load the page again (#7564).
+    const mirroredTab = await runCauseEffect(
+      browser.open("https://authentication.openbot.test/mirrored", "secret-thread", "secret-agent"),
+    );
+    try {
+      const mirroredContents = webContents.getAllWebContents().find((item) => item.getURL() === mirroredTab.url);
+      if (!mirroredContents) throw new Error("Missing mirrored value fixture.");
+      await waitForPresentedFrame(mirroredContents);
+      const handoff = await runCauseEffect(
+        browser.prepareSecret({
+          namespace: "openbot_browser",
+          tool: "submit_secret",
+          threadId: "secret-thread",
+          ownerAgentId: "secret-agent",
+          turnId: "secret-turn",
+          callId: "mirrored-value",
+          arguments: {
+            tabId: mirroredTab.id,
+            method: "password",
+            targets: [{ kind: "css", selector: "#password" }],
+            submission: "click",
+            submitTarget: { kind: "css", selector: "#submit" },
+          },
+        }),
+      );
+      const secret = "fixture-password-385617";
+      const submission = await runCauseEffect(handoff.submit(secret, false));
+      const page = z
+        .object({ answer: z.string(), value: z.string(), attribute: z.string().nullable() })
+        .parse(
+          await mirroredContents.executeJavaScript(
+            "({ answer: document.querySelector('#answer').textContent, value: document.querySelector('#password').value, attribute: document.querySelector('#password').getAttribute('value') })",
+            true,
+          ),
+        );
+      const snapshot = JSON.stringify(await runCauseEffect(browser.snapshot(mirroredTab.id)));
+      const report = {
+        status:
+          submission === "submitted" &&
+          mirroredPageLoads === 1 &&
+          page.answer === "Wrong password" &&
+          page.value === "" &&
+          !page.attribute &&
+          !snapshot.includes(secret)
+            ? "passed"
+            : "issues_found",
+        submission,
+        pageLoads: mirroredPageLoads,
+        answerKept: page.answer === "Wrong password",
+        fieldEmpty: page.value === "" && !page.attribute,
+        snapshotHasValue: snapshot.includes(secret),
+      };
+      await mkdir(".openbot-build", { recursive: true });
+      await writeFile(".openbot-build/browser-secret-mirrored-value.json", JSON.stringify(report, null, 2));
+      if (report.status !== "passed")
+        throw new Error(`A same-document sign-in lost its answer: ${JSON.stringify(report)}`);
+    } finally {
+      await runCauseEffect(browser.close(mirroredTab.id));
     }
     // A submission that leaves the value in the page, and a reload that fails, keep the tab protected.
     // The live view of its takeover loads the page again, so a person on another computer can sign in

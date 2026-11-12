@@ -3,6 +3,7 @@ import type { ChannelService } from "../../backend/channel-service";
 import type { AcpRegistry } from "../acp-registry";
 import type { AgentAccessStore } from "../agent-access-store";
 import type { AgentAdminSettingsService } from "../agent-admin-settings";
+import type { AgentDefaultsSettingsService } from "../agent-defaults-settings";
 import type { AgentFolders } from "../agent-folders";
 import type { AgentHostSettingsService } from "../agent-host-settings";
 import type { AgentInstructionsFiles } from "../agent-instructions-files";
@@ -459,6 +460,7 @@ export type TeamApiWorkflows = Pick<
   | "workflowOf"
   | "githubHistory"
   | "githubLastEvent"
+  | "keepPicture"
 > &
   Pick<HostEventsService, "rotateWorkflowSecret"> & {
     /**
@@ -516,6 +518,8 @@ export interface TeamApiAdmin {
    * `agent-plan-card-v1`: whether it shows its plan card before a long task.
    */
   agentHost?: AgentHostSettingsService;
+  /** `agent-defaults-v1`: the agent defaults of this computer, and which agents follow them. */
+  agentDefaults?: AgentDefaultsSettingsService;
   /** `agent-folders-v1`: the folders that one agent can change besides its workspace. */
   folders?: Omit<AgentFolders, "requireAgent">;
   /** `agent-instructions-v1`: read and save the instruction file of one agent. */
@@ -544,6 +548,11 @@ export interface TeamApiAdmin {
   identity?: TeamApiHostIdentity;
   /** `host-update-v1`: the app update of this computer. Advertised also when the host user turned it off. */
   update?: Pick<RequestedUpdate, "snapshot" | "check" | "start" | "requestWhenIdle" | "cancel" | "changeSettings">;
+  /**
+   * `host-restart-v1`: restart this host now. Only a self-hosted server has it: its service manager
+   * starts the app again after it quits. The host answers before it closes.
+   */
+  restart?: { request(memberId: string): void };
   /** `host-timezone-v1`: the server timezone. */
   timezone?: Pick<ServerTimezonePreferenceStore, "get" | "set">;
   /** `host-personality-v1`: how the server's agents talk while they work. Any member reads it. */
