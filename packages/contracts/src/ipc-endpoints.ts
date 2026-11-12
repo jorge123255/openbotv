@@ -46,13 +46,16 @@ import type {
   AddedAgent,
   AgentAdminSettings,
   AgentBackupModelSettings,
+  AgentDefaultsOverview,
   AgentFastModeSettings,
   AgentHostSettings,
   AgentNewChatSettings,
   AgentPlanCardSettings,
   AgentTaskLimitSettings,
+  SetAgentDefaultChoiceInput,
   UpdateAgentAdminSettingsInput,
   UpdateAgentBackupModelsInput,
+  UpdateAgentDefaultsInput,
   UpdateAgentFastModeInput,
   UpdateAgentHostSettingsInput,
   UpdateAgentNewChatInput,
@@ -467,7 +470,11 @@ import type {
   MigrationPreparationState,
 } from "./ipc-migration-preparation";
 import type { ProviderModelVisibility, ProviderModelVisibilityChange } from "./ipc-model-visibility";
-import type { NotificationOpenedEvent, NotificationPreference } from "./ipc-notifications";
+import type {
+  NotificationOpenedEvent,
+  NotificationPreference,
+  WorkflowNotificationOpenedEvent,
+} from "./ipc-notifications";
 import type { OllamaQuotaSnapshot } from "./ipc-ollama-quota";
 import type {
   OnePasswordConnectInput,
@@ -886,6 +893,13 @@ export const IPC_ENDPOINTS = {
      */
     restartProvider: request<AgentProviderId, AgentStatus>()("app:restart-provider"),
     cancelProviderRestart: request<AgentProviderId, AgentStatus>()("app:cancel-provider-restart"),
+    /**
+     * `installed`: runs the CLI the user installed, also when OpenBot's copy is newer; false runs the
+     * newer of the two. The provider restarts when its turns end. Only a provider of this computer.
+     */
+    chooseInstalledCli: request<{ provider: ManagedProviderId; installed: boolean }, AgentStatus>()(
+      "app:choose-installed-cli",
+    ),
     /**
      * Runs the provider CLI's own updater, for a CLI the user installed themselves. It is their copy,
      * so the version they end on is whatever that updater fetches, which owes nothing to the version
@@ -1420,6 +1434,11 @@ export const IPC_ENDPOINTS = {
      * Paired devices follow the handover that both keys sign.
      */
     rotateHostKey: scopedQuery<void, "required">()("host-admin:rotate-host-key"),
+    /**
+     * Restarts a self-hosted server now, through `host-restart-v1`. Running agent turns stop. A hosted
+     * server and a server on this computer restart through `hostedServers` and `localServers`.
+     */
+    restartHost: scopedQuery<void, "required">()("host-admin:restart-host"),
     getReleaseStatus: scopedQuery<HostReleaseStatus | null, "required">()("host-admin:get-release-status"),
     checkRelease: scopedQuery<HostReleaseStatus, "required">()("host-admin:check-release"),
     getUpdateStatus: scopedQuery<HostUpdateStatus, "required">()("host-admin:get-update-status"),
@@ -1731,6 +1750,7 @@ export const IPC_ENDPOINTS = {
     // system that has no such page.
     openSettings: request<undefined, void>()("notifications:open-settings"),
     opened: event<NotificationOpenedEvent>()("notifications:opened-event"),
+    workflowOpened: event<WorkflowNotificationOpenedEvent>()("notifications:workflow-opened-event"),
   },
   agent: {
     getStatus: scopedQuery<AgentStatus>()("agent:get-status"),
@@ -1966,6 +1986,12 @@ export const IPC_ENDPOINTS = {
     githubRunLastEvent: scopedRequest<WorkflowGitHubLastEventInput, WorkflowRunDetail>()(
       "workflows:github-run-last-event",
     ),
+    /**
+     * Keeps an attachment draft (a PNG, JPEG or WebP picture) as a picture of the host for an asset
+     * step, and answers its file id. The draft goes away. A joined server answers through
+     * `workflows-media-v1`.
+     */
+    keepPicture: scopedRequest<string, string>()("workflows:keep-picture"),
   },
   /**
    * Routine results: an agent routine's answer sent on to a messaging place. Only this computer's host
@@ -2164,6 +2190,14 @@ export const IPC_ENDPOINTS = {
     getAgentBrowserProfile: scopedRequest<string, AgentBrowserProfile>()("agent:admin:get-browser-profile"),
     updateAgentBrowserProfile: scopedRequest<UpdateAgentBrowserProfileInput, AgentBrowserProfile>()(
       "agent:admin:update-browser-profile",
+    ),
+    // Settings › Agents: the agent defaults of a computer. `agent-defaults-v1` on a joined server.
+    getAgentDefaultsOverview: scopedQuery<AgentDefaultsOverview, "required">()("agent:admin:get-agent-defaults"),
+    updateAgentDefaultsOverview: scopedRequest<UpdateAgentDefaultsInput, AgentDefaultsOverview, "required">()(
+      "agent:admin:update-agent-defaults",
+    ),
+    setAgentDefaultChoice: scopedRequest<SetAgentDefaultChoiceInput, AgentDefaultsOverview, "required">()(
+      "agent:admin:set-agent-default-choice",
     ),
     // Saved proxies of the named browser profiles: `browser-proxies-v1` on a joined server.
     listBrowserProxies: scopedQuery<BrowserProxyList | null>()("agent:admin:list-browser-proxies"),

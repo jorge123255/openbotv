@@ -3071,6 +3071,14 @@ export class ChannelService {
                   // that waits for its subtasks keeps the reason until its last turn (#6667).
                   (deliveryError ?? task.error),
         });
+        // A failed reply did not hold its caller (`settled`), so nothing waits for it when the run
+        // ends. It ends with the run, or its stopped-task card stayed with nothing to continue (#6417).
+        if (nextState === "completed" && task.rootTaskId === task.id)
+          updated.push(
+            ...tasks
+              .filter((item) => item.rootTaskId === task.id && item.state === "failed" && isReplyTask(item))
+              .map((item): ChannelTask => ({ ...item, state: "cancelled", error: null, revision: item.revision + 1 })),
+          );
       }
       if (task.state !== "cancelled") updated.push(...releasedParent(tasks, task, state));
       yield* channelSync(() =>
@@ -3267,7 +3275,9 @@ export class ChannelService {
           return;
         }
         const root = tasks.find((item) => item.id === selected.rootTaskId);
-        if (!root || terminal(root)) {
+        // A run that ended can still hold a failed reply that an earlier version left (#6417).
+        const cancelled = root ? descendants(tasks, root.id) : [];
+        if (!root || !cancelled.length) {
           result = refuse("That run has already ended.", "run ended");
           return;
         }
@@ -3285,7 +3295,6 @@ export class ChannelService {
           );
           return;
         }
-        const cancelled = descendants(tasks, root.id);
         const ids = new Set(cancelled.map((item) => item.id));
         if (
           tasks.some(
@@ -3406,6 +3415,28 @@ export class ChannelService {
     const { task, tasks } = yield* this.#runningTask(channelId, agentId, turnId);
     const person = this.#requester(channelId, task, tasks);
     return person !== null && !(this.hooks.remotePerson?.(person.id) ?? false);
+  });
+
+  /**
+   * Whether this computer's user started the agent's running task in this turn with a request whose
+   * text holds `value` as a whole token (`holdsKeyToken`). Only then can the task save that value to
+   * the Vault (#6369): the agent also reads the lead's and other members' words, which must not
+   * choose the key of every agent.
+   */
+  readonly localRequestHolds = Effect.fn("ChannelService.localRequestHolds")(function* (
+    this: ChannelService,
+    channelId: string,
+    agentId: string,
+    turnId: string,
+    value: string,
+  ) {
+    const { task, tasks } = yield* this.#runningTask(channelId, agentId, turnId);
+    const person = this.#requester(channelId, task, tasks);
+    if (person === null || (this.hooks.remotePerson?.(person.id) ?? false)) return false;
+    const root = tasks.find((item) => item.id === task.rootTaskId);
+    if (!root) return false;
+    const request = yield* channelSync(() => this.store.message(channelId, root.requestMessageId));
+    return request ? holdsKeyToken(request.message.text, value) : false;
   });
 
   /**
@@ -4236,6 +4267,31 @@ function withoutOwnNameLabel(text: string, name: string, streaming = false): str
   const rest = text.slice(match[0].length);
   if (rest.trim()) return rest;
   return streaming ? "" : text;
+}
+
+/** The shortest key that a channel request can give to the Vault, as for log redaction. */
+const CHANNEL_KEY_MIN_LENGTH = 8;
+/**
+ * A character that continues a key, so it cannot stand next to the key in the request. Not `=`: a
+ * pasted `NAME=value` line gives the key after it.
+ */
+const KEY_CHARACTER = /[\p{L}\p{N}_\-+/~.]/u;
+
+/**
+ * Whether `text` holds `value` as a whole token: a key that the person wrote, not a word or a part
+ * of a longer key, which another member's words could pick to replace a Vault key (#6369). A full
+ * stop after the key ends a sentence, so it counts as a boundary.
+ */
+function holdsKeyToken(text: string, value: string): boolean {
+  if (value.length < CHANNEL_KEY_MIN_LENGTH) return false;
+  for (let at = text.indexOf(value); at !== -1; at = text.indexOf(value, at + 1)) {
+    const before = text[at - 1];
+    const end = at + value.length;
+    const after = text[end] === "." ? text[end + 1] : text[end];
+    if ((before === undefined || !KEY_CHARACTER.test(before)) && (after === undefined || !KEY_CHARACTER.test(after)))
+      return true;
+  }
+  return false;
 }
 
 /** The id of the result that one assignment publishes with `channel_result`. */

@@ -5,7 +5,7 @@ import { sourceText } from "@openbot/i18n/source";
 import type { CauseCode } from "@openbot/telemetry";
 import type { GeneratedMediaKind } from "./agent/image-generation";
 import { enableCursorMcpServers } from "./cursor-mcp-disabled";
-import { grokMediaItem, grokMediaKind } from "./grok-media";
+import { grokMediaItem, grokMediaKind, grokMediaToolKind } from "./grok-media";
 import { isRecord, type ThreadItem } from "./protocol";
 
 /** The custom endpoint that serves a model, as a turn's error names it. Never a credential itself. */
@@ -27,11 +27,19 @@ export interface AcpFlavor {
    * Tool calls that make an image or a video. `kind` gives the media kind of one update, or null.
    * The client keeps the kind of each call, because a later update can leave the tool out. `item`
    * gives the `imageGeneration` or `videoGeneration` item that the chat shows in place of the call,
-   * from the tool item with all updates so far and the content of the last update.
+   * from the tool item with all updates so far and the content of the last update. `permitted` gives
+   * the media kind of a permission request from the tool name that the CLI sets only, never from the
+   * arguments that the model writes.
    */
   mediaTools?: {
-    kind(update: { _meta?: unknown; rawInput?: unknown; rawOutput?: unknown }): GeneratedMediaKind | null;
+    kind(update: {
+      _meta?: unknown;
+      title?: string | null;
+      rawInput?: unknown;
+      rawOutput?: unknown;
+    }): GeneratedMediaKind | null;
     item(kind: GeneratedMediaKind, call: ThreadItem, content: unknown): ThreadItem;
+    permitted(request: { _meta?: unknown; title?: string | null }): GeneratedMediaKind | null;
   };
   /** The `clientInfo` that `initialize` sends. Absent: `OPENBOT_ACP_CLIENT_INFO`. */
   clientInfo?: { name: string; title: string; version: string };
@@ -310,7 +318,7 @@ function noAnswerUnlessPlanOrCompaction(
 export const GROK_ACP_FLAVOR: AcpFlavor = {
   sessionNotFound: chiselSessionNotFound,
   // Grok CLI 1.0.77 shows its image and video tools as plain tool calls (`grok-media.ts`).
-  mediaTools: { kind: grokMediaKind, item: grokMediaItem },
+  mediaTools: { kind: grokMediaKind, item: grokMediaItem, permitted: grokMediaToolKind },
   promptUsage: (response) => (isRecord(response._meta) && isRecord(response._meta.usage) ? response._meta.usage : null),
   // Grok CLI 1.0.77 fails the prompt when the model sends only its reasoning: `Internal error:
   // "empty response from model (reasoning_only)"` (#6073).
@@ -350,6 +358,17 @@ const HERMES_LOST_TURNS: NonNullable<AcpFlavor["lostTurns"]> = {
 };
 
 /**
+ * Hermes Agent 0.23.1 fails a turn whose MCP server did not connect, or whose provider kept failing,
+ * with only `admitted_turn_failed` in the error. The reason is in its log, or in the answer text
+ * before the error. The chat showed "Internal error: admitted_turn_failed" (#6395).
+ */
+function hermesTurnFailure(error: unknown, detail: string): string {
+  return isRecord(error) && isRecord(error.data) && error.data.details === "admitted_turn_failed"
+    ? sourceText("error.provider.hermesTurnFailed")
+    : detail;
+}
+
+/**
  * Hermes Agent 0.21.5 answers a `session/resume` of a missing session with a new session, and the
  * reply does not give its id: each later prompt to the saved id then ends as "refusal". Its
  * `session/load` of a missing session answers null, which the SDK gives as an empty reply. A load of
@@ -364,6 +383,7 @@ export const HERMES_ACP_FLAVOR: AcpFlavor = {
   resendsAnswer: true,
   // Its `delegate_task` call is titled `delegate_task: <goal>`, and its subagents send no events.
   subagentTools: ["delegate_task"],
+  turnFailure: hermesTurnFailure,
 };
 
 /**
@@ -495,8 +515,9 @@ const CUSTOM_ACP_FLAVOR: AcpFlavor = {
 const CUSTOM_AGENT_FLAVORS: Readonly<Partial<Record<string, AcpFlavor>>> = {
   omp: OMP_ACP_FLAVOR,
   // Hermes Agent added as a custom agent (`hermes acp`) keeps the custom rules. Its lost turns are
-  // discarded, and its answer sent again replaces the streamed one, as for the Hermes provider.
-  hermes: { ...CUSTOM_ACP_FLAVOR, lostTurns: HERMES_LOST_TURNS, resendsAnswer: true },
+  // discarded, its answer sent again replaces the streamed one, and its failed turn is explained, as
+  // for the Hermes provider.
+  hermes: { ...CUSTOM_ACP_FLAVOR, lostTurns: HERMES_LOST_TURNS, resendsAnswer: true, turnFailure: hermesTurnFailure },
 };
 
 /**

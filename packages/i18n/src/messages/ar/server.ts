@@ -283,7 +283,7 @@ export const messages = {
   "server.settings.generalDescription": "أدِر اسم هذا الخادم وشعاره وتفضيلاته.",
   "server.settings.vaultTitle": "الخزنة",
   "server.settings.vaultDescription":
-    "احفظ بيانات تسجيل الدخول والبطاقات ومعلومات الاتصال التي يمكن لكل وكيل على هذا الخادم تعبئتها.",
+    "احفظ بيانات تسجيل الدخول والبطاقات ومعلومات الاتصال ومفاتيح API للوكلاء على هذا الخادم.",
   "server.settings.membersTitle": "الأعضاء",
   "server.settings.membersDescription": "انشر هذا الخادم، وادعُ الأشخاص، وأدِر الوصول.",
   "server.settings.desktopTitle": "سطح المكتب البعيد",
@@ -396,6 +396,7 @@ export const messages = {
   "server.settings.later": "لاحقًا",
   "server.settings.setUp": "إعداد",
   "server.settings.agents": "الوكلاء",
+  "server.settings.agentsDescription": "اختر ما يمكن أن يفعله الوكلاء على هذا الخادم عندما لا تحدده لوكيل.",
   "server.settings.timezone": "المنطقة الزمنية",
   "server.settings.timezoneDescription":
     "تستخدم المهام الدورية الجديدة هذه المنطقة الزمنية عندما لا تذكر الرسالة المنطقة الزمنية للمرسل.",

@@ -265,7 +265,7 @@ export const messages = {
   "server.settings.generalDescription": "Beheer de naam, het logo en de voorkeuren van deze server.",
   "server.settings.vaultTitle": "Kluis",
   "server.settings.vaultDescription":
-    "Bewaar logins, kaarten en contactgegevens die elke agent op deze server kan invullen.",
+    "Bewaar logins, kaarten, contactgegevens en API-sleutels voor de agents op deze server.",
   "server.settings.membersTitle": "Leden",
   "server.settings.membersDescription": "Publiceer deze server, nodig mensen uit en beheer de toegang.",
   "server.settings.desktopTitle": "Extern bureaublad",
@@ -340,6 +340,8 @@ export const messages = {
   "server.settings.later": "Later",
   "server.settings.setUp": "Instellen",
   "server.settings.agents": "Agents",
+  "server.settings.agentsDescription":
+    "Kies wat de agents op deze server mogen doen als je het niet per agent instelt.",
   "server.settings.timezone": "Tijdzone",
   "server.settings.timezoneDescription":
     "Nieuwe routines gebruiken deze tijdzone als het bericht de tijdzone van de afzender niet geeft.",

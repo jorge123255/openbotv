@@ -265,7 +265,7 @@ export const messages = {
   "server.settings.generalTitle": "כללי",
   "server.settings.generalDescription": "ניהול השם, הלוגו וההעדפות של השרת הזה.",
   "server.settings.vaultTitle": "כספת",
-  "server.settings.vaultDescription": "שמירת התחברויות, כרטיסים ופרטי קשר שכל סוכן בשרת הזה יכול למלא.",
+  "server.settings.vaultDescription": "שמירת התחברויות, כרטיסים, פרטי קשר ומפתחות API עבור הסוכנים בשרת הזה.",
   "server.settings.membersTitle": "חברים",
   "server.settings.membersDescription": "פרסום השרת הזה, הזמנת אנשים וניהול גישה.",
   "server.settings.desktopTitle": "שולחן עבודה מרוחק",
@@ -376,6 +376,7 @@ export const messages = {
   "server.settings.later": "מאוחר יותר",
   "server.settings.setUp": "הגדרה",
   "server.settings.agents": "סוכנים",
+  "server.settings.agentsDescription": "בחרו מה הסוכנים בשרת הזה יכולים לעשות כשלא הגדרתם זאת לסוכן.",
   "server.settings.timezone": "אזור זמן",
   "server.settings.timezoneDescription":
     "שגרות חדשות משתמשות באזור הזמן הזה כשההודעה אינה מציינת את אזור הזמן של השולח.",

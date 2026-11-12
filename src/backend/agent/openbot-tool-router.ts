@@ -1026,10 +1026,10 @@ export class OpenBotToolRouter {
       return yield* apiKeys.remove(agentId, name).pipe(
         Effect.map((removed) => {
           if (removed) return openBotToolResult({ status: "removed", name });
-          // Agents cannot delete a Vault key: every agent reads it.
-          if (this.#vaultItems?.apiKeys().some((key) => key.name === name))
+          // Agents cannot delete a Vault key that is not for them only: other agents can read it.
+          if (this.#vaultItems?.apiKeys(agentId).some((key) => key.name === name))
             return openBotToolFailure(
-              `${name} is in the Vault, which every agent uses. Only the user can delete it, in Server settings > Vault.`,
+              `${name} is in the Vault, and other agents can use it. Only the user can delete it, in Server settings > Vault.`,
             );
           return openBotToolResult({ status: "not_found", name });
         }),
@@ -1082,14 +1082,31 @@ export class OpenBotToolRouter {
         "save_api_key does not work in an external chat. Ask the user to add the key in Server settings > Vault.",
       );
     // A team member, a routine, another agent or a web page must not replace the key of every agent.
-    if (!this.#requestedByPerson(agentId, params.turnId, threadId))
+    // In a channel, the key must be in the request of this computer's user that started the task.
+    const channelId = this.#channels.store.channelForThread(threadId);
+    if (channelId) {
+      if (
+        !(yield* this.#channels
+          .localRequestHolds(channelId, agentId, params.turnId, key)
+          .pipe(Effect.catch(() => Effect.succeed(false))))
+      )
+        return openBotToolFailure(
+          "In a channel, you can save only a key that this computer's user wrote in the request that started your task. Call request_api_key: the user types the key in a form.",
+        );
+      // Other members' words can still choose a token of the request, so a channel never replaces a saved key.
+      const existing = yield* Effect.result(apiKeys.list(agentId));
+      if (Result.isFailure(existing) || existing.success.some((entry) => entry.name === name))
+        return openBotToolFailure(
+          `In a channel, you can only add a key with a new name, and ${name} is saved already. Call request_api_key: the user types the new key in a form.`,
+        );
+    } else if (!this.#requestedByPerson(agentId, params.turnId, threadId))
       return openBotToolFailure(
         "Only a person's message, in your OpenBot chat or a thread they opened, can save a key to the Vault. Ask the user to add it in Server settings > Vault.",
       );
     const vault = this.#vaultItems;
     if (!vault?.ready()) return openBotToolFailure("No Vault is available on this computer. Ask the user.");
     const agentName = this.#store.list().find((candidate) => candidate.id === agentId)?.name;
-    const saved = yield* Effect.result(vault.saveApiKey({ name, key, notes }, agentName));
+    const saved = yield* Effect.result(vault.saveApiKey({ name, key, notes }, { id: agentId, name: agentName }, false));
     if (Result.isFailure(saved)) {
       // The Vault's own errors are user text with no secret in them. A file error gets a fixed text.
       const { cause } = saved.failure;
@@ -1106,7 +1123,7 @@ export class OpenBotToolRouter {
         name: saved.success.name,
       }),
     );
-    // The agent's own key of this name wins over the Vault key, so the older value goes.
+    // A plain key file of this agent wins over the Vault key, so the older value goes.
     const removed = yield* Effect.result(apiKeys.remove(agentId, name));
     if (Result.isFailure(removed)) {
       logger.warn("Unable to delete an agent's own API key after a Vault save", {
