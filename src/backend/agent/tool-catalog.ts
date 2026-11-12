@@ -96,7 +96,11 @@ function catalogFor(provider: AgentProviderId) {
  */
 function catalogNames(catalog: typeof BUILTIN_TOOL_CATALOG): string {
   const groups = new Map<string, string[]>();
-  for (const tool of catalog) groups.set(tool.namespace, [...(groups.get(tool.namespace) ?? []), tool.tool]);
+  for (const tool of catalog) {
+    // Host tools stay in the catalog. Their names do not fit the context budget of this hint.
+    if (tool.tool.startsWith("host_")) continue;
+    groups.set(tool.namespace, [...(groups.get(tool.namespace) ?? []), tool.tool]);
+  }
   return [...groups].map(([namespace, tools]) => `${namespace}.{${tools.join(", ")}}`).join("; ");
 }
 

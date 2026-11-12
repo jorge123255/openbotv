@@ -344,58 +344,70 @@ export const OPENBOT_TOOL_DEFINITIONS: readonly OpenBotToolDefinition[] = [
   },
   {
     name: "host_shell",
-    description:
-      "Run a shell command on a registered machine after Auto-review. Call host_list_machines for the machineId. Omit machineId when the list has one machine.",
+    // The catalog description budget has no room for these lines. The field text is in the schema.
+    description: "",
     shape: {
-      command: z.string().min(1),
-      machineId: z.string().min(1).optional(),
+      command: z.string().min(1).describe("Shell command. Auto-review runs first."),
+      machineId: z.string().min(1).optional().describe("From host_list_machines. Omit when one machine is connected."),
       workingDirectory: z.string().optional(),
     },
   },
   {
     name: "host_screenshot",
-    description:
-      "Capture the screen of a registered machine after Auto-review. This is the screen of that machine, not a page preview. Call host_list_machines for the machineId.",
-    shape: { machineId: z.string().min(1).optional() },
+    description: "",
+    shape: {
+      machineId: z
+        .string()
+        .min(1)
+        .optional()
+        .describe("Screen of a registered machine, not a page preview. From host_list_machines."),
+    },
   },
   {
     name: "host_read_file",
-    description:
-      "Read a text file on a registered machine after Auto-review. Call host_list_machines for the machineId.",
-    shape: { path: z.string().min(1), machineId: z.string().min(1).optional() },
+    description: "",
+    shape: {
+      path: z.string().min(1),
+      machineId: z.string().min(1).optional().describe("From host_list_machines. Auto-review runs first."),
+    },
   },
   {
     name: "host_list_directory",
-    description:
-      "List one directory on a registered machine after Auto-review. Call host_list_machines for the machineId.",
-    shape: { path: z.string().min(1), machineId: z.string().min(1).optional() },
+    description: "",
+    shape: {
+      path: z.string().min(1),
+      machineId: z.string().min(1).optional().describe("From host_list_machines. Auto-review runs first."),
+    },
   },
   {
     name: "host_write_file",
-    description:
-      "Write a text file on a registered machine after Auto-review. Call host_list_machines for the machineId.",
-    shape: { path: z.string().min(1), fileText: z.string(), machineId: z.string().min(1).optional() },
+    description: "",
+    shape: {
+      path: z.string().min(1),
+      fileText: z.string(),
+      machineId: z.string().min(1).optional().describe("From host_list_machines. Auto-review runs first."),
+    },
   },
   {
     name: "host_send_input",
-    description:
-      "Send text to a background shell on a registered machine after Auto-review. Call host_list_machines for the machineId.",
-    shape: { chars: z.string(), machineId: z.string().min(1).optional() },
+    description: "",
+    shape: {
+      chars: z.string().describe("Text for a background shell."),
+      machineId: z.string().min(1).optional().describe("From host_list_machines. Auto-review runs first."),
+    },
   },
   {
     name: "host_mcp",
-    description:
-      "Call one tool on an MCP server this agent already selected. The call runs on this computer after Auto-review. It does not use a machine id, and it does not start a server this agent did not select.",
+    description: "",
     shape: {
-      serverIdentifier: z.string().min(1),
+      serverIdentifier: z.string().min(1).describe("MCP server this agent already selected."),
       toolName: z.string().min(1),
       arguments: z.record(z.string(), z.unknown()).optional(),
     },
   },
   {
     name: "host_list_machines",
-    description:
-      "List the machines a host tool can use. Each entry has id, label, and connected. Pass id as machineId to host_shell, host_screenshot, and the file tools.",
+    description: "",
     shape: {},
   },
   {
