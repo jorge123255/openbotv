@@ -7,24 +7,37 @@ function git(...args: string[]): string {
   return execFileSync("git", args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 << 20 });
 }
 
-function newestReleaseTag(): string {
-  let tags: string;
-  try {
-    tags = git("ls-remote", "--tags", "--refs", "--sort=-v:refname", "origin", "v*");
-  } catch {
-    tags = git("tag", "--list", "--sort=-v:refname", "v*");
+const UPSTREAM_RELEASES = "https://github.com/nightly-labs/openbot.git";
+
+function newestTag(tags: string): string | undefined {
+  return /(?:^|\/)(v\d+\.\d+\.\d+)$/m.exec(tags)?.[1];
+}
+
+function releaseTags(remote: string): string {
+  return git("ls-remote", "--tags", "--refs", "--sort=-v:refname", remote, "v*");
+}
+
+function newestReleaseTag(): { tag: string; remote: string } {
+  for (const remote of ["origin", UPSTREAM_RELEASES]) {
+    try {
+      const tag = newestTag(releaseTags(remote));
+      if (tag) return { tag, remote };
+    } catch {
+      // A missing remote is the same as a remote with no release tags.
+    }
   }
-  const newest = /(?:^|\/)(v\d+\.\d+\.\d+)$/m.exec(tags)?.[1];
-  if (!newest) throw new Error("No v* release tag on origin or in this checkout.");
-  return newest;
+  const tag = newestTag(git("tag", "--list", "--sort=-v:refname", "v*"));
+  if (!tag) throw new Error("No v* release tag on origin or in this checkout.");
+  return { tag, remote: "origin" };
 }
 
 const tagFlag = process.argv.indexOf("--tag");
-const tag = tagFlag === -1 ? newestReleaseTag() : (process.argv[tagFlag + 1] ?? "");
+const resolved = tagFlag === -1 ? newestReleaseTag() : { tag: process.argv[tagFlag + 1] ?? "", remote: "origin" };
+const tag = resolved.tag;
 try {
   git("rev-parse", "--verify", "--quiet", `refs/tags/${tag}^{commit}`);
 } catch {
-  git("fetch", "--quiet", "--no-tags", "--depth=1", "origin", `refs/tags/${tag}:refs/tags/${tag}`);
+  git("fetch", "--quiet", "--no-tags", "--depth=1", resolved.remote, `refs/tags/${tag}:refs/tags/${tag}`);
 }
 
 const releasedFiles = new Map<string, string>();

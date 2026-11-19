@@ -51,7 +51,7 @@ export function ChannelStoppedTasks(props: {
   onCancel: (task: ChannelStoppedTaskView) => Promise<boolean>;
   onLoadOlder?: (() => Promise<void>) | undefined;
 }) {
-  const { t, format, sourceText } = useText();
+  const { t, format } = useText();
   const reasonText = (task: ChannelStoppedTaskView) => {
     if (task.error === CHANNEL_ASSIGNMENT_LIMIT_ERROR) {
       const names = (task.runAgentIds ?? []).map((agentId) => props.name(agentId));
@@ -60,11 +60,6 @@ export function ChannelStoppedTasks(props: {
         : t("channel.stoppedTask.assignmentLoopMembers");
     }
     return t(REASONS[task.reason]);
-  };
-  const errorDetail = (task: ChannelStoppedTaskView) => {
-    if (!task.error || task.error === CHANNEL_ASSIGNMENT_LIMIT_ERROR) return null;
-    const detail = sourceText(task.error);
-    return detail === reasonText(task) ? null : detail;
   };
   const [state, setState] = createStore<{
     reviewed: Record<string, string>;
@@ -166,9 +161,6 @@ export function ChannelStoppedTasks(props: {
                   </summary>
                   <div class="channel-paused-task-body">
                     <p class="channel-paused-task-reason">{reasonText(task())}</p>
-                    <Show when={errorDetail(task())}>
-                      {(detail) => <p class="channel-paused-task-reason">{detail()}</p>}
-                    </Show>
                     <Show when={task().unfinishedSubtasks > 0}>
                       <p>{t("channel.stoppedTask.subtasks", { count: task().unfinishedSubtasks })}</p>
                     </Show>
