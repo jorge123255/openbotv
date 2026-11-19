@@ -64,6 +64,7 @@
   margin-top: 0;
 }
 .channel-paused-summary,
+.channel-paused-task-heading,
 .channel-task-event-details > summary {
   cursor: pointer;
   padding: var(--openbot-space-2) var(--openbot-space-3);
@@ -72,28 +73,19 @@
   font-weight: var(--openbot-weight-semibold);
 }
 .channel-paused-task {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--openbot-space-2);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--openbot-space-2) var(--openbot-space-3);
   border-top: 1px solid var(--openbot-border);
 }
-.channel-paused-task-text {
-  min-width: 0;
-  flex: 1 1 24ch;
-}
-.channel-paused-task-subject {
-  margin: 0;
-  overflow: hidden;
-  font-size: var(--openbot-text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.channel-paused-task-subject strong {
+.channel-paused-task-heading strong {
   display: inline;
   overflow-wrap: anywhere;
+}
+.channel-paused-task-heading > span {
+  display: block;
+  margin-top: var(--openbot-space-1);
+  color: var(--openbot-text-muted);
+}
+.channel-paused-task-body {
+  padding: 0 var(--openbot-space-3) var(--openbot-space-3);
 }
 .channel-paused-task-reason {
   margin: 0 0 var(--openbot-space-2);
