@@ -126,7 +126,15 @@ import type {
   ProviderHistoryRequest,
   ReadProviderHistory,
 } from "./provider-history";
-import type { RetryPolicy } from "./transient-stream-error";
+import {
+  computeBackoffDelayMs,
+  computeServerPacedDelayMs,
+  FirstTokenStallError,
+  type RetryPolicy,
+  resolveOverloadStreamRetryPolicy,
+  serverRetryAfterMsFromError,
+  shouldRetryTurnAttempt,
+} from "./transient-stream-error";
 import { TimeoutError } from "./with-timeout";
 
 const logger = createOpenBotLogger("acp-client");
@@ -147,6 +155,9 @@ const ACP_HISTORY_REPLAY_QUEUE_LIMIT = 256;
 const ACP_PROMPT_AUDIO_BASE64_BYTES = 19 * 1024 * 1024;
 
 const ACP_TURN_STALL_MS = 5 * 60_000;
+
+/** How long a stall cancel may take to release `session/prompt` before the turn fails. */
+const ACP_STALL_CANCEL_GRACE_MS = 750;
 
 const ACP_MODEL_RETRY_GRACE = 1.2;
 
@@ -237,6 +248,10 @@ interface AcpTurn {
   readonly steerLock: Semaphore.Semaphore;
   lastActivityAt: number;
   modelRetries: number;
+  /** Retries already started for a dropped stream or a silent start. The turn id stays. */
+  streamRetryCount: number;
+  stallCancelPending: boolean;
+  retryingStreamUntil: number;
   answered: boolean;
   retrying?: "agent" | "model";
   waitingOnUser: number;
@@ -2376,6 +2391,9 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
       steerLock: Semaphore.makeUnsafe(1),
       lastActivityAt: Date.now(),
       modelRetries: 0,
+      streamRetryCount: 0,
+      stallCancelPending: false,
+      retryingStreamUntil: 0,
       answered: false,
       waitingOnUser: 0,
       abandoned: false,
@@ -2414,6 +2432,93 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     }
   }
 
+  #stallMessage(thread: AcpThread): string {
+    return sourceText("error.agent.turnStalled", {
+      provider: this.options.customEndpoint?.(thread.currentModelId)?.name ?? this.#providerName(thread),
+    });
+  }
+
+  #streamRetryPolicy(): RetryPolicy {
+    return resolveOverloadStreamRetryPolicy(this.options.streamRetry);
+  }
+
+  /**
+   * A silent prompt can be sent again only when a later attempt remains and the turn has shown
+   * nothing. The cancel has to release the prompt; an agent that ignores it still fails below.
+   */
+  #requestStallRetry(turn: AcpTurn): boolean {
+    if (turn.stallCancelPending || turnProducedStreamOutput(turn)) return false;
+    if (turn.streamRetryCount >= this.#streamRetryPolicy().maxAttempts - 1) return false;
+    turn.stallCancelPending = true;
+    return true;
+  }
+
+  /**
+   * Sends the same prompt again after a transient stream failure or a first-token stall.
+   * True when the caller should send it. A turn that already showed output, a sign-in error, and
+   * a stop are not sent again. ACP has no checkpoint, so partial output cannot be resumed.
+   */
+  readonly #retryTransientPrompt = Effect.fn("AcpAgentClient.retryTransientPrompt")(function* (
+    this: AcpAgentClient,
+    thread: AcpThread,
+    turn: AcpTurn,
+    error: unknown,
+  ) {
+    if (turn.abandoned || turn.stopped || turn.completing || thread.activeTurn !== turn) return false;
+    const policy = this.#streamRetryPolicy();
+    const stall = turn.stallCancelPending;
+    const nextAttempt = turn.streamRetryCount + 1;
+    if (
+      !acpStreamMayRetry({
+        error,
+        producedOutput: turnProducedStreamOutput(turn),
+        stalled: stall,
+        attemptsUsed: turn.streamRetryCount,
+        maxAttempts: policy.maxAttempts,
+        deadlineMs: (this.options.turnStallMs ?? ACP_TURN_STALL_MS) * 2 ** turn.streamRetryCount,
+      })
+    )
+      return false;
+    const server = stall ? undefined : serverRetryAfterMsFromError(error);
+    const delayMs =
+      server == null
+        ? computeBackoffDelayMs({
+            attempt: nextAttempt,
+            baseDelayMs: policy.baseDelayMs,
+            maxDelayMs: policy.maxDelayMs,
+            ...(policy.random == null ? {} : { random: policy.random }),
+          })
+        : computeServerPacedDelayMs({
+            retryAfterMs: server,
+            ...(policy.random == null ? {} : { random: policy.random }),
+          });
+    turn.streamRetryCount = nextAttempt;
+    turn.retryingStreamUntil = Date.now() + delayMs;
+    turn.stallCancelPending = false;
+    turn.text = "";
+    turn.thought = "";
+    turn.thoughtStarted = false;
+    turn.reasoned = false;
+    turn.receivedOutput = false;
+    turn.sdkFailureAt = null;
+    turn.providerError = null;
+    turn.interruptedAnswer = null;
+    turn.textMessageId = null;
+    turn.textMessageStart = 0;
+    turn.messageChunks = 0;
+    turn.lastChunkAt = null;
+    this.emit(
+      "diagnostic",
+      this.#redact(
+        `${this.#label} retries a stalled provider stream for turn ${turn.id} (attempt ${nextAttempt + 1} of ${policy.maxAttempts}, ${delayMs} ms): ${failureText(error)}`,
+      ),
+    );
+    yield* Effect.sleep(delayMs);
+    turn.retryingStreamUntil = 0;
+    turn.lastActivityAt = Date.now();
+    return thread.activeTurn === turn && !turn.stopped && !turn.abandoned && !turn.completing;
+  });
+
   readonly #consumePrompt = Effect.fn("AcpAgentClient.consumePrompt")(function* (
     this: AcpAgentClient,
     thread: AcpThread,
@@ -2421,184 +2526,207 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
     prompt: ContentBlock[],
     params: unknown,
   ): Effect.fn.Return<void, ProviderClientOperationError> {
-    try {
-      const send = () => this.#sendPrompt(thread, turn, prompt, params);
-      let sent = yield* send();
-      if (
-        Result.isFailure(sent) &&
-        thread.activeTurn === turn &&
-        !turn.stopped &&
-        (yield* this.#discardLostTurns(thread.id, sent.failure.cause)) &&
-        this.#flavor.lostTurns?.unsent.test(failureText(sent.failure.cause)) &&
-        thread.activeTurn === turn &&
-        !turn.stopped
-      )
-        sent = yield* send();
-      let response = providerResult(sent);
-      if (!thread.transport) this.#promptAnswered = true;
-      while (providerResult(yield* Effect.result(this.#leaveOutFailedMcpServer(thread, turn, response, params))))
-        response = providerResult(yield* send());
-      if (thread.activeTurn !== turn || turn.completing) return;
-      const cancelledUnstarted = () =>
-        response.stopReason === "cancelled" && !turn.stopped && !turn.answered && turn.failureCause === null;
-      if (cancelledUnstarted()) {
-        this.#reportPromptUsage(thread, turn, response);
-        turn.lastActivityAt = Date.now();
-        response = providerResult(yield* send());
+    for (;;) {
+      try {
+        const send = () => this.#sendPrompt(thread, turn, prompt, params);
+        let sent = yield* send();
+        if (
+          Result.isFailure(sent) &&
+          thread.activeTurn === turn &&
+          !turn.stopped &&
+          (yield* this.#discardLostTurns(thread.id, sent.failure.cause)) &&
+          this.#flavor.lostTurns?.unsent.test(failureText(sent.failure.cause)) &&
+          thread.activeTurn === turn &&
+          !turn.stopped
+        )
+          sent = yield* send();
+        let response = providerResult(sent);
+        if (!thread.transport) this.#promptAnswered = true;
+        while (providerResult(yield* Effect.result(this.#leaveOutFailedMcpServer(thread, turn, response, params))))
+          response = providerResult(yield* send());
         if (thread.activeTurn !== turn || turn.completing) return;
-        if (cancelledUnstarted() && !turn.answerOptional) {
+        if (response.stopReason === "cancelled" && turn.stallCancelPending && !turn.stopped) {
+          if (yield* this.#retryTransientPrompt(thread, turn, response.stopReason)) continue;
+          if (turn.abandoned || turn.completing || turn.stopped || thread.activeTurn !== turn) return;
+          turn.failureCause = "stalled";
+          yield* this.#completeTurn(thread, turn, "failed", this.#stallMessage(thread));
+          return;
+        }
+        const cancelledUnstarted = () =>
+          response.stopReason === "cancelled" && !turn.stopped && !turn.answered && turn.failureCause === null;
+        if (cancelledUnstarted()) {
           this.#reportPromptUsage(thread, turn, response);
-          turn.failureCause = "cancelled";
+          turn.lastActivityAt = Date.now();
+          response = providerResult(yield* send());
+          if (thread.activeTurn !== turn || turn.completing) return;
+          if (cancelledUnstarted() && !turn.answerOptional) {
+            this.#reportPromptUsage(thread, turn, response);
+            turn.failureCause = "cancelled";
+            yield* this.#completeTurn(
+              thread,
+              turn,
+              "failed",
+              sourceText("error.agent.promptCancelled", { provider: this.#providerName(thread) }),
+            );
+            return;
+          }
+        }
+        let staleWake = false;
+        for (;;) {
+          for (let steer = turn.steerReplies.shift(); steer; steer = turn.steerReplies.shift()) {
+            const run = this.#flavor.promptRun?.(response);
+            if (run === undefined) this.#reportPromptUsage(thread, turn, response);
+            const reply = yield* Deferred.await(steer);
+            if (run !== undefined && !(Result.isSuccess(reply) && this.#flavor.promptRun?.(reply.success) === run))
+              this.#reportPromptUsage(thread, turn, response);
+            if (thread.activeTurn !== turn || turn.completing) return;
+            response = providerResult(reply);
+          }
+          const running: string =
+            response.stopReason === "end_turn" && !staleWake ? this.#backgroundCommands(turn) : "";
+          if (!running) break;
+          const wake = yield* this.#awaitSessionChange(thread, turn);
+          if (thread.activeTurn !== turn || turn.completing) return;
+          if (wake === "steered") continue;
+          if (wake === "none") break;
+          this.#reportPromptUsage(thread, turn, response);
+          response = providerResult(
+            yield* this.#sendPrompt(thread, turn, [{ type: "text", text: BACKGROUND_WAKE_NOTE }], params),
+          );
+          if (thread.activeTurn !== turn || turn.completing) return;
+          turn.lastActivityAt = Date.now();
+          staleWake = this.#backgroundCommands(turn) === running;
+        }
+        this.#reportPromptUsage(thread, turn, response);
+        const emptyAnswerFailure =
+          response.stopReason === "end_turn" && !turn.receivedOutput && !turn.answerOptional && !turn.stopped
+            ? (this.#flavor.emptyAnswerFailure?.(turn, this.#label) ?? null)
+            : null;
+        const savedSignInCheck = emptyAnswerFailure === null ? undefined : this.options.savedSignInCheck;
+        const refusal = savedSignInCheck
+          ? yield* savedSignInCheck.refusedAfterEmptyAnswer(thread.currentModelId)
+          : null;
+        if (savedSignInCheck && (thread.activeTurn !== turn || turn.completing)) return;
+        if (emptyAnswerFailure !== null && !turn.stopped) {
+          if (refusal !== null) {
+            logger.warn("An ACP agent's server refused its saved sign-in.", { provider: this.provider, refusal });
+            turn.failureCause = "authentication";
+            yield* this.#completeTurn(thread, turn, "failed", this.options.signInMessage);
+            if (refusal === "turn") return;
+            this.#signedIn = false;
+            yield* this.#endAgentProcess(this.options.signInMessage);
+            return;
+          }
+          turn.failureCause = "empty_answer";
+          yield* this.#completeTurn(thread, turn, "failed", emptyAnswerFailure);
+          return;
+        }
+        const sdkHarness = this.#flavor.sdkHarness;
+        const textToolCallAt = turn.textToolCallAt;
+        if (
+          sdkHarness &&
+          !turn.providerError &&
+          !turn.stopped &&
+          response.stopReason === "end_turn" &&
+          turn.sdkFailureAt === null &&
+          textToolCallAt !== null &&
+          sdkHarness.textToolCall?.whole.test(turn.text.slice(textToolCallAt))
+        ) {
+          if (!turn.answerOptional) {
+            turn.failureCause = "empty_answer";
+            turn.providerError = sourceText("error.provider.acpNoAnswer", { provider: this.#label });
+          }
+        } else if (sdkHarness && !turn.providerError && !turn.stopped && response.stopReason === "end_turn") {
+          if (turn.retryNotices) {
+            turn.sdkFailureAt ??= turn.text.length;
+            turn.text += turn.retryNotices;
+            turn.retryNotices = "";
+          }
+          const failureAt = turn.sdkFailureAt ?? (sdkHarness.answerIsFailure.test(turn.text) ? 0 : null);
+          const failure = failureAt === null ? "" : turn.text.slice(failureAt).trim();
+          if (failureAt !== null) {
+            const detail = failure || turn.text.trim();
+            turn.text = failure ? turn.text.slice(0, failureAt) : "";
+            if (!((turn.receivedOutput || turn.answerOptional) && sdkHarness.emptyOutputFailure?.test(detail))) {
+              turn.accountLink = sdkHarness.accountLink?.(detail, this.options.argv, thread.id) ?? null;
+              const rawCause = classifyFailure(detail);
+              turn.failureCause =
+                turn.accountLink || sdkHarness.accountVerification?.test(detail)
+                  ? "authentication"
+                  : rawCause === "unknown"
+                    ? (sdkHarness.fallbackCause?.(detail) ?? rawCause)
+                    : rawCause;
+              turn.providerError =
+                this.#mcpLoadFailureMessage(thread, detail) ??
+                this.options.savedKeyLimitMessage?.(detail) ??
+                sdkHarness.turnFailure(detail);
+              turn.sessionLost = sdkHarness.sessionLost?.test(detail) === true;
+            }
+          }
+        }
+        const status =
+          turn.stopped || response.stopReason === "cancelled"
+            ? "interrupted"
+            : response.stopReason === "end_turn"
+              ? turn.providerError
+                ? "failed"
+                : "completed"
+              : "failed";
+        yield* this.#completeTurn(
+          thread,
+          turn,
+          status,
+          status === "failed" ? (turn.providerError ?? response.stopReason) : null,
+        );
+        if (turn.signInLost)
+          yield* this.#endAgentProcess(sourceText("error.provider.acpSignInLost", { provider: this.#label }));
+        return;
+      } catch (error) {
+        if (turn.abandoned || turn.completing || thread.activeTurn !== turn) return;
+        const stalled = turn.stallCancelPending;
+        if (!turn.stopped && (yield* this.#retryTransientPrompt(thread, turn, error))) continue;
+        if (turn.abandoned || turn.completing || thread.activeTurn !== turn) return;
+        if (stalled && !turn.stopped) {
+          turn.failureCause = "stalled";
+          yield* this.#completeTurn(thread, turn, "failed", this.#stallMessage(thread));
+          return;
+        }
+        const transport = thread.transport;
+        const serverLost = !turn.stopped && !transport && this.#flavor.serverLost?.(error) === true;
+        const failure = serverLost
+          ? yield* this.#transport
+              .explainEnd(error, this.#transport.ended, true)
+              .pipe(Effect.catch(() => Effect.succeed(error)))
+          : transport && !turn.stopped
+            ? (yield* this.#explainSessionEnd(transport, error)).cause
+            : error;
+        if (serverLost && !turn.stopped && failure instanceof AgentProcessExitError) return;
+        if (!turn.stopped && this.#flavor.emptyAnswerError?.test(failureText(failure))) {
+          if (turn.answerOptional) {
+            yield* this.#completeTurn(thread, turn, "completed", null);
+            return;
+          }
+          turn.failureCause = "empty_answer";
           yield* this.#completeTurn(
             thread,
             turn,
             "failed",
-            sourceText("error.agent.promptCancelled", { provider: this.#providerName(thread) }),
+            sourceText("error.provider.acpNoAnswer", { provider: this.#label }),
           );
           return;
         }
-      }
-      let staleWake = false;
-      for (;;) {
-        for (let steer = turn.steerReplies.shift(); steer; steer = turn.steerReplies.shift()) {
-          const run = this.#flavor.promptRun?.(response);
-          if (run === undefined) this.#reportPromptUsage(thread, turn, response);
-          const reply = yield* Deferred.await(steer);
-          if (run !== undefined && !(Result.isSuccess(reply) && this.#flavor.promptRun?.(reply.success) === run))
-            this.#reportPromptUsage(thread, turn, response);
-          if (thread.activeTurn !== turn || turn.completing) return;
-          response = providerResult(reply);
+        yield* this.#completeTurn(thread, turn, turn.stopped ? "interrupted" : "failed", turn.stopped ? null : failure);
+        if (!turn.stopped && !transport) {
+          if (this.#flavor.refusesUntilRestart?.(failure))
+            yield* this.#endFailingProcess(
+              thread.id,
+              sourceText("error.provider.acpRefusedUntilRestart", { provider: this.#label }),
+              true,
+            );
+          else if (this.#flavor.lostServerUntilRestart?.(failure))
+            yield* this.#endFailingProcess(thread.id, this.#serverLostEnd(), false);
         }
-        const running: string = response.stopReason === "end_turn" && !staleWake ? this.#backgroundCommands(turn) : "";
-        if (!running) break;
-        const wake = yield* this.#awaitSessionChange(thread, turn);
-        if (thread.activeTurn !== turn || turn.completing) return;
-        if (wake === "steered") continue;
-        if (wake === "none") break;
-        this.#reportPromptUsage(thread, turn, response);
-        response = providerResult(
-          yield* this.#sendPrompt(thread, turn, [{ type: "text", text: BACKGROUND_WAKE_NOTE }], params),
-        );
-        if (thread.activeTurn !== turn || turn.completing) return;
-        turn.lastActivityAt = Date.now();
-        staleWake = this.#backgroundCommands(turn) === running;
-      }
-      this.#reportPromptUsage(thread, turn, response);
-      const emptyAnswerFailure =
-        response.stopReason === "end_turn" && !turn.receivedOutput && !turn.answerOptional && !turn.stopped
-          ? (this.#flavor.emptyAnswerFailure?.(turn, this.#label) ?? null)
-          : null;
-      const savedSignInCheck = emptyAnswerFailure === null ? undefined : this.options.savedSignInCheck;
-      const refusal = savedSignInCheck ? yield* savedSignInCheck.refusedAfterEmptyAnswer(thread.currentModelId) : null;
-      if (savedSignInCheck && (thread.activeTurn !== turn || turn.completing)) return;
-      if (emptyAnswerFailure !== null && !turn.stopped) {
-        if (refusal !== null) {
-          logger.warn("An ACP agent's server refused its saved sign-in.", { provider: this.provider, refusal });
-          turn.failureCause = "authentication";
-          yield* this.#completeTurn(thread, turn, "failed", this.options.signInMessage);
-          if (refusal === "turn") return;
-          this.#signedIn = false;
-          yield* this.#endAgentProcess(this.options.signInMessage);
-          return;
-        }
-        turn.failureCause = "empty_answer";
-        yield* this.#completeTurn(thread, turn, "failed", emptyAnswerFailure);
         return;
-      }
-      const sdkHarness = this.#flavor.sdkHarness;
-      const textToolCallAt = turn.textToolCallAt;
-      if (
-        sdkHarness &&
-        !turn.providerError &&
-        !turn.stopped &&
-        response.stopReason === "end_turn" &&
-        turn.sdkFailureAt === null &&
-        textToolCallAt !== null &&
-        sdkHarness.textToolCall?.whole.test(turn.text.slice(textToolCallAt))
-      ) {
-        if (!turn.answerOptional) {
-          turn.failureCause = "empty_answer";
-          turn.providerError = sourceText("error.provider.acpNoAnswer", { provider: this.#label });
-        }
-      } else if (sdkHarness && !turn.providerError && !turn.stopped && response.stopReason === "end_turn") {
-        if (turn.retryNotices) {
-          turn.sdkFailureAt ??= turn.text.length;
-          turn.text += turn.retryNotices;
-          turn.retryNotices = "";
-        }
-        const failureAt = turn.sdkFailureAt ?? (sdkHarness.answerIsFailure.test(turn.text) ? 0 : null);
-        const failure = failureAt === null ? "" : turn.text.slice(failureAt).trim();
-        if (failureAt !== null) {
-          const detail = failure || turn.text.trim();
-          turn.text = failure ? turn.text.slice(0, failureAt) : "";
-          if (!((turn.receivedOutput || turn.answerOptional) && sdkHarness.emptyOutputFailure?.test(detail))) {
-            turn.accountLink = sdkHarness.accountLink?.(detail, this.options.argv, thread.id) ?? null;
-            const rawCause = classifyFailure(detail);
-            turn.failureCause =
-              turn.accountLink || sdkHarness.accountVerification?.test(detail)
-                ? "authentication"
-                : rawCause === "unknown"
-                  ? (sdkHarness.fallbackCause?.(detail) ?? rawCause)
-                  : rawCause;
-            turn.providerError =
-              this.#mcpLoadFailureMessage(thread, detail) ??
-              this.options.savedKeyLimitMessage?.(detail) ??
-              sdkHarness.turnFailure(detail);
-            turn.sessionLost = sdkHarness.sessionLost?.test(detail) === true;
-          }
-        }
-      }
-      const status =
-        turn.stopped || response.stopReason === "cancelled"
-          ? "interrupted"
-          : response.stopReason === "end_turn"
-            ? turn.providerError
-              ? "failed"
-              : "completed"
-            : "failed";
-      yield* this.#completeTurn(
-        thread,
-        turn,
-        status,
-        status === "failed" ? (turn.providerError ?? response.stopReason) : null,
-      );
-      if (turn.signInLost)
-        yield* this.#endAgentProcess(sourceText("error.provider.acpSignInLost", { provider: this.#label }));
-    } catch (error) {
-      const transport = thread.transport;
-      const serverLost = !turn.stopped && !transport && this.#flavor.serverLost?.(error) === true;
-      const failure = serverLost
-        ? yield* this.#transport
-            .explainEnd(error, this.#transport.ended, true)
-            .pipe(Effect.catch(() => Effect.succeed(error)))
-        : transport && !turn.stopped
-          ? (yield* this.#explainSessionEnd(transport, error)).cause
-          : error;
-      if (serverLost && !turn.stopped && failure instanceof AgentProcessExitError) return;
-      if (!turn.stopped && this.#flavor.emptyAnswerError?.test(failureText(failure))) {
-        if (turn.answerOptional) {
-          yield* this.#completeTurn(thread, turn, "completed", null);
-          return;
-        }
-        turn.failureCause = "empty_answer";
-        yield* this.#completeTurn(
-          thread,
-          turn,
-          "failed",
-          sourceText("error.provider.acpNoAnswer", { provider: this.#label }),
-        );
-        return;
-      }
-      yield* this.#completeTurn(thread, turn, turn.stopped ? "interrupted" : "failed", turn.stopped ? null : failure);
-      if (!turn.stopped && !transport) {
-        if (this.#flavor.refusesUntilRestart?.(failure))
-          yield* this.#endFailingProcess(
-            thread.id,
-            sourceText("error.provider.acpRefusedUntilRestart", { provider: this.#label }),
-            true,
-          );
-        else if (this.#flavor.lostServerUntilRestart?.(failure))
-          yield* this.#endFailingProcess(thread.id, this.#serverLostEnd(), false);
       }
     }
   });
@@ -3414,10 +3542,33 @@ export class AcpAgentClient extends EventEmitter<ClientEvents> {
         answeredAt = Date.now();
         continue;
       }
-      const silentFor = Date.now() - turn.lastActivityAt;
-      if (silentFor < limit || turn.toolItems.size > 0 || turn.waitingOnUser > 0) {
-        yield* Effect.sleep(silentFor < limit ? limit - silentFor : limit);
+      if (turn.retryingStreamUntil > Date.now()) {
+        yield* Effect.sleep(turn.retryingStreamUntil - Date.now());
         continue;
+      }
+      // Each retry waits longer for the first token, as the stall deadline doubles.
+      const attemptLimit = limit * 2 ** turn.streamRetryCount;
+      const silentFor = Date.now() - turn.lastActivityAt;
+      if (silentFor < attemptLimit || turn.toolItems.size > 0 || turn.waitingOnUser > 0) {
+        yield* Effect.sleep(silentFor < attemptLimit ? attemptLimit - silentFor : attemptLimit);
+        continue;
+      }
+      if (this.#requestStallRetry(turn)) {
+        this.emit("diagnostic", `${this.#label} sent nothing for ${silentFor} ms; retrying turn ${turn.id}.`);
+        yield* providerCall(() => this.#sessionConnection(thread).cancel({ sessionId: thread.id })).pipe(Effect.ignore);
+        const graceDeadline = Date.now() + ACP_STALL_CANCEL_GRACE_MS;
+        while (
+          Date.now() < graceDeadline &&
+          thread.activeTurn === turn &&
+          !turn.completing &&
+          !turn.stopped &&
+          turn.stallCancelPending &&
+          turn.retryingStreamUntil <= Date.now()
+        ) {
+          yield* Effect.sleep(25);
+        }
+        if (thread.activeTurn !== turn || turn.completing || turn.stopped) return;
+        if (!turn.stallCancelPending || turn.retryingStreamUntil > Date.now()) continue;
       }
       this.emit("diagnostic", `${this.#label} sent nothing for ${silentFor} ms; ending turn ${turn.id}.`);
       turn.failureCause = "stalled";
@@ -4383,6 +4534,13 @@ function startsBackgroundTask(rawOutput: unknown): boolean {
  * The agent's log line `session <id> not found in store`, when the RPC error carries the same text.
  * A line that names another session is not this request.
  */
+/** Text, a thought, or a tool call is output. A retry after that would repeat work the user saw. */
+function turnProducedStreamOutput(turn: AcpTurn): boolean {
+  return (
+    turn.receivedOutput || turn.thoughtStarted || turn.reasoned || turn.toolItems.size > 0 || turn.messages.length > 0
+  );
+}
+
 function absentStoreSession(error: RequestError, sessionId: string): boolean {
   const detail = failureDetail(error);
   const text = detail && !error.message.includes(detail) ? `${error.message}\n${detail}` : error.message;
@@ -4467,4 +4625,26 @@ function isAuthenticationError(error: unknown): boolean {
   if (error instanceof RequestError && error.code === -32000) return true;
   const text = failureText(error);
   return classifyUserError(text) === "auth" || /\bAPI key not valid\b|\bAPI_KEY_INVALID\b/u.test(text);
+}
+
+/** True when a dropped or silent prompt may be sent again. Output and a sign-in error stop the retry. */
+export function acpStreamMayRetry(input: {
+  error: unknown;
+  producedOutput: boolean;
+  stalled: boolean;
+  attemptsUsed: number;
+  maxAttempts: number;
+  deadlineMs: number;
+}): boolean {
+  if (input.attemptsUsed + 1 >= input.maxAttempts) return false;
+  const candidate = input.stalled ? new FirstTokenStallError(input.deadlineMs) : input.error;
+  return (
+    shouldRetryTurnAttempt({
+      canceled: false,
+      error: candidate,
+      streamOutputProduced: input.producedOutput,
+      resumeCheckpointAvailable: false,
+    }) &&
+    (input.stalled || !isAuthenticationError(input.error))
+  );
 }
