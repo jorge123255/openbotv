@@ -1,4 +1,5 @@
 import { CHANNEL_ASSIGNMENT_LIMIT_ERROR, type ChannelMember } from "@openbot/contracts/ipc";
+import { markdownPreviewText } from "@openbot/contracts/markdown-preview-text";
 import type { AppTextKey } from "@openbot/i18n";
 import { Button, buttonVariants, CircleX, ConfirmDialog, DropdownMenu } from "@openbot/ui";
 import { createStore, For, Show } from "solid-js";
@@ -40,7 +41,12 @@ function stoppedTaskTitle(instruction: string, fallback: string): string {
   return first.length > 100 ? `${first.slice(0, 99)}…` : first;
 }
 
-/** One selectable card per stopped task. A root action also affects its unfinished descendants. */
+function taskSubject(instruction: string, fallback: string): string {
+  const preview = instruction ? markdownPreviewText(instruction) : "";
+  return preview || stoppedTaskTitle(instruction, fallback);
+}
+
+/** One card per stopped task. A root action also affects its unfinished descendants. */
 export function ChannelStoppedTasks(props: {
   tasks: ChannelStoppedTaskView[];
   members: Pick<ChannelMember, "agentId">[];
@@ -51,7 +57,7 @@ export function ChannelStoppedTasks(props: {
   onCancel: (task: ChannelStoppedTaskView) => Promise<boolean>;
   onLoadOlder?: (() => Promise<void>) | undefined;
 }) {
-  const { t, format } = useText();
+  const { t, format, sourceText } = useText();
   const reasonText = (task: ChannelStoppedTaskView) => {
     if (task.error === CHANNEL_ASSIGNMENT_LIMIT_ERROR) {
       const names = (task.runAgentIds ?? []).map((agentId) => props.name(agentId));
@@ -60,6 +66,11 @@ export function ChannelStoppedTasks(props: {
         : t("channel.stoppedTask.assignmentLoopMembers");
     }
     return t(REASONS[task.reason]);
+  };
+  const errorDetail = (task: ChannelStoppedTaskView) => {
+    if (!task.error || task.error === CHANNEL_ASSIGNMENT_LIMIT_ERROR) return null;
+    const detail = sourceText(task.error);
+    return detail === reasonText(task) ? null : detail;
   };
   const [state, setState] = createStore<{
     reviewed: Record<string, string>;
@@ -125,10 +136,8 @@ export function ChannelStoppedTasks(props: {
 
   return (
     <Show when={props.tasks.length}>
-      <details class="channel-paused-tasks">
-        <summary class="channel-paused-summary">
-          {t("channel.stoppedTask.attention", { count: props.tasks.length })}
-        </summary>
+      <div class="channel-paused-tasks">
+        <p class="channel-paused-summary">{t("channel.stoppedTask.attention", { count: props.tasks.length })}</p>
         <Show when={state.error}>
           <p role="alert" class="channel-paused-error">
             {state.error}
@@ -141,99 +150,102 @@ export function ChannelStoppedTasks(props: {
           {(id) => (
             <Show when={props.tasks.find((task) => task.id === id)}>
               {(task) => (
-                <details class="channel-paused-task" aria-label={title(task())}>
-                  <summary
-                    class="channel-paused-task-heading"
-                    aria-label={`${title(task())}, ${t("channel.stoppedTask.label", { name: props.name(task().ownerAgentId) })}`}
-                  >
-                    <strong>{title(task())}</strong>
-                    <span>{props.name(task().ownerAgentId)}</span>
-                    <span>
-                      {task().lastActivityAt
-                        ? t("channel.stoppedTask.lastActivity", {
-                            time: format.date(new Date(task().lastActivityAt ?? ""), {
-                              dateStyle: "short",
-                              timeStyle: "short",
-                            }),
-                          })
-                        : t("channel.stoppedTask.timeUnknown")}
-                    </span>
-                  </summary>
-                  <div class="channel-paused-task-body">
+                <section
+                  class="channel-paused-task"
+                  aria-label={t("channel.stoppedTask.label", { name: props.name(task().ownerAgentId) })}
+                >
+                  <div class="channel-paused-task-text">
+                    <p class="channel-paused-task-subject" title={taskSubject(task().instruction, title(task()))}>
+                      <strong>{props.name(task().ownerAgentId)}</strong>{" "}
+                      {taskSubject(task().instruction, title(task()))}
+                    </p>
                     <p class="channel-paused-task-reason">{reasonText(task())}</p>
+                    <Show when={errorDetail(task())}>
+                      {(detail) => <p class="channel-paused-task-reason">{detail()}</p>}
+                    </Show>
+                    <Show when={task().lastActivityAt}>
+                      <p>
+                        {t("channel.stoppedTask.lastActivity", {
+                          time: format.date(new Date(task().lastActivityAt ?? ""), {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          }),
+                        })}
+                      </p>
+                    </Show>
                     <Show when={task().unfinishedSubtasks > 0}>
                       <p>{t("channel.stoppedTask.subtasks", { count: task().unfinishedSubtasks })}</p>
                     </Show>
-                    <div class="channel-paused-task-actions">
-                      <Button size="xs" variant="ghost" onClick={() => open("review", task())}>
-                        {t("channel.stoppedTask.review")}
-                      </Button>
-                      <Show
-                        when={
-                          !task().ownerAgentId || props.members.some((member) => member.agentId === task().ownerAgentId)
-                        }
-                      >
-                        <Button
-                          size="xs"
-                          disabled={disabled() || !reviewed(task())}
-                          onClick={() => void act(task(), () => props.onResume(task(), null), true)}
-                        >
-                          {t("common.continue")}
-                        </Button>
-                      </Show>
-                      <DropdownMenu.Root
-                        placement="top-start"
-                        onOpenChange={(open) => {
-                          if (open) menuTask = task();
-                        }}
-                      >
-                        <DropdownMenu.Trigger
-                          class={buttonVariants({ variant: "ghost", size: "xs" })}
-                          disabled={
-                            disabled() ||
-                            !reviewed(task()) ||
-                            !props.members.some((member) => member.agentId !== task().ownerAgentId)
-                          }
-                          aria-label={t("channel.stoppedTask.reassignLabel", { name: props.name(task().ownerAgentId) })}
-                        >
-                          {t("channel.stoppedTask.reassign")}
-                        </DropdownMenu.Trigger>
-                        <DropdownMenu.Portal>
-                          <DropdownMenu.Content>
-                            <For each={props.members.filter((member) => member.agentId !== task().ownerAgentId)}>
-                              {(member) => (
-                                <DropdownMenu.Item
-                                  disabled={disabled() || !reviewed(task())}
-                                  onSelect={() => {
-                                    const snapshot = menuTask;
-                                    if (snapshot?.id === id)
-                                      void act(snapshot, () => props.onResume(snapshot, member.agentId), true);
-                                  }}
-                                >
-                                  {props.name(member.agentId)}
-                                </DropdownMenu.Item>
-                              )}
-                            </For>
-                          </DropdownMenu.Content>
-                        </DropdownMenu.Portal>
-                      </DropdownMenu.Root>
-                      <Button size="xs" variant="ghost" disabled={disabled()} onClick={() => open("cancel", task())}>
-                        {t("channel.stoppedTask.cancel")}
-                      </Button>
-                    </div>
-                    <details class="channel-task-event-details">
-                      <summary>{t("channel.stoppedTask.details")}</summary>
-                      <pre>{task().error}</pre>
-                      <pre>{task().instruction}</pre>
-                      <code>{task().id}</code>
-                    </details>
                   </div>
-                </details>
+                  <div class="channel-paused-task-actions">
+                    <Button size="xs" variant="ghost" onClick={() => open("review", task())}>
+                      {t("channel.stoppedTask.review")}
+                    </Button>
+                    <Show
+                      when={
+                        !task().ownerAgentId || props.members.some((member) => member.agentId === task().ownerAgentId)
+                      }
+                    >
+                      <Button
+                        size="xs"
+                        disabled={disabled() || !reviewed(task())}
+                        onClick={() => void act(task(), () => props.onResume(task(), null), true)}
+                      >
+                        {t("common.continue")}
+                      </Button>
+                    </Show>
+                    <DropdownMenu.Root
+                      placement="top-start"
+                      onOpenChange={(open) => {
+                        if (open) menuTask = task();
+                      }}
+                    >
+                      <DropdownMenu.Trigger
+                        class={buttonVariants({ variant: "ghost", size: "xs" })}
+                        disabled={
+                          disabled() ||
+                          !reviewed(task()) ||
+                          !props.members.some((member) => member.agentId !== task().ownerAgentId)
+                        }
+                        aria-label={t("channel.stoppedTask.reassignLabel", { name: props.name(task().ownerAgentId) })}
+                      >
+                        {t("channel.stoppedTask.reassign")}
+                      </DropdownMenu.Trigger>
+                      <DropdownMenu.Portal>
+                        <DropdownMenu.Content>
+                          <For each={props.members.filter((member) => member.agentId !== task().ownerAgentId)}>
+                            {(member) => (
+                              <DropdownMenu.Item
+                                disabled={disabled() || !reviewed(task())}
+                                onSelect={() => {
+                                  const snapshot = menuTask;
+                                  if (snapshot?.id === id)
+                                    void act(snapshot, () => props.onResume(snapshot, member.agentId), true);
+                                }}
+                              >
+                                {props.name(member.agentId)}
+                              </DropdownMenu.Item>
+                            )}
+                          </For>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Portal>
+                    </DropdownMenu.Root>
+                    <Button size="xs" variant="ghost" disabled={disabled()} onClick={() => open("cancel", task())}>
+                      {t("channel.stoppedTask.cancel")}
+                    </Button>
+                  </div>
+                  <details class="channel-task-event-details">
+                    <summary>{t("channel.stoppedTask.details")}</summary>
+                    <pre>{task().error}</pre>
+                    <pre>{task().instruction}</pre>
+                    <code>{task().id}</code>
+                  </details>
+                </section>
               )}
             </Show>
           )}
         </For>
-      </details>
+      </div>
       <Show when={state.dialog?.kind === "review" ? state.dialog.task : null}>
         {(snapshot) => (
           <ChannelTaskReview

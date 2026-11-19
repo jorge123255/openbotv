@@ -75,6 +75,7 @@ export const messages = defineMessages("channel", {
     other: "Includes {count} unfinished subtasks",
   },
   "channel.conversation.noMembers": "Add agents in channel settings to start work.",
+  "channel.conversation.waitFull": "Waiting - {name} starts when a running task ends",
   "channel.conversation.archivedNotice": "Deleted channel. Preview only.",
   "channel.composer.label": "Message to channel",
   "channel.composer.placeholder": "Message {name}",

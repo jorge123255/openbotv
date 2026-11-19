@@ -1,8 +1,9 @@
-// An InstanceTransferService for the e2e scripts that move transfer files: an empty instance, or
-// agents that have only workspace files. Every other boundary call fails.
-
 import { dirname, join } from "node:path";
-import { DEFAULT_AGENT_DEFAULTS, DEFAULT_MACHINE_ALERT_SETTINGS } from "@openbot/contracts/ipc";
+import {
+  DEFAULT_AGENT_DEFAULTS,
+  DEFAULT_MACHINE_ALERT_SETTINGS,
+  type HostTurnLimitsInput,
+} from "@openbot/contracts/ipc";
 import { Effect } from "effect";
 import { type InstanceTransferOptions, InstanceTransferService } from "../src/main/instance-transfer-service";
 import { LocalSkillFailure } from "../src/main/local-skill-library";
@@ -16,12 +17,9 @@ type AgentSummary = ReturnType<InstanceTransferOptions["agents"]["listAgents"]>[
 
 export function emptyInstanceTransferService(
   uploadDirectory: string,
-  /** Agents with no routines, memories or avatar, that an export reads. */
   exported: readonly AgentSummary[] = [],
-  /** The member id of the server's owner, for an export or import from another computer. */
   ownerMemberId?: () => string | null,
 ): InstanceTransferService {
-  /** An empty answer for an agent of `exported`; any other agent is a boundary call that must not happen. */
   const forExported =
     <T>(operation: string, value: T) =>
     (agentId: string): T => {
@@ -148,7 +146,6 @@ export function emptyInstanceTransferService(
     connectRoutineFlow: (_input) => Effect.fail(unexpected("connectRoutineFlow")),
     signedInProviders: () => [],
   };
-  /** The host-wide preferences of a new server; an export reads them, and an import must not write them. */
   const preference = <T>(name: string, value: T) => ({
     get: () => value,
     set: (_value: T) => Effect.fail(unexpected(`serverPreferences.${name}.set`)),
@@ -168,6 +165,7 @@ export function emptyInstanceTransferService(
     claudeCompactWindow: preference<number | null>("claudeCompactWindow", null),
     machineAlerts: preference("machineAlerts", DEFAULT_MACHINE_ALERT_SETTINGS),
     modelVisibility: preference<{ provider: string; hidden: string[] }[]>("modelVisibility", []),
+    turnLimits: preference<HostTurnLimitsInput>("turnLimits", { turnLimit: null, agentTaskLimit: null }),
   };
   const options: InstanceTransferOptions = {
     uploadDirectory,

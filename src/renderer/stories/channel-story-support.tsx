@@ -25,7 +25,6 @@ const members = [CHANNEL_STORY_CHIEF, CHANNEL_STORY_RESEARCH, CHANNEL_STORY_SALE
   agentId: agent.id,
 }));
 
-/** A message time of the story day as the stored timestamp, so that a run of one author groups. */
 function storyCreatedAt(time: string) {
   return `2026-09-01T${time}:00`;
 }
@@ -102,7 +101,6 @@ export interface ChannelStoryProps {
   firstUnreadMessageId?: string | null;
 }
 
-/** The channel chat on a mocked bridge, for a story that shows a channel or composes screens. */
 export function StoryChannelConversation(props: ChannelStoryProps) {
   const name = () => props.name ?? "Project room";
   const agentName = (id: string | null) => STORY_AGENTS.find((agent) => agent.id === id)?.name ?? id ?? "Unassigned";

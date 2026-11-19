@@ -2,18 +2,12 @@ import { type ChildProcess, type ExecFileException, execFile } from "node:child_
 import { createOpenBotLogger } from "@openbot/logging";
 import { Effect, Fiber, Schema } from "effect";
 
-/**
- * Stops a process and every process it started, and waits for it to exit. Windows has no process
- * group: a `.cmd` command runs under `cmd.exe`, and a kill of the wrapper leaves the real program
- * running. `taskkill /T` stops the whole tree while the wrapper still holds it.
- */
 class ProcessTreeFailed extends Schema.TaggedError<ProcessTreeFailed>()("ProcessTreeFailed", {
   cause: Schema.Defect(),
 }) {}
 
 const logger = createOpenBotLogger("windows-process-tree");
 
-/** Runs `taskkill /T /F` on a tree. Its error, or null when it stopped each process of the tree. */
 const taskkillTree = (pid: number) =>
   Effect.tryPromise({
     try: () =>
@@ -37,9 +31,6 @@ export const stopWindowsProcessTree = Effect.fn("WindowsProcessTree.stop")(funct
     }),
     { startImmediately: true },
   );
-  // A child that exits while `taskkill` walks the tree, or a refused child, makes it fail part-way.
-  // A kill of the wrapper alone then leaves the rest of the tree with no parent, where no later
-  // `taskkill` finds it (#6470). So it runs once more while the wrapper still holds the tree.
   const failure = yield* taskkillTree(pid);
   if (failure && child.exitCode === null && child.signalCode === null) {
     const again = yield* taskkillTree(pid);

@@ -1,5 +1,5 @@
 import { DEFAULT_PROVIDER_ACCOUNT_ID } from "@openbot/contracts/ipc";
-import { usageTone } from "@openbot/team-client/plan-limits";
+import { spentUsageWindow, usageTone } from "@openbot/team-client/plan-limits";
 import {
   type AccountUsageProviderRow,
   accountUsageProviderRows,
@@ -24,7 +24,7 @@ export function usePlanLimitRows() {
   const auth = useAuth();
   const { agentStatus, hostAccountLimits, agentList, modelOptions } = useAgents();
   const { usageLimits, usageLimitedModels } = useTurns();
-  const [grokRow, setGrokRow] = createSignal<AccountUsageProviderRow | null>(null);
+  const [grokRow, setGrokRow] = createSignal<ReturnType<typeof grokBotUsageRow>>(null);
   createEffect(
     () => text,
     (labels) => {
@@ -54,13 +54,18 @@ export function usePlanLimitRows() {
       });
     },
   );
-  return createMemo(() => {
-    const base = accountUsageProviderRows(
-      withHostAccountUsage(auth.accountUsage(), hostAccountLimits()),
-      agentStatus().providers,
-      text,
-    );
-    const held = usageLimitedModels();
+  return createMemo((): AccountUsageProviderRow[] => {
+    const usage = withHostAccountUsage(auth.accountUsage(), hostAccountLimits());
+    const base = accountUsageProviderRows(usage, agentStatus().providers, text);
+    const now = Date.now();
+    const held = usageLimitedModels().filter((limit) => {
+      const account = limit.providerAccountId ?? DEFAULT_PROVIDER_ACCOUNT_ID;
+      const spent = spentUsageWindow(usage?.limits, limit.provider, account, limit.model, now);
+      const ownWindow = usage?.limits.some(
+        (reading) => reading.primary === spent?.window || reading.secondary === spent?.window,
+      );
+      return !(spent?.covers && !spent.onCredits && ownWindow);
+    });
     const rows =
       held.length === 0
         ? base
@@ -89,6 +94,7 @@ export function usePlanLimitRows() {
                       ?.name ?? limit.model,
                   remainingPercent: 0,
                   tone: usageTone(0),
+                  durationMins: null,
                   resetsAt,
                   resetsAtLabel: formatUsageReset(resetsAt, text),
                 };
@@ -106,6 +112,12 @@ export function usePlanLimitRows() {
           });
     const extra = grokRow();
     // The grok-bot agent provider also reports the same quota as a provider row; keep only the richer account row.
-    return extra ? [...rows.filter((row) => row.provider !== "grok-bot"), extra] : rows;
+    if (!extra) return rows;
+    const grok: AccountUsageProviderRow = {
+      ...extra,
+      windows: extra.windows.map((window) => ({ ...window, durationMins: null })),
+      ringWindows: extra.ringWindows.map((window) => ({ ...window, durationMins: null })),
+    };
+    return [...rows.filter((row) => row.provider !== "grok-bot"), grok];
   });
 }
