@@ -149,8 +149,6 @@ export const messages = {
   "agentSettings.runtime.accessLabel": "Toegang van agent",
   "agentSettings.runtime.busyMessage": "Tijdens werk",
   "agentSettings.runtime.busyMessageLabel": "Berichten terwijl de agent werkt",
-  "agentSettings.runtime.taskLimit": "Parallelle threads",
-  "agentSettings.runtime.taskLimitLabel": "Threads die tegelijk draaien",
   "agentSettings.runtime.workingDirectory": "Werkmap",
   "agentSettings.runtime.notAvailable": "Nog niet beschikbaar",
   "agentSettings.runtime.fullAccessNote":
@@ -169,19 +167,17 @@ export const messages = {
   "agentSettings.busyMessage.steer": "Bijsturen",
   "agentSettings.busyMessage.steerUnsupported":
     "{provider} kan een lopende beurt niet bijsturen. Berichten die je stuurt terwijl hij werkt, wachten in de wachtrij.",
-  "agentSettings.taskLimit.default": "Standaard ({count})",
-  "agentSettings.taskLimit.oneTurn":
-    "{provider} voert één beurt tegelijk uit. De threads van deze agent wachten op elkaar.",
   "agentSettings.notificationLevel.title": "Meld mij",
   "agentSettings.notificationLevel.server": "Serverstandaard ({level})",
   "agentSettings.notificationLevel.note":
     "Deze keuze geldt alleen voor jou, op al je apparaten. Is de server gedempt of op ‘Niets’ gezet, dan blijft ook deze agent stil.",
   "agentSettings.newChat.title": "Nieuwe chat",
-  "agentSettings.newChat.description": "De agent vergeet deze chat. De instellingen blijven.",
+  "agentSettings.newChat.description":
+    "De agent begint opnieuw en kan deze chat nog doorzoeken als dat nodig is. De instellingen blijven.",
   "agentSettings.newChat.button": "Starten",
   "agentSettings.newChat.confirmTitle": "Nieuwe chat met {name} starten?",
   "agentSettings.newChat.confirmDescription":
-    "De agent vergeet deze chat. De berichten blijven zichtbaar boven een scheidingslijn. De instructies, het model, de tools, het geheugen, de werkruimte en de browser veranderen niet.",
+    "De agent begint opnieuw en kan deze chat nog doorzoeken als dat nodig is. De berichten blijven zichtbaar boven een scheidingslijn. De instructies, het model, de tools, het geheugen, de werkruimte en de browser veranderen niet.",
   "agentSettings.newChat.confirm": "Nieuwe chat starten",
   "agentSettings.newChat.failed": "Kan geen nieuwe chat starten.",
   "agentSettings.deleteHistory.title": "Geschiedenis wissen",
@@ -202,6 +198,8 @@ export const messages = {
   "agentSettings.fullAccess.confirm": "Volledige toegang toestaan",
   "agentSettings.fullAccess.askConfirm": "Eerst vragen gebruiken",
   "agentSettings.links.usage": "Gebruik",
+  "agentSettings.links.apps": "Apps",
+  "agentSettings.links.appsScope": "Alle agents",
   "agentSettings.links.memories": "Herinneringen",
   "agentSettings.links.memoriesCount": { one: "{count} opgeslagen", other: "{count} opgeslagen" },
   "agentSettings.links.skills": "Vaardigheden",

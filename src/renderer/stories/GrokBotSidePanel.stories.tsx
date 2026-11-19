@@ -8,7 +8,7 @@ import { fn } from "storybook/test";
 import type { Meta, StoryObj } from "storybook-solidjs-vite";
 import { STORY_AGENT, STORY_AGENT_STATUS, STORY_MODELS, storyRuntimeSettings } from "./fixtures";
 
-const PANES = ["browser", "files", "settings", "voice"] as const;
+const PANES = ["browser", "files", "settings"] as const;
 
 const agent = { ...STORY_AGENT, name: "Grok Bot", provider: "grok-bot" as const };
 
@@ -70,7 +70,7 @@ function LauncherPane() {
   );
 }
 
-/** The pane list for a Grok Bot chat: Browser, Files, Agent settings, and Voice. */
+/** The pane list for a Grok Bot chat: Browser, Files, and Agent settings. Voice opens as a pill. */
 export const Launcher: Story = {
   render: () => (
     <Stage>

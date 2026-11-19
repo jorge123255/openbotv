@@ -23,6 +23,7 @@ import {
   type MigrationPreparationState,
 } from "@openbot/contracts/ipc-migration-preparation";
 import { Effect, Schema } from "effect";
+import { withTransaction } from "../backend/database/sqlite-transaction";
 
 export const MIGRATION_PREPARATION_JOURNAL = "openbot-migration-preparation-v1.db";
 const MAX_REVISION = 2_147_483_647;
@@ -358,18 +359,14 @@ export class MigrationPreparationStore {
     closeSync(handle);
     const db = new DatabaseSync(candidate, { allowExtension: false, timeout: 0 });
     try {
-      db.exec("PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL; BEGIN IMMEDIATE");
-      try {
+      db.exec("PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL");
+      withTransaction(db, () => {
         db.exec(`${TABLE}; PRAGMA application_id = ${APPLICATION_ID}; PRAGMA user_version = 1`);
         db.prepare("INSERT INTO migration_preparation_state(singleton,format_version,state_json) VALUES (1,1,?)").run(
           JSON.stringify(next),
         );
         this.#readConnection(db);
-        db.exec("COMMIT");
-      } catch (error) {
-        if (db.isTransaction) db.exec("ROLLBACK");
-        throw error;
-      }
+      });
     } finally {
       db.close();
     }
@@ -466,8 +463,8 @@ export class MigrationPreparationStore {
     const db = new DatabaseSync(this.#path, { allowExtension: false, timeout: 0 });
     try {
       this.#sameFile(identity);
-      db.exec("PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL; BEGIN IMMEDIATE");
-      try {
+      db.exec("PRAGMA trusted_schema = OFF; PRAGMA synchronous = FULL");
+      return withTransaction(db, () => {
         const current = this.#readConnection(db);
         if (current.revision !== expectedRevision) throw new MigrationPreparationFailure({ code: "revision-conflict" });
         const next = decodePreparationJournalState(JSON.stringify(change(current)));
@@ -475,12 +472,8 @@ export class MigrationPreparationStore {
         db.prepare("UPDATE migration_preparation_state SET state_json = ? WHERE singleton = 1").run(
           JSON.stringify(next),
         );
-        db.exec("COMMIT");
         return next;
-      } catch (error) {
-        if (db.isTransaction) db.exec("ROLLBACK");
-        throw error;
-      }
+      });
     } finally {
       db.close();
     }

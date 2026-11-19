@@ -29,7 +29,6 @@ export function LocalSkillsLibrary(props: {
     loading: boolean;
     busy: boolean;
     error: string;
-    /** The code of the failure behind `error`. */
     reference: string | null;
   }>({
     skills: [],

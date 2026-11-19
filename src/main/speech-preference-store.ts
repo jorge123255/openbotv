@@ -6,6 +6,7 @@ import {
   isSpeechModelId,
   isSpeechSpeed,
   isSpeechVoice,
+  isVoiceTurnPause,
   isXaiSpeechVoice,
   type SpeechSettings,
 } from "@openbot/contracts/ipc";
@@ -57,6 +58,9 @@ export class SpeechPreferenceStore {
                 codexLive: parsed.codexLive === true,
                 codexLiveVoice: isCodexLiveVoice(parsed.codexLiveVoice) ? parsed.codexLiveVoice : null,
                 engine: isSpeechEngine(parsed.engine) ? parsed.engine : "supertonic",
+                turnPauseMs: isVoiceTurnPause(parsed.turnPauseMs)
+                  ? parsed.turnPauseMs
+                  : DEFAULT_SPEECH_SETTINGS.turnPauseMs,
               }
             : null,
         ),
@@ -83,6 +87,7 @@ export class SpeechPreferenceStore {
       codexLive: input.codexLive,
       codexLiveVoice: input.codexLiveVoice,
       engine: input.engine,
+      turnPauseMs: input.turnPauseMs,
     };
     yield* this.#writes.withPermit(
       Effect.uninterruptible(

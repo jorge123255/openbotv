@@ -7,6 +7,7 @@ interface UsageLabel {
   label: string;
   remainingPercent: number;
   tone: PlanLimitTone;
+  durationMins: number | null;
   resetsAt: number | null;
   resetsAtLabel: string | null;
 }
@@ -40,6 +41,7 @@ export function grokBotUsageRow(summary: GrokBotUsageSummary, labels: GrokBotUsa
       label,
       remainingPercent,
       tone: usageTone(remainingPercent),
+      durationMins: null,
       resetsAt,
       resetsAtLabel: formatReset(resetsAt, labels),
     };

@@ -1,5 +1,5 @@
-import type { HostReleaseStatus, HostUpdateStatus, OpenBotDesktopApi } from "@openbot/contracts/ipc";
-import { createMemo, onSettled, snapshot, untrack } from "solid-js";
+import type { HostReleaseStatus, HostUpdateStatus, OpenBotDesktopApi, ServerAppearance } from "@openbot/contracts/ipc";
+import { createMemo, createSignal, onSettled, snapshot, untrack } from "solid-js";
 import { fn } from "storybook/test";
 import { ServerSettingsModal, type ServerSettingsModalProps } from "../src/features/servers/ServerSettingsModal";
 import { STORY_HOST_STATUS, STORY_INVITES, STORY_PRESENCE, STORY_SERVERS } from "../src/preview/fixtures";
@@ -17,7 +17,6 @@ function storyServer(kind: (typeof STORY_SERVERS)[number]["kind"]) {
 export const STORY_LOCAL_SERVER = storyServer("local");
 export const STORY_REMOTE_SERVER = storyServer("remote");
 
-/** The props of the real Server settings for this computer, without its optional sections. */
 export const serverSettingsArgs = () =>
   ({
     open: true,
@@ -30,6 +29,7 @@ export const serverSettingsArgs = () =>
     loadError: null,
     onRetry: fn(async () => undefined),
     onSaveIdentity: fn(async () => undefined),
+    onSaveAppearance: fn(async () => undefined),
     onSetPublished: fn(async () => undefined),
     onCreateInvite: fn(async (input) => ({
       id: "invite-story",
@@ -48,7 +48,6 @@ export const serverSettingsArgs = () =>
     onRecheckScreenRecording: fn(async () => undefined),
   }) satisfies Omit<ServerSettingsModalProps, "page">;
 
-/** The real Server settings page, with a preview `window.openbot` for the panels that read it. */
 export function ServerSettingsStory(props: {
   settings: Omit<ServerSettingsModalProps, "page">;
   hostUpdate?: HostUpdateStatus;
@@ -93,10 +92,25 @@ export function ServerSettingsStory(props: {
     mock.dispose();
     window.openbot = previous;
   });
+  const [appearance, setAppearance] = createSignal<ServerAppearance | null | undefined>(undefined);
+  const server = () => {
+    const saved = appearance();
+    return saved === undefined ? props.settings.server : { ...props.settings.server, appearance: saved };
+  };
+  const saveAppearance = async (next: ServerAppearance | null) => {
+    await props.settings.onSaveAppearance?.(next);
+    setAppearance(next);
+  };
   return (
     <SettingsPageStory title="Server settings">
       {(page) => (
-        <ServerSettingsModal {...props.settings} migrationPreparation={migrationPreparation()} page={page()} />
+        <ServerSettingsModal
+          {...props.settings}
+          server={server()}
+          onSaveAppearance={saveAppearance}
+          migrationPreparation={migrationPreparation()}
+          page={page()}
+        />
       )}
     </SettingsPageStory>
   );

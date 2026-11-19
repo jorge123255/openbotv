@@ -40,7 +40,7 @@ function stoppedTaskTitle(instruction: string, fallback: string): string {
   return first.length > 100 ? `${first.slice(0, 99)}…` : first;
 }
 
-/** One selectable card per stopped task. A root action also affects its unfinished descendants. */
+/** One card per stopped task. A root action also affects its unfinished descendants. */
 export function ChannelStoppedTasks(props: {
   tasks: ChannelStoppedTaskView[];
   members: Pick<ChannelMember, "agentId">[];
